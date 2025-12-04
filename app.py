@@ -1,6 +1,6 @@
 """
-Trading Dashboard - Cloud Edition
-Deploy to Railway/Render for access from anywhere
+Trading Dashboard - Cloud Edition v2
+With debug logging to diagnose connection issues
 """
 import os
 from datetime import datetime, timedelta, timezone
@@ -15,15 +15,36 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
+# ============ DEBUG LOGGING ============
+import sys
+DEBUG_LOG = []
+
+def log(msg):
+    ts = datetime.now().strftime("%H:%M:%S")
+    entry = f"[{ts}] {msg}"
+    DEBUG_LOG.append(entry)
+    print(entry, file=sys.stderr)
+
+log("App starting...")
+
+# ============ DATABASE ============
 try:
     import psycopg2
     from psycopg2 import pool
     from psycopg2.extras import RealDictCursor
     PG_OK = True
-except:
+    log("psycopg2 imported OK")
+except Exception as e:
     PG_OK = False
+    log(f"psycopg2 import failed: {e}")
 
 DATABASE_URL = os.getenv('DATABASE_URL', '')
+log(f"DATABASE_URL set: {bool(DATABASE_URL)}")
+if DATABASE_URL:
+    parts = DATABASE_URL.split('@')
+    if len(parts) > 1:
+        log(f"DB Host: ...@{parts[-1][:50]}...")
+
 REFRESH = 10000
 
 C = {
@@ -36,36 +57,68 @@ C = {
 class DB:
     _inst = None
     _lock = threading.Lock()
+    
     def __new__(cls):
         if cls._inst is None:
             with cls._lock:
                 if cls._inst is None:
                     cls._inst = super().__new__(cls)
                     cls._inst._pool = None
+                    cls._inst._error = None
                     cls._inst._connect()
         return cls._inst
+    
     def _connect(self):
-        if not PG_OK or not DATABASE_URL: return
+        if not PG_OK:
+            self._error = "psycopg2 not available"
+            log(f"DB Error: {self._error}")
+            return
+        if not DATABASE_URL:
+            self._error = "DATABASE_URL environment variable not set"
+            log(f"DB Error: {self._error}")
+            return
         try:
+            log("Connecting to PostgreSQL...")
             self._pool = pool.ThreadedConnectionPool(2, 10, DATABASE_URL, cursor_factory=RealDictCursor)
-            print("✅ DB connected")
+            log("PostgreSQL connected!")
+            self._error = None
+            
+            # Test query
+            conn = self._pool.getconn()
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) as cnt FROM channels")
+                result = cur.fetchone()
+                log(f"Test: {result['cnt']} channels in DB")
+            self._pool.putconn(conn)
+            
         except Exception as e:
-            print(f"❌ DB error: {e}")
+            self._error = str(e)
+            log(f"DB connection error: {e}")
+    
     @property
-    def ok(self): return self._pool is not None
+    def ok(self): 
+        return self._pool is not None
+    
+    @property
+    def error(self):
+        return self._error
+    
     def q(self, sql, p=None):
-        if not self._pool: return []
+        if not self._pool: 
+            return []
         c = None
         try:
             c = self._pool.getconn()
             with c.cursor() as cur:
                 cur.execute(sql, p)
-                return cur.fetchall()
+                result = cur.fetchall()
+                return result
         except Exception as e:
-            print(f"Q err: {e}")
+            log(f"Query error: {e}")
             return []
         finally:
             if c: self._pool.putconn(c)
+    
     def x(self, sql, p=None):
         if not self._pool: return False
         c = None
@@ -75,7 +128,7 @@ class DB:
             c.commit()
             return True
         except Exception as e:
-            print(f"X err: {e}")
+            log(f"Execute error: {e}")
             if c: c.rollback()
             return False
         finally:
@@ -83,8 +136,11 @@ class DB:
 
 db = DB()
 
+# ============ DATA LOADING ============
+
 def load_trades(days=30):
-    if not db.ok: return sample()
+    if not db.ok: 
+        return sample()
     r = db.q("""
         SELECT s.id, c.channel_name, s.broker_symbol as symbol, s.side, s.order_type,
                s.effective_entry_price as entry_price, s.adjusted_sl_price as sl_price,
@@ -96,7 +152,8 @@ def load_trades(days=30):
         WHERE s.signal_received_at >= NOW() - INTERVAL '%s days'
         ORDER BY s.signal_received_at DESC
     """, (days,))
-    if not r: return sample()
+    if not r: 
+        return sample()
     df = pd.DataFrame(r)
     for col in ['fill_time', 'close_time', 'signal_received_at']:
         if col in df.columns: df[col] = pd.to_datetime(df[col], errors='coerce')
@@ -127,8 +184,10 @@ def load_pending():
     return pd.DataFrame(r) if r else pd.DataFrame()
 
 def load_channels():
-    if not db.ok: return []
-    return db.q("SELECT id, channel_key, channel_name, is_active FROM channels ORDER BY channel_name")
+    if not db.ok: 
+        return []
+    result = db.q("SELECT id, channel_key, channel_name, is_active FROM channels ORDER BY channel_name")
+    return result
 
 def load_config(cid):
     if not db.ok: return {}
@@ -184,6 +243,8 @@ def kpis(df):
         'block': len(df[df['status'] == 'blocked']),
     }
 
+# ============ CHARTS ============
+
 def layout(h=300):
     return dict(template='plotly_dark', height=h, margin=dict(l=40, r=20, t=20, b=40),
                 plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
@@ -233,9 +294,7 @@ def by_channel(df):
     fig.update_layout(**layout())
     return fig
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# APP
-# ═══════════════════════════════════════════════════════════════════════════════
+# ============ DASH APP ============
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY,
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap'],
@@ -265,12 +324,15 @@ body {{ background: linear-gradient(135deg, {C['bg']} 0%, #060810 100%); font-fa
 .live::before {{ content: ''; width: 6px; height: 6px; background: {C['green']}; border-radius: 50%; animation: p 2s infinite; }}
 .demo {{ background: rgba(245,158,11,0.12); color: {C['yellow']}; }}
 .demo::before {{ background: {C['yellow']}; }}
+.err {{ background: {C['red_bg']}; color: {C['red']}; }}
+.err::before {{ background: {C['red']}; }}
 @keyframes p {{ 0%,100% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} }}
 .sc {{ text-align: center; padding: 16px; }}
 .sc .n {{ font-size: 36px; font-weight: 700; font-family: 'JetBrains Mono'; }}
 .sc .l {{ color: {C['text2']}; font-size: 12px; margin-top: 4px; }}
 .hdr {{ padding: 14px 20px; background: {C['bg2']}; border-bottom: 1px solid {C['border']}; margin-bottom: 16px; }}
 .pg {{ padding: 0 20px; }}
+.dbg {{ background: #1a1a2e; border: 1px solid {C['border']}; border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono'; font-size: 11px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }}
 @media (max-width: 768px) {{ .kpi-val {{ font-size: 20px; }} .sc .n {{ font-size: 28px; }} .hdr {{ padding: 12px 14px; }} .pg {{ padding: 0 14px; }} }}
 </style>
 """
@@ -279,15 +341,22 @@ def kpi_c(v, l, cls=""): return html.Div([html.Div(v, className=f"kpi-val {cls}"
 def card(t, cid): return html.Div([html.Div(t, className="crd-h"), html.Div(dcc.Graph(id=cid, config={'displayModeBar': False}), className="crd-b")], className="crd")
 
 def hdr():
-    st = "live" if db.ok else "live demo"
+    if db.ok:
+        st_class, st_text = "live", "LIVE"
+    elif db.error:
+        st_class, st_text = "live err", "ERROR"
+    else:
+        st_class, st_text = "live demo", "DEMO"
+    
     return html.Div([dbc.Row([
         dbc.Col([html.Div([html.H5("📊 Trading Dashboard", style={'margin': 0, 'fontWeight': 700}),
-                          html.Span("● LIVE" if db.ok else "● DEMO", className=st, style={'marginLeft': '10px'})],
+                          html.Span(st_text, className=st_class, style={'marginLeft': '10px'})],
                          className="d-flex align-items-center flex-wrap gap-2")], xs=12, md=6, className="mb-2 mb-md-0"),
         dbc.Col([dbc.Nav([dbc.NavItem(dbc.NavLink("Dashboard", href="/", active="exact")),
                          dbc.NavItem(dbc.NavLink("Live", href="/live", active="exact")),
                          dbc.NavItem(dbc.NavLink("History", href="/history", active="exact")),
-                         dbc.NavItem(dbc.NavLink("Config", href="/config", active="exact"))], pills=True, className="justify-content-md-end")], xs=12, md=6),
+                         dbc.NavItem(dbc.NavLink("Config", href="/config", active="exact")),
+                         dbc.NavItem(dbc.NavLink("Debug", href="/debug", active="exact"))], pills=True, className="justify-content-md-end")], xs=12, md=6),
     ], className="align-items-center")], className="hdr")
 
 def pg_dash():
@@ -317,9 +386,23 @@ def pg_hist():
 def pg_cfg():
     chs = load_channels()
     if not chs:
-        return html.Div([html.H5("⚙️ Configuration", className="mb-4"),
-            dbc.Alert([html.H6("📡 Waiting for Channels"), html.P("Channels appear after your bot sends signals to the database."),
-                      html.Small("Make sure bot is running and connected to same Supabase.")], color="info")], className="pg")
+        err_msg = db.error if db.error else "No channels found in database"
+        return html.Div([
+            html.H5("⚙️ Configuration", className="mb-4"),
+            dbc.Alert([
+                html.H6("📡 Database Connection Issue"),
+                html.P(f"Error: {err_msg}"),
+                html.Hr(),
+                html.P("Please check:", className="mb-2"),
+                html.Ul([
+                    html.Li("DATABASE_URL is set in Railway Variables tab"),
+                    html.Li("Format: postgresql://user:password@host:5432/postgres"),
+                    html.Li("Your bot has sent at least one signal"),
+                ]),
+                html.P([html.Strong("Go to Debug tab"), " for more details."], className="mt-3"),
+            ], color="warning"),
+        ], className="pg")
+    
     opts = [{'label': c['channel_name'] or c['channel_key'], 'value': c['id']} for c in chs]
     return html.Div([
         html.H5("⚙️ Configuration", className="mb-4"),
@@ -329,8 +412,42 @@ def pg_cfg():
         html.Div(id='cfg-msg', className="mt-3"),
     ], className="pg")
 
+def pg_debug():
+    """Debug page showing connection status"""
+    return html.Div([
+        html.H5("🔧 Debug Information", className="mb-4"),
+        
+        html.Div([
+            html.H6("Connection Status", className="mb-3"),
+            html.Div([
+                html.Div([html.Strong("psycopg2: "), html.Span("✅ OK" if PG_OK else "❌ Not installed", style={'color': C['green'] if PG_OK else C['red']})]),
+                html.Div([html.Strong("DATABASE_URL: "), html.Span("✅ Set" if DATABASE_URL else "❌ NOT SET", style={'color': C['green'] if DATABASE_URL else C['red']})]),
+                html.Div([html.Strong("DB Connected: "), html.Span("✅ Yes" if db.ok else "❌ No", style={'color': C['green'] if db.ok else C['red']})]),
+                html.Div([html.Strong("Error: "), html.Span(db.error or "None", style={'color': C['red'] if db.error else C['text2']})]) if db.error else None,
+            ])
+        ], className="cfg mb-4"),
+        
+        html.Div([
+            html.H6("DATABASE_URL (masked)", className="mb-3"),
+            html.Code(f"...{DATABASE_URL[-50:]}" if len(DATABASE_URL) > 50 else (DATABASE_URL[:20] + "..." if DATABASE_URL else "NOT SET")),
+        ], className="cfg mb-4"),
+        
+        html.Div([
+            html.H6("Debug Log", className="mb-3"),
+            html.Div(id='debug-log', className="dbg"),
+            dbc.Button("🔄 Refresh", id='refresh-log', color="secondary", size="sm", className="mt-2"),
+        ], className="cfg"),
+        
+        html.Div([
+            html.H6("Test Database", className="mb-3"),
+            dbc.Button("🧪 Run Test Query", id='test-query', color="primary", size="sm"),
+            html.Div(id='test-result', className="mt-3"),
+        ], className="cfg mt-4"),
+        
+    ], className="pg")
+
 def cfg_form(c):
-    if not c: return dbc.Alert("No config found. Bot creates one on first run.", color="warning")
+    if not c: return dbc.Alert("No config found for this channel.", color="warning")
     return html.Div([dbc.Row([
         dbc.Col([
             html.Div([html.H6("💰 Risk"), dbc.Row([
@@ -356,18 +473,25 @@ def cfg_form(c):
         ], xs=12, lg=6),
     ])])
 
+# ============ LAYOUT ============
+
 app.index_string = f'<!DOCTYPE html><html><head>{{%metas%}}<title>{{%title%}}</title>{{%favicon%}}{{%css%}}{CSS}</head><body>{{%app_entry%}}<footer>{{%config%}}{{%scripts%}}{{%renderer%}}</footer></body></html>'
 app.layout = html.Div([dcc.Location(id='url', refresh=False), dcc.Interval(id='tick', interval=REFRESH, n_intervals=0), dcc.Store(id='data'), hdr(), html.Div(id='page')])
+
+# ============ CALLBACKS ============
 
 @app.callback(Output('page', 'children'), Input('url', 'pathname'))
 def route(p):
     if p == '/live': return pg_live()
     if p == '/history': return pg_hist()
     if p == '/config': return pg_cfg()
+    if p == '/debug': return pg_debug()
     return pg_dash()
 
 @app.callback(Output('data', 'data'), Input('tick', 'n_intervals'))
-def refresh(n): return load_trades(30).to_json(date_format='iso', orient='split')
+def refresh(n): 
+    df = load_trades(30)
+    return df.to_json(date_format='iso', orient='split')
 
 @app.callback([Output('k1', 'children'), Output('k2', 'children'), Output('k3', 'children'), Output('k4', 'children'),
                Output('ch1', 'figure'), Output('ch2', 'figure'), Output('ch3', 'figure'), Output('ch4', 'figure'),
@@ -406,8 +530,9 @@ def upd_live(n):
 def upd_hist(d, n):
     df = load_trades(int(d) if d else 30)
     cl = df[df['status'] == 'closed'].head(100)
-    if cl.empty: return dbc.Alert("No trades", color="secondary")
+    if cl.empty: return dbc.Alert("No closed trades found", color="secondary")
     cols = ['channel_name', 'symbol', 'side', 'entry_price', 'close_price', 'profit_loss', 'profit_loss_pips', 'trade_outcome']
+    cols = [c for c in cols if c in cl.columns]
     return dash_table.DataTable(data=cl[cols].to_dict('records'),
         columns=[{'name': c.replace('_', ' ').title(), 'id': c} for c in cols],
         style_header={'backgroundColor': C['bg2'], 'color': C['text2'], 'fontWeight': 600},
@@ -426,7 +551,6 @@ def load_cfg(cid):
      State('c-cb', 'value'), State('c-cbt', 'value'), State('c-cbl', 'value'), State('c-tf', 'value')], prevent_initial_call=True)
 def save_cfg(n, cid, risk, tol, mag, slip, cb, cbt, cbl, tf):
     if not n or not cid: raise PreventUpdate
-    # Save to database
     ok = db.x("""
         UPDATE bot_configs SET risk_per_trade=%s, risk_tolerance=%s, magic_number=%s, max_slippage_points=%s, updated_at=NOW()
         WHERE channel_id=%s
@@ -435,6 +559,29 @@ def save_cfg(n, cid, risk, tol, mag, slip, cb, cbt, cbl, tf):
         return dbc.Alert([html.Strong("✅ Saved!"), html.Span(" Restart bot to apply.", className="ms-2")], color="success", dismissable=True)
     return dbc.Alert("❌ Save failed", color="danger", dismissable=True)
 
+@app.callback(Output('debug-log', 'children'), [Input('refresh-log', 'n_clicks'), Input('url', 'pathname')])
+def update_debug_log(n, path):
+    return '\n'.join(DEBUG_LOG[-50:])
+
+@app.callback(Output('test-result', 'children'), Input('test-query', 'n_clicks'), prevent_initial_call=True)
+def run_test_query(n):
+    if not db.ok:
+        return dbc.Alert(f"Cannot test - DB not connected: {db.error}", color="danger")
+    try:
+        channels = db.q("SELECT COUNT(*) as cnt FROM channels")
+        signals = db.q("SELECT COUNT(*) as cnt FROM signals")
+        configs = db.q("SELECT COUNT(*) as cnt FROM bot_configs")
+        
+        return dbc.Alert([
+            html.Strong("✅ Database OK!"), html.Br(),
+            f"Channels: {channels[0]['cnt'] if channels else 0}", html.Br(),
+            f"Signals: {signals[0]['cnt'] if signals else 0}", html.Br(),
+            f"Bot Configs: {configs[0]['cnt'] if configs else 0}",
+        ], color="success")
+    except Exception as e:
+        return dbc.Alert(f"Test failed: {e}", color="danger")
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8050))
+    log(f"Starting on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
