@@ -522,10 +522,10 @@ async def get_daily_statistics(
         
         stats = db.trades.get_daily_stats(target_date, channel_id)
         
-        return {
-            "date": str(target_date),
-            **dict(stats) if stats else {}
-        }
+        result = {"date": str(target_date)}
+        if stats:
+            result.update(dict(stats))
+        return result
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     except Exception as e:
