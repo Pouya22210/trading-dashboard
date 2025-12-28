@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X,
-  BarChart3, Clock, TrendingUp, Target
+  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter,
@@ -34,6 +34,10 @@ export default function Trades() {
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedRows, setSelectedRows] = useState([])
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
   
   // Filters
   const [filters, setFilters] = useState({
@@ -77,6 +81,25 @@ export default function Trades() {
     if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
     return true
   })
+
+  // Reset to first page whenever filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters])
+
+  // Keep currentPage in range when number of trades changes
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredTrades.length / pageSize))
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [filteredTrades.length, currentPage])
+
+  const totalPages = Math.max(1, Math.ceil(filteredTrades.length / pageSize))
+  const startIndex = (currentPage - 1) * pageSize
+  const currentTrades = filteredTrades.slice(startIndex, startIndex + pageSize)
+  const showingFrom = filteredTrades.length === 0 ? 0 : startIndex + 1
+  const showingTo = Math.min(filteredTrades.length, startIndex + pageSize)
 
   // Calculate filtered stats
   const closedTrades = filteredTrades.filter(t => t.status === 'closed')
@@ -268,7 +291,9 @@ export default function Trades() {
         <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
           <BarChart3 className="w-4 h-4 text-accent-cyan" />
           <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
-          <span className="ml-auto text-xs text-gray-500">{filteredTrades.length} trades</span>
+          <span className="ml-auto text-xs text-gray-500">
+            {filteredTrades.length} trades • Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+          </span>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table">
@@ -288,7 +313,7 @@ export default function Trades() {
               </tr>
             </thead>
             <tbody>
-              {filteredTrades.slice(0, 50).map(trade => (
+              {currentTrades.map(trade => (
                 <tr key={trade.id}>
                   <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
                   <td>{trade.channel_name?.slice(0, 20) || '-'}</td>
@@ -328,6 +353,39 @@ export default function Trades() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredTrades.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-dark-border text-sm text-gray-400">
+            <div>
+              Showing <span className="text-white font-mono">{showingFrom}</span>
+              {'–'}
+              <span className="text-white font-mono">{showingTo}</span> of{' '}
+              <span className="text-white font-mono">{filteredTrades.length}</span> trades
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn-secondary px-2 py-1 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Previous</span>
+              </button>
+              <span className="px-3 py-1 rounded-md bg-dark-tertiary border border-dark-border font-mono text-xs">
+                Page {currentPage} / {totalPages}
+              </span>
+              <button
+                className="btn-secondary px-2 py-1 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || filteredTrades.length === 0}
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Analysis Charts */}
