@@ -290,7 +290,7 @@ export default function Trades() {
       <div className="chart-card mb-6">
         <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
           <BarChart3 className="w-4 h-4 text-accent-cyan" />
-          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
+          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Tradeeeeeeee History</span>
           <span className="ml-auto text-xs text-gray-500">
             {filteredTrades.length} trades • Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
           </span>
