@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X,
-  BarChart3, Clock, TrendingUp, Target
+  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter,
@@ -17,6 +17,8 @@ const COLORS = {
   purple: '#a371f7',
 }
 
+const TRADES_PER_PAGE = 10
+
 function ChartCard({ title, icon: Icon, children }) {
   return (
     <div className="chart-card">
@@ -29,11 +31,117 @@ function ChartCard({ title, icon: Icon, children }) {
   )
 }
 
+function Pagination({ currentPage, totalPages, onPageChange }) {
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisiblePages = 5
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      // Always show first page
+      pages.push(1)
+      
+      // Calculate start and end of middle section
+      let start = Math.max(2, currentPage - 1)
+      let end = Math.min(totalPages - 1, currentPage + 1)
+      
+      // Adjust if we're near the beginning
+      if (currentPage <= 3) {
+        end = 4
+      }
+      
+      // Adjust if we're near the end
+      if (currentPage >= totalPages - 2) {
+        start = totalPages - 3
+      }
+      
+      // Add ellipsis before middle section if needed
+      if (start > 2) {
+        pages.push('...')
+      }
+      
+      // Add middle pages
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+      
+      // Add ellipsis after middle section if needed
+      if (end < totalPages - 1) {
+        pages.push('...')
+      }
+      
+      // Always show last page
+      pages.push(totalPages)
+    }
+    
+    return pages
+  }
+
+  if (totalPages <= 1) return null
+
+  return (
+    <div className="flex items-center justify-center gap-2 py-4 border-t border-dark-border">
+      {/* Previous button */}
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+          currentPage === 1
+            ? 'text-gray-600 cursor-not-allowed'
+            : 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
+        }`}
+      >
+        <ChevronLeft className="w-4 h-4" />
+        Prev
+      </button>
+
+      {/* Page numbers */}
+      <div className="flex items-center gap-1">
+        {getPageNumbers().map((page, index) => (
+          page === '...' ? (
+            <span key={`ellipsis-${index}`} className="px-2 text-gray-500">...</span>
+          ) : (
+            <button
+              key={page}
+              onClick={() => onPageChange(page)}
+              className={`min-w-[40px] h-10 rounded-lg text-sm font-semibold transition-all ${
+                currentPage === page
+                  ? 'bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary'
+                  : 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
+              }`}
+            >
+              {page}
+            </button>
+          )
+        ))}
+      </div>
+
+      {/* Next button */}
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+          currentPage === totalPages
+            ? 'text-gray-600 cursor-not-allowed'
+            : 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
+        }`}
+      >
+        Next
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  )
+}
+
 export default function Trades() {
   const [trades, setTrades] = useState([])
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedRows, setSelectedRows] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
   
   // Filters
   const [filters, setFilters] = useState({
@@ -51,6 +159,11 @@ export default function Trades() {
     const subscription = subscribeToTrades(() => loadData())
     return () => subscription.unsubscribe()
   }, [])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters])
 
   async function loadData() {
     try {
@@ -77,6 +190,12 @@ export default function Trades() {
     if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
     return true
   })
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredTrades.length / TRADES_PER_PAGE)
+  const startIndex = (currentPage - 1) * TRADES_PER_PAGE
+  const endIndex = startIndex + TRADES_PER_PAGE
+  const paginatedTrades = filteredTrades.slice(startIndex, endIndex)
 
   // Calculate filtered stats
   const closedTrades = filteredTrades.filter(t => t.status === 'closed')
@@ -121,6 +240,13 @@ export default function Trades() {
 
   function clearFilters() {
     setFilters({ channel: '', orderType: '', side: '', status: '', startDate: '', endDate: '' })
+    setCurrentPage(1)
+  }
+
+  function handlePageChange(page) {
+    setCurrentPage(page)
+    // Scroll to top of table
+    document.getElementById('trades-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   function exportCSV() {
@@ -192,8 +318,8 @@ export default function Trades() {
               onChange={e => setFilters({ ...filters, orderType: e.target.value })}
             >
               <option value="">All Types</option>
-              <option value="MARKET">Market</option>
-              <option value="LIMIT">Limit</option>
+              <option value="market">Market</option>
+              <option value="limit">Limit</option>
             </select>
           </div>
           <div>
@@ -264,11 +390,13 @@ export default function Trades() {
       </div>
 
       {/* Trades Table */}
-      <div className="chart-card mb-6">
+      <div id="trades-table" className="chart-card mb-6">
         <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
           <BarChart3 className="w-4 h-4 text-accent-cyan" />
           <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
-          <span className="ml-auto text-xs text-gray-500">{filteredTrades.length} trades</span>
+          <span className="ml-auto text-xs text-gray-500">
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredTrades.length)} of {filteredTrades.length} trades
+          </span>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table">
@@ -288,7 +416,7 @@ export default function Trades() {
               </tr>
             </thead>
             <tbody>
-              {filteredTrades.slice(0, 50).map(trade => (
+              {paginatedTrades.map(trade => (
                 <tr key={trade.id}>
                   <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
                   <td>{trade.channel_name?.slice(0, 20) || '-'}</td>
@@ -328,6 +456,13 @@ export default function Trades() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       {/* Analysis Charts */}
