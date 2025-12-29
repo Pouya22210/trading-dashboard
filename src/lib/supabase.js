@@ -258,17 +258,123 @@ export async function fetchDailyStats() {
   return data || []
 }
 
-// Subscribe to real-time updates
-export function subscribeToTrades(callback) {
-  return supabase
-    .channel('trades-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, callback)
-    .subscribe()
+// ============================================================================
+// REAL-TIME SUBSCRIPTIONS (Improved)
+// ============================================================================
+
+/**
+ * Subscribe to real-time trade updates with granular callbacks
+ * @param {Object} callbacks - Object with onInsert, onUpdate, onDelete handlers
+ * @param {Function} callbacks.onInsert - Called when a new trade is inserted
+ * @param {Function} callbacks.onUpdate - Called when a trade is updated
+ * @param {Function} callbacks.onDelete - Called when a trade is deleted
+ * @param {Function} callbacks.onAny - Called for any change (optional fallback)
+ * @param {Function} callbacks.onStatus - Called when connection status changes
+ * @returns {Object} Subscription object with unsubscribe method
+ */
+export function subscribeToTrades(callbacks = {}) {
+  const { onInsert, onUpdate, onDelete, onAny, onStatus } = callbacks
+
+  const channel = supabase
+    .channel('trades-realtime')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'trades' },
+      (payload) => {
+        console.log('🟢 Trade INSERT:', payload.new?.trade_id)
+        if (onInsert) onInsert(payload.new)
+        if (onAny) onAny('INSERT', payload.new, null)
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'trades' },
+      (payload) => {
+        console.log('🟡 Trade UPDATE:', payload.new?.trade_id, payload.new?.status)
+        if (onUpdate) onUpdate(payload.new, payload.old)
+        if (onAny) onAny('UPDATE', payload.new, payload.old)
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'trades' },
+      (payload) => {
+        console.log('🔴 Trade DELETE:', payload.old?.trade_id)
+        if (onDelete) onDelete(payload.old)
+        if (onAny) onAny('DELETE', null, payload.old)
+      }
+    )
+    .subscribe((status, err) => {
+      console.log('📡 Trades subscription status:', status)
+      if (err) console.error('Subscription error:', err)
+      if (onStatus) onStatus(status, err)
+    })
+
+  return {
+    unsubscribe: () => {
+      console.log('Unsubscribing from trades channel')
+      supabase.removeChannel(channel)
+    },
+    channel
+  }
 }
 
-export function subscribeToChannels(callback) {
-  return supabase
-    .channel('channels-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, callback)
-    .subscribe()
+/**
+ * Subscribe to real-time channel config updates
+ */
+export function subscribeToChannels(callbacks = {}) {
+  const { onInsert, onUpdate, onDelete, onAny, onStatus } = callbacks
+
+  const channel = supabase
+    .channel('channels-realtime')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'channels' },
+      (payload) => {
+        console.log('🟢 Channel INSERT:', payload.new?.channel_key)
+        if (onInsert) onInsert(payload.new)
+        if (onAny) onAny('INSERT', payload.new, null)
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'channels' },
+      (payload) => {
+        console.log('🟡 Channel UPDATE:', payload.new?.channel_key)
+        if (onUpdate) onUpdate(payload.new, payload.old)
+        if (onAny) onAny('UPDATE', payload.new, payload.old)
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'channels' },
+      (payload) => {
+        console.log('🔴 Channel DELETE:', payload.old?.channel_key)
+        if (onDelete) onDelete(payload.old)
+        if (onAny) onAny('DELETE', null, payload.old)
+      }
+    )
+    .subscribe((status, err) => {
+      console.log('📡 Channels subscription status:', status)
+      if (err) console.error('Subscription error:', err)
+      if (onStatus) onStatus(status, err)
+    })
+
+  return {
+    unsubscribe: () => {
+      console.log('Unsubscribing from channels channel')
+      supabase.removeChannel(channel)
+    },
+    channel
+  }
+}
+
+/**
+ * Subscribe to daily stats view updates (listens to trades table)
+ */
+export function subscribeToDailyStats(callback) {
+  // Daily stats is a view based on trades, so we listen to trades
+  return subscribeToTrades({
+    onAny: () => callback()
+  })
 }
