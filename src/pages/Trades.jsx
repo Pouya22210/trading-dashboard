@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { 
-  Calendar, Filter, Download, Plus, Trash2, Search, X,
+  Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
   BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { 
@@ -18,6 +18,32 @@ const COLORS = {
 }
 
 const TRADES_PER_PAGE = 10
+
+// Connection status indicator component
+function ConnectionStatus({ status }) {
+  const isConnected = status === 'SUBSCRIBED'
+  
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+      isConnected 
+        ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+        : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+    }`}>
+      {isConnected ? (
+        <>
+          <Wifi className="w-3 h-3" />
+          <span>Live</span>
+          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+        </>
+      ) : (
+        <>
+          <WifiOff className="w-3 h-3" />
+          <span>{status || 'Connecting...'}</span>
+        </>
+      )}
+    </div>
+  )
+}
 
 function ChartCard({ title, icon: Icon, children }) {
   return (
@@ -41,39 +67,31 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
         pages.push(i)
       }
     } else {
-      // Always show first page
       pages.push(1)
       
-      // Calculate start and end of middle section
       let start = Math.max(2, currentPage - 1)
       let end = Math.min(totalPages - 1, currentPage + 1)
       
-      // Adjust if we're near the beginning
       if (currentPage <= 3) {
         end = 4
       }
       
-      // Adjust if we're near the end
       if (currentPage >= totalPages - 2) {
         start = totalPages - 3
       }
       
-      // Add ellipsis before middle section if needed
       if (start > 2) {
         pages.push('...')
       }
       
-      // Add middle pages
       for (let i = start; i <= end; i++) {
         pages.push(i)
       }
       
-      // Add ellipsis after middle section if needed
       if (end < totalPages - 1) {
         pages.push('...')
       }
       
-      // Always show last page
       pages.push(totalPages)
     }
     
@@ -84,7 +102,6 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
 
   return (
     <div className="flex items-center justify-center gap-2 py-4 border-t border-dark-border">
-      {/* Previous button */}
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
@@ -98,7 +115,6 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
         Prev
       </button>
 
-      {/* Page numbers */}
       <div className="flex items-center gap-1">
         {getPageNumbers().map((page, index) => (
           page === '...' ? (
@@ -119,7 +135,6 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
         ))}
       </div>
 
-      {/* Next button */}
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
@@ -136,12 +151,36 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
   )
 }
 
+// Toast notification for real-time updates
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  const bgColor = type === 'insert' ? 'bg-green-500/20 border-green-500/30' :
+                  type === 'update' ? 'bg-blue-500/20 border-blue-500/30' :
+                  'bg-red-500/20 border-red-500/30'
+  
+  const textColor = type === 'insert' ? 'text-green-400' :
+                    type === 'update' ? 'text-blue-400' :
+                    'text-red-400'
+
+  return (
+    <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg border ${bgColor} ${textColor} text-sm font-medium shadow-lg animate-slide-up z-50`}>
+      {message}
+    </div>
+  )
+}
+
 export default function Trades() {
   const [trades, setTrades] = useState([])
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedRows, setSelectedRows] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
+  const [connectionStatus, setConnectionStatus] = useState('CONNECTING')
+  const [toast, setToast] = useState(null)
   
   // Filters
   const [filters, setFilters] = useState({
@@ -153,32 +192,97 @@ export default function Trades() {
     endDate: '',
   })
 
-  useEffect(() => {
-    loadData()
+  // Handle real-time INSERT - add new trade to the list
+  const handleTradeInsert = useCallback((newTrade) => {
+    setTrades(prev => {
+      // Check if trade already exists (prevent duplicates)
+      if (prev.some(t => t.id === newTrade.id)) {
+        return prev
+      }
+      // Add new trade at the beginning (most recent first)
+      return [newTrade, ...prev]
+    })
     
-    const subscription = subscribeToTrades(() => loadData())
-    return () => subscription.unsubscribe()
+    setToast({
+      message: `New trade: ${newTrade.symbol} ${newTrade.direction?.toUpperCase()}`,
+      type: 'insert'
+    })
   }, [])
+
+  // Handle real-time UPDATE - update existing trade in place
+  const handleTradeUpdate = useCallback((updatedTrade, oldTrade) => {
+    setTrades(prev => prev.map(trade => 
+      trade.id === updatedTrade.id ? updatedTrade : trade
+    ))
+    
+    // Show toast for status changes
+    if (oldTrade?.status !== updatedTrade.status) {
+      const statusEmoji = updatedTrade.status === 'closed' ? '✅' :
+                          updatedTrade.status === 'canceled' ? '❌' :
+                          updatedTrade.status === 'active' ? '🟢' : '🔄'
+      setToast({
+        message: `${statusEmoji} Trade ${updatedTrade.trade_id?.slice(0, 8)}: ${oldTrade?.status} → ${updatedTrade.status}`,
+        type: 'update'
+      })
+    }
+  }, [])
+
+  // Handle real-time DELETE - remove trade from list
+  const handleTradeDelete = useCallback((deletedTrade) => {
+    setTrades(prev => prev.filter(trade => trade.id !== deletedTrade.id))
+    
+    setToast({
+      message: `Trade removed: ${deletedTrade.trade_id?.slice(0, 8)}`,
+      type: 'delete'
+    })
+  }, [])
+
+  // Handle connection status changes
+  const handleStatusChange = useCallback((status, error) => {
+    setConnectionStatus(status)
+    if (error) {
+      console.error('WebSocket error:', error)
+    }
+  }, [])
+
+  // Initial data load
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [tradesData, channelsData] = await Promise.all([
+          fetchTrades({ limit: 500 }),
+          fetchChannels()
+        ])
+        setTrades(tradesData)
+        setChannels(channelsData)
+      } catch (err) {
+        console.error('Failed to load data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadData()
+  }, [])
+
+  // Set up real-time subscription
+  useEffect(() => {
+    const subscription = subscribeToTrades({
+      onInsert: handleTradeInsert,
+      onUpdate: handleTradeUpdate,
+      onDelete: handleTradeDelete,
+      onStatus: handleStatusChange
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [handleTradeInsert, handleTradeUpdate, handleTradeDelete, handleStatusChange])
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
   }, [filters])
-
-  async function loadData() {
-    try {
-      const [tradesData, channelsData] = await Promise.all([
-        fetchTrades({ limit: 500 }),
-        fetchChannels()
-      ])
-      setTrades(tradesData)
-      setChannels(channelsData)
-    } catch (err) {
-      console.error('Failed to load data:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // Filter trades
   const filteredTrades = trades.filter(trade => {
@@ -245,7 +349,6 @@ export default function Trades() {
 
   function handlePageChange(page) {
     setCurrentPage(page)
-    // Scroll to top of table
     document.getElementById('trades-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -272,6 +375,21 @@ export default function Trades() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Toast notification */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      {/* Header with connection status */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Trade History</h1>
+        <ConnectionStatus status={connectionStatus} />
+      </div>
+
       {/* Filters */}
       <div className="bg-dark-card border border-dark-border rounded-xl p-5 mb-6">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
@@ -417,7 +535,7 @@ export default function Trades() {
             </thead>
             <tbody>
               {paginatedTrades.map(trade => (
-                <tr key={trade.id}>
+                <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
                   <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
                   <td>{trade.channel_name?.slice(0, 20) || '-'}</td>
                   <td className="font-semibold">{trade.symbol || '-'}</td>
@@ -436,7 +554,8 @@ export default function Trades() {
                   <td>
                     <span className={`badge ${
                       trade.status === 'closed' ? (trade.outcome === 'profit' ? 'badge-success' : 'badge-danger') :
-                      trade.status === 'active' ? 'badge-warning' : 'badge-neutral'
+                      trade.status === 'active' ? 'badge-warning' : 
+                      trade.status === 'canceled' ? 'badge-neutral' : 'badge-neutral'
                     }`}>
                       {trade.status || '-'}
                     </span>
