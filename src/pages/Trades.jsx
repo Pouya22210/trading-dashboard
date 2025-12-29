@@ -386,7 +386,7 @@ export default function Trades() {
 
       {/* Header with connection status */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Trade HistoryY</h1>
+        <h1 className="text-2xl font-bold text-white">Trade History</h1>
         <ConnectionStatus status={connectionStatus} />
       </div>
 
