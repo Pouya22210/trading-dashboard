@@ -1,13 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
-  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight
+  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight, Layers
 } from 'lucide-react'
 import { 
-  BarChart, Bar, LineChart, Line, ScatterChart, Scatter,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
+  BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ComposedChart, Area
 } from 'recharts'
 import { fetchTrades, fetchChannels, subscribeToTrades } from '../lib/supabase'
+
+// Color palette for channels
+const CHANNEL_COLORS = [
+  '#58a6ff', // blue
+  '#3fb950', // green
+  '#f85149', // red
+  '#a371f7', // purple
+  '#39d5ff', // cyan
+  '#f0883e', // orange
+  '#db61a2', // pink
+  '#7ee787', // light green
+  '#ffa657', // light orange
+  '#79c0ff', // light blue
+]
 
 const COLORS = {
   green: '#3fb950',
@@ -45,9 +59,9 @@ function ConnectionStatus({ status }) {
   )
 }
 
-function ChartCard({ title, icon: Icon, children }) {
+function ChartCard({ title, icon: Icon, children, className = '' }) {
   return (
-    <div className="chart-card">
+    <div className={`chart-card ${className}`}>
       <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
         <Icon className="w-4 h-4 text-accent-cyan" />
         <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">{title}</span>
@@ -167,8 +181,57 @@ function Toast({ message, type, onClose }) {
                     'text-red-400'
 
   return (
-    <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg border ${bgColor} ${textColor} text-sm font-medium shadow-lg animate-slide-up z-50`}>
+    <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg border ${bgColor} ${textColor} text-sm font-medium shadow-lg z-50`}>
       {message}
+    </div>
+  )
+}
+
+// Custom tooltip for channel comparison chart
+function ChannelComparisonTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null
+
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl">
+      <p className="text-gray-400 text-xs mb-2">{label}</p>
+      {payload.map((entry, index) => (
+        <div key={index} className="flex items-center gap-2 text-sm">
+          <span 
+            className="w-3 h-3 rounded-full" 
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-gray-300">{entry.name}:</span>
+          <span className={entry.value >= 0 ? 'text-green-400' : 'text-red-400'}>
+            ${entry.value?.toFixed(2)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Custom legend component
+function CustomLegend({ payload, channelStats }) {
+  return (
+    <div className="flex flex-wrap justify-center gap-4 mt-4">
+      {payload.map((entry, index) => {
+        const stats = channelStats[entry.value] || {}
+        return (
+          <div 
+            key={index} 
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-tertiary/50"
+          >
+            <span 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="text-gray-300 text-sm">{entry.value}</span>
+            <span className={`text-xs font-mono ${stats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              (${stats.totalPnL?.toFixed(0) || 0})
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -195,11 +258,9 @@ export default function Trades() {
   // Handle real-time INSERT - add new trade to the list
   const handleTradeInsert = useCallback((newTrade) => {
     setTrades(prev => {
-      // Check if trade already exists (prevent duplicates)
       if (prev.some(t => t.id === newTrade.id)) {
         return prev
       }
-      // Add new trade at the beginning (most recent first)
       return [newTrade, ...prev]
     })
     
@@ -215,7 +276,6 @@ export default function Trades() {
       trade.id === updatedTrade.id ? updatedTrade : trade
     ))
     
-    // Show toast for status changes
     if (oldTrade?.status !== updatedTrade.status) {
       const statusEmoji = updatedTrade.status === 'closed' ? '✅' :
                           updatedTrade.status === 'canceled' ? '❌' :
@@ -294,6 +354,150 @@ export default function Trades() {
     if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
     return true
   })
+
+  // Get unique channel names from trades
+  const uniqueChannels = useMemo(() => {
+    const channelSet = new Set(trades.map(t => t.channel_name).filter(Boolean))
+    return Array.from(channelSet)
+  }, [trades])
+
+  // Create color mapping for channels
+  const channelColorMap = useMemo(() => {
+    const map = {}
+    uniqueChannels.forEach((channel, index) => {
+      map[channel] = CHANNEL_COLORS[index % CHANNEL_COLORS.length]
+    })
+    return map
+  }, [uniqueChannels])
+
+  // Calculate channel statistics
+  const channelStats = useMemo(() => {
+    const stats = {}
+    filteredTrades.filter(t => t.status === 'closed').forEach(trade => {
+      const channel = trade.channel_name
+      if (!channel) return
+      
+      if (!stats[channel]) {
+        stats[channel] = {
+          totalPnL: 0,
+          wins: 0,
+          losses: 0,
+          totalTrades: 0,
+          avgPnL: 0
+        }
+      }
+      
+      stats[channel].totalPnL += trade.profit_loss || 0
+      stats[channel].totalTrades++
+      if (trade.outcome === 'profit') stats[channel].wins++
+      if (trade.outcome === 'loss') stats[channel].losses++
+    })
+    
+    // Calculate averages and win rates
+    Object.keys(stats).forEach(channel => {
+      const s = stats[channel]
+      s.avgPnL = s.totalTrades > 0 ? s.totalPnL / s.totalTrades : 0
+      s.winRate = s.totalTrades > 0 ? (s.wins / s.totalTrades * 100) : 0
+    })
+    
+    return stats
+  }, [filteredTrades])
+
+  // Calculate cumulative P&L over time by channel
+  const cumulativePnLData = useMemo(() => {
+    // Get closed trades sorted by time
+    const closedTrades = filteredTrades
+      .filter(t => t.status === 'closed' && t.close_time)
+      .sort((a, b) => new Date(a.close_time) - new Date(b.close_time))
+    
+    if (closedTrades.length === 0) return []
+
+    // Group by date and channel
+    const dataByDate = {}
+    const runningTotals = {}
+    
+    closedTrades.forEach(trade => {
+      const date = new Date(trade.close_time).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+      })
+      const channel = trade.channel_name || 'Unknown'
+      
+      if (!runningTotals[channel]) {
+        runningTotals[channel] = 0
+      }
+      runningTotals[channel] += trade.profit_loss || 0
+      
+      if (!dataByDate[date]) {
+        dataByDate[date] = { date }
+      }
+      
+      // Store the cumulative total for this channel at this date
+      dataByDate[date][channel] = runningTotals[channel]
+    })
+    
+    // Fill in gaps - carry forward last known value
+    const dates = Object.keys(dataByDate)
+    const allChannels = Object.keys(runningTotals)
+    
+    let lastValues = {}
+    dates.forEach(date => {
+      allChannels.forEach(channel => {
+        if (dataByDate[date][channel] !== undefined) {
+          lastValues[channel] = dataByDate[date][channel]
+        } else if (lastValues[channel] !== undefined) {
+          dataByDate[date][channel] = lastValues[channel]
+        }
+      })
+    })
+    
+    return Object.values(dataByDate)
+  }, [filteredTrades])
+
+  // Daily P&L by channel (non-cumulative)
+  const dailyPnLByChannel = useMemo(() => {
+    const closedTrades = filteredTrades
+      .filter(t => t.status === 'closed' && t.close_time)
+      .sort((a, b) => new Date(a.close_time) - new Date(b.close_time))
+    
+    if (closedTrades.length === 0) return []
+
+    const dataByDate = {}
+    
+    closedTrades.forEach(trade => {
+      const date = new Date(trade.close_time).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+      })
+      const channel = trade.channel_name || 'Unknown'
+      
+      if (!dataByDate[date]) {
+        dataByDate[date] = { date }
+        uniqueChannels.forEach(ch => {
+          dataByDate[date][ch] = 0
+        })
+      }
+      
+      dataByDate[date][channel] = (dataByDate[date][channel] || 0) + (trade.profit_loss || 0)
+    })
+    
+    return Object.values(dataByDate)
+  }, [filteredTrades, uniqueChannels])
+
+  // Channel comparison bar chart data
+  const channelComparisonData = useMemo(() => {
+    return Object.entries(channelStats).map(([channel, stats]) => ({
+      channel: channel.length > 15 ? channel.slice(0, 15) + '...' : channel,
+      fullName: channel,
+      totalPnL: stats.totalPnL,
+      winRate: stats.winRate,
+      avgPnL: stats.avgPnL,
+      trades: stats.totalTrades,
+      wins: stats.wins,
+      losses: stats.losses,
+      color: channelColorMap[channel]
+    })).sort((a, b) => b.totalPnL - a.totalPnL)
+  }, [channelStats, channelColorMap])
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredTrades.length / TRADES_PER_PAGE)
@@ -500,6 +704,158 @@ export default function Trades() {
         </div>
       </div>
 
+      {/* ==================== CHANNEL COMPARISON SECTION ==================== */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Layers className="w-5 h-5 text-accent-cyan" />
+          Channel Performance Comparison
+        </h2>
+        
+        {/* Cumulative P&L Over Time - Full Width */}
+        <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
+          {cumulativePnLData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  tickMargin={10}
+                />
+                <YAxis 
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  tickFormatter={(value) => `$${value}`}
+                />
+                <Tooltip content={<ChannelComparisonTooltip />} />
+                <Legend 
+                  content={({ payload }) => (
+                    <CustomLegend payload={payload} channelStats={channelStats} />
+                  )}
+                />
+                {uniqueChannels.map((channel) => (
+                  <Line
+                    key={channel}
+                    type="monotone"
+                    dataKey={channel}
+                    name={channel}
+                    stroke={channelColorMap[channel]}
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              No closed trades with dates to display
+            </div>
+          )}
+        </ChartCard>
+
+        {/* Channel Stats Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Total P&L by Channel */}
+          <ChartCard title="Total P&L by Channel" icon={BarChart3}>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <XAxis type="number" stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
+                <YAxis 
+                  type="category" 
+                  dataKey="channel" 
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  width={120}
+                />
+                <Tooltip
+                  contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
+                  formatter={(value, name, props) => [`$${value.toFixed(2)}`, props.payload.fullName]}
+                />
+                <Bar dataKey="totalPnL" radius={[0, 4, 4, 0]}>
+                  {channelComparisonData.map((entry, index) => (
+                    <Cell 
+                      key={index} 
+                      fill={entry.totalPnL >= 0 ? COLORS.green : COLORS.red}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Win Rate by Channel */}
+          <ChartCard title="Win Rate by Channel" icon={Target}>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <XAxis 
+                  type="number" 
+                  stroke="#6e7681" 
+                  fontSize={11} 
+                  domain={[0, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="channel" 
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  width={120}
+                />
+                <Tooltip
+                  contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
+                  formatter={(value, name, props) => [
+                    `${value.toFixed(1)}% (${props.payload.wins}W / ${props.payload.losses}L)`,
+                    props.payload.fullName
+                  ]}
+                />
+                <Bar dataKey="winRate" radius={[0, 4, 4, 0]}>
+                  {channelComparisonData.map((entry, index) => (
+                    <Cell 
+                      key={index} 
+                      fill={entry.color}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
+
+        {/* Daily P&L by Channel (Stacked) */}
+        <ChartCard title="Daily P&L by Channel" icon={Calendar}>
+          {dailyPnLByChannel.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={dailyPnLByChannel} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <XAxis dataKey="date" stroke="#6e7681" fontSize={10} />
+                <YAxis stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
+                <Tooltip content={<ChannelComparisonTooltip />} />
+                <Legend 
+                  content={({ payload }) => (
+                    <CustomLegend payload={payload} channelStats={channelStats} />
+                  )}
+                />
+                {uniqueChannels.map((channel) => (
+                  <Bar
+                    key={channel}
+                    dataKey={channel}
+                    name={channel}
+                    fill={channelColorMap[channel]}
+                    stackId="a"
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              No closed trades with dates to display
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* ==================== END CHANNEL COMPARISON ==================== */}
+
       {/* Actions */}
       <div className="flex gap-3 mb-6">
         <button onClick={exportCSV} className="btn-secondary flex items-center gap-2">
@@ -537,7 +893,15 @@ export default function Trades() {
               {paginatedTrades.map(trade => (
                 <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
                   <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
-                  <td>{trade.channel_name?.slice(0, 20) || '-'}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: channelColorMap[trade.channel_name] || '#6e7681' }}
+                      />
+                      {trade.channel_name?.slice(0, 20) || '-'}
+                    </div>
+                  </td>
                   <td className="font-semibold">{trade.symbol || '-'}</td>
                   <td>
                     <span className={`badge ${trade.direction === 'buy' ? 'badge-success' : 'badge-danger'}`}>
