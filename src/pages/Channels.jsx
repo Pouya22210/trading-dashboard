@@ -5,6 +5,7 @@ import {
   Save, X, Check
 } from 'lucide-react'
 import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels } from '../lib/supabase'
+import LogoutButton from '../components/LogoutButton'
 
 function Toggle({ checked, onChange, label }) {
   return (
@@ -701,9 +702,12 @@ export default function Channels() {
           <h1 className="text-2xl font-bold text-white">Channel Configuration</h1>
           <p className="text-gray-500 mt-1">Manage your Telegram signal channels</p>
         </div>
-        <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Channel
-        </button>
+        <div className="flex items-center gap-3">
+          <LogoutButton />
+          <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add Channel
+          </button>
+        </div>
       </div>
 
       {/* Channels Grid */}
