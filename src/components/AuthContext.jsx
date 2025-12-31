@@ -5,7 +5,7 @@ const AuthContext = createContext(null)
 
 // You can change this password or move it to environment variables
 // For production, consider using Supabase Auth instead
-const ADMIN_PASSWORD = 'your_secure_password_here'  // CHANGE THIS!
+const ADMIN_PASSWORD = 'pouya'  // CHANGE THIS!
 
 // Session duration in milliseconds (24 hours)
 const SESSION_DURATION = 24 * 60 * 60 * 1000
