@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
-  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight, Layers
+  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight, Layers,
+  CheckSquare, Square
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
@@ -29,7 +30,22 @@ const COLORS = {
   blue: '#58a6ff',
   cyan: '#39d5ff',
   purple: '#a371f7',
+  orange: '#f0883e',
+  pink: '#db61a2',
+  gray: '#6e7681',
+  yellow: '#d29922',
 }
+
+// All possible outcome types
+const OUTCOME_TYPES = [
+  { key: 'profit', label: 'Profit', color: COLORS.green },
+  { key: 'loss', label: 'Loss', color: COLORS.red },
+  { key: 'breakeven', label: 'Breakeven', color: COLORS.gray },
+  { key: 'manual', label: 'Manual', color: COLORS.orange },
+  { key: 'canceled', label: 'Canceled', color: COLORS.purple },
+  { key: 'blocked', label: 'Blocked', color: COLORS.pink },
+  { key: 'unknown', label: 'Unknown/Null', color: COLORS.yellow },
+]
 
 const TRADES_PER_PAGE = 10
 
@@ -210,6 +226,27 @@ function ChannelComparisonTooltip({ active, payload, label }) {
   )
 }
 
+// Custom tooltip for outcome distribution chart
+function OutcomeDistributionTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null
+
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl">
+      <p className="text-gray-400 text-xs mb-2 font-semibold">{label}</p>
+      {payload.map((entry, index) => (
+        <div key={index} className="flex items-center gap-2 text-sm">
+          <span 
+            className="w-3 h-3 rounded-full" 
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-gray-300">{entry.name}:</span>
+          <span className="text-white font-mono">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Custom legend component
 function CustomLegend({ payload, channelStats }) {
   return (
@@ -236,6 +273,38 @@ function CustomLegend({ payload, channelStats }) {
   )
 }
 
+// Outcome checkbox component
+function OutcomeCheckbox({ outcome, checked, onChange }) {
+  return (
+    <label 
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+        checked 
+          ? 'bg-dark-tertiary border border-dark-border' 
+          : 'bg-dark-secondary/50 border border-transparent hover:border-dark-border'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={() => onChange(outcome.key)}
+        className="hidden"
+      />
+      {checked ? (
+        <CheckSquare className="w-4 h-4" style={{ color: outcome.color }} />
+      ) : (
+        <Square className="w-4 h-4 text-gray-500" />
+      )}
+      <span 
+        className="w-3 h-3 rounded-full" 
+        style={{ backgroundColor: outcome.color }}
+      />
+      <span className={`text-sm ${checked ? 'text-white' : 'text-gray-500'}`}>
+        {outcome.label}
+      </span>
+    </label>
+  )
+}
+
 export default function Trades() {
   const [trades, setTrades] = useState([])
   const [channels, setChannels] = useState([])
@@ -244,6 +313,11 @@ export default function Trades() {
   const [currentPage, setCurrentPage] = useState(1)
   const [connectionStatus, setConnectionStatus] = useState('CONNECTING')
   const [toast, setToast] = useState(null)
+  
+  // Outcome filter for the new visualization
+  const [selectedOutcomes, setSelectedOutcomes] = useState(
+    OUTCOME_TYPES.map(o => o.key) // All selected by default
+  )
   
   // Filters
   const [filters, setFilters] = useState({
@@ -254,6 +328,26 @@ export default function Trades() {
     startDate: '',
     endDate: '',
   })
+
+  // Toggle outcome selection
+  const toggleOutcome = useCallback((outcomeKey) => {
+    setSelectedOutcomes(prev => {
+      if (prev.includes(outcomeKey)) {
+        return prev.filter(k => k !== outcomeKey)
+      } else {
+        return [...prev, outcomeKey]
+      }
+    })
+  }, [])
+
+  // Select/deselect all outcomes
+  const selectAllOutcomes = useCallback(() => {
+    setSelectedOutcomes(OUTCOME_TYPES.map(o => o.key))
+  }, [])
+
+  const deselectAllOutcomes = useCallback(() => {
+    setSelectedOutcomes([])
+  }, [])
 
   // Handle real-time INSERT - add new trade to the list
   const handleTradeInsert = useCallback((newTrade) => {
@@ -454,35 +548,45 @@ export default function Trades() {
     return Object.values(dataByDate)
   }, [filteredTrades])
 
-  // Daily P&L by channel (non-cumulative)
-  const dailyPnLByChannel = useMemo(() => {
-    const closedTrades = filteredTrades
-      .filter(t => t.status === 'closed' && t.close_time)
-      .sort((a, b) => new Date(a.close_time) - new Date(b.close_time))
+  // Outcome distribution by channel (for new visualization)
+  const outcomeByChannelData = useMemo(() => {
+    const dataByChannel = {}
     
-    if (closedTrades.length === 0) return []
-
-    const dataByDate = {}
-    
-    closedTrades.forEach(trade => {
-      const date = new Date(trade.close_time).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      })
+    filteredTrades.forEach(trade => {
       const channel = trade.channel_name || 'Unknown'
+      let outcome = trade.outcome || 'unknown'
       
-      if (!dataByDate[date]) {
-        dataByDate[date] = { date }
-        uniqueChannels.forEach(ch => {
-          dataByDate[date][ch] = 0
-        })
+      // Normalize null/undefined outcomes to 'unknown'
+      if (!outcome || outcome === 'null') {
+        outcome = 'unknown'
       }
       
-      dataByDate[date][channel] = (dataByDate[date][channel] || 0) + (trade.profit_loss || 0)
+      if (!dataByChannel[channel]) {
+        dataByChannel[channel] = { 
+          channel,
+          fullName: channel,
+          profit: 0,
+          loss: 0,
+          breakeven: 0,
+          manual: 0,
+          canceled: 0,
+          blocked: 0,
+          unknown: 0,
+        }
+      }
+      
+      if (dataByChannel[channel][outcome] !== undefined) {
+        dataByChannel[channel][outcome]++
+      } else {
+        dataByChannel[channel].unknown++
+      }
     })
     
-    return Object.values(dataByDate)
-  }, [filteredTrades, uniqueChannels])
+    return Object.values(dataByChannel).map(item => ({
+      ...item,
+      channel: item.channel.length > 20 ? item.channel.slice(0, 20) + '...' : item.channel
+    }))
+  }, [filteredTrades])
 
   // Channel comparison bar chart data
   const channelComparisonData = useMemo(() => {
@@ -557,11 +661,11 @@ export default function Trades() {
   }
 
   function exportCSV() {
-    const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Time']
+    const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'Time']
     const rows = filteredTrades.map(t => [
       t.trade_id, t.channel_name, t.symbol, t.direction, t.order_type,
       t.executed_entry_price, t.executed_tp_price, t.executed_sl_price,
-      t.profit_loss, t.status, t.signal_time
+      t.profit_loss, t.status, t.outcome, t.signal_time
     ])
     
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
@@ -571,6 +675,31 @@ export default function Trades() {
     a.href = url
     a.download = `trades_${new Date().toISOString().split('T')[0]}.csv`
     a.click()
+  }
+
+  // Helper function to get status badge styling
+  function getStatusBadgeClass(trade) {
+    if (trade.status === 'closed') {
+      // Different colors based on outcome
+      if (trade.outcome === 'profit') return 'badge-success' // green
+      if (trade.outcome === 'loss') return 'badge-danger'   // red
+      if (trade.outcome === 'breakeven') return 'badge-neutral' // gray
+      // For manual, canceled, blocked, unknown - use neutral
+      return 'badge-neutral'
+    }
+    if (trade.status === 'active') return 'badge-warning'
+    if (trade.status === 'pending') return 'badge-warning'
+    if (trade.status === 'canceled') return 'badge-neutral'
+    if (trade.status === 'blocked') return 'badge-neutral'
+    return 'badge-neutral'
+  }
+
+  // Helper function to get status display text
+  function getStatusDisplay(trade) {
+    if (trade.status === 'closed' && trade.outcome) {
+      return `${trade.status} (${trade.outcome})`
+    }
+    return trade.status || '-'
   }
 
   if (loading) {
@@ -711,10 +840,10 @@ export default function Trades() {
           Channel Performance Comparison
         </h2>
         
-        {/* Cumulative P&L Over Time - Full Width */}
+        {/* Cumulative P&L Over Time - Full Width - INCREASED HEIGHT */}
         <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
           {cumulativePnLData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height={500}>
               <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <XAxis 
                   dataKey="date" 
@@ -822,36 +951,76 @@ export default function Trades() {
           </ChartCard>
         </div>
 
-        {/* Daily P&L by Channel (Stacked) */}
-        <ChartCard title="Daily P&L by Channel" icon={Calendar}>
-          {dailyPnLByChannel.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dailyPnLByChannel} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <XAxis dataKey="date" stroke="#6e7681" fontSize={10} />
-                <YAxis stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
-                <Tooltip content={<ChannelComparisonTooltip />} />
-                <Legend 
-                  content={({ payload }) => (
-                    <CustomLegend payload={payload} channelStats={channelStats} />
-                  )}
+        {/* ==================== NEW: OUTCOME DISTRIBUTION BY CHANNEL ==================== */}
+        <ChartCard title="Outcome Distribution by Channel" icon={Target} className="mb-6">
+          {/* Outcome checkboxes */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm text-gray-400">Filter outcomes:</span>
+              <button 
+                onClick={selectAllOutcomes}
+                className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+              >
+                Select All
+              </button>
+              <span className="text-gray-600">|</span>
+              <button 
+                onClick={deselectAllOutcomes}
+                className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+              >
+                Deselect All
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {OUTCOME_TYPES.map(outcome => (
+                <OutcomeCheckbox
+                  key={outcome.key}
+                  outcome={outcome}
+                  checked={selectedOutcomes.includes(outcome.key)}
+                  onChange={toggleOutcome}
                 />
-                {uniqueChannels.map((channel) => (
+              ))}
+            </div>
+          </div>
+          
+          {/* Stacked bar chart */}
+          {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={outcomeByChannelData} layout="vertical" margin={{ left: 20, right: 20, top: 10, bottom: 10 }}>
+                <XAxis type="number" stroke="#6e7681" fontSize={11} />
+                <YAxis 
+                  type="category" 
+                  dataKey="channel" 
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  width={150}
+                />
+                <Tooltip content={<OutcomeDistributionTooltip />} />
+                <Legend 
+                  wrapperStyle={{ paddingTop: 20 }}
+                  formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
+                />
+                {OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key)).map(outcome => (
                   <Bar
-                    key={channel}
-                    dataKey={channel}
-                    name={channel}
-                    fill={channelColorMap[channel]}
-                    stackId="a"
+                    key={outcome.key}
+                    dataKey={outcome.key}
+                    name={outcome.label}
+                    fill={outcome.color}
+                    stackId="outcomes"
                   />
                 ))}
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500">
-              No closed trades with dates to display
+              {selectedOutcomes.length === 0 
+                ? 'Select at least one outcome type to display'
+                : 'No trades to display'
+              }
             </div>
           )}
         </ChartCard>
+        {/* ==================== END OUTCOME DISTRIBUTION ==================== */}
       </div>
 
       {/* ==================== END CHANNEL COMPARISON ==================== */}
@@ -916,12 +1085,8 @@ export default function Trades() {
                     {trade.profit_loss ? `$${trade.profit_loss.toFixed(2)}` : '-'}
                   </td>
                   <td>
-                    <span className={`badge ${
-                      trade.status === 'closed' ? (trade.outcome === 'profit' ? 'badge-success' : 'badge-danger') :
-                      trade.status === 'active' ? 'badge-warning' : 
-                      trade.status === 'canceled' ? 'badge-neutral' : 'badge-neutral'
-                    }`}>
-                      {trade.status || '-'}
+                    <span className={`badge ${getStatusBadgeClass(trade)}`}>
+                      {getStatusDisplay(trade)}
                     </span>
                   </td>
                   <td className="text-gray-500">
@@ -958,7 +1123,7 @@ export default function Trades() {
               <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
               <Bar dataKey="profit" fill={COLORS.green} name="Profit" stackId="a" />
               <Bar dataKey="loss" fill={COLORS.red} name="Loss" stackId="a" />
-              <Bar dataKey="breakeven" fill={COLORS.blue} name="Breakeven" stackId="a" />
+              <Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
