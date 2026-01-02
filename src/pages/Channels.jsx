@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { 
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap, 
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
-  Save, X, Check
+  Save, X, Check, RefreshCw
 } from 'lucide-react'
 import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
@@ -56,6 +56,7 @@ function ChannelEditorModal({ channel, onSave, onClose }) {
     max_slippage_points: 20,
     trade_monitor_interval_sec: 0.5,
     is_active: true,
+    is_reversed: false,  // v11.0: Reverse trade feature
     instruments: [{ logical_symbol: 'XAUUSD', broker_symbol: 'XAUUSD', pip_tolerance_pips: 1.5 }],
     final_tp_policy: { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
     riskfree_policy: { enabled: true, kind: '%path', percent: 50, pips: 10, tp_index: 1 },
@@ -75,6 +76,7 @@ function ChannelEditorModal({ channel, onSave, onClose }) {
         max_slippage_points: channel.max_slippage_points || 20,
         trade_monitor_interval_sec: channel.trade_monitor_interval_sec || 0.5,
         is_active: channel.is_active ?? true,
+        is_reversed: channel.is_reversed ?? false,  // v11.0: Reverse trade feature
         instruments: channel.instruments || [{ logical_symbol: 'XAUUSD', broker_symbol: 'XAUUSD', pip_tolerance_pips: 1.5 }],
         final_tp_policy: channel.final_tp_policy || { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
         riskfree_policy: channel.riskfree_policy || { enabled: false, kind: '%path', percent: 50 },
@@ -195,11 +197,47 @@ function ChannelEditorModal({ channel, onSave, onClose }) {
                   />
                 </FormField>
               </div>
+              
+              {/* Channel Active Toggle */}
               <Toggle
                 checked={formData.is_active}
                 onChange={checked => setFormData({ ...formData, is_active: checked })}
                 label="Channel Active"
               />
+              
+              {/* v11.0: Reverse Signals Toggle */}
+              <div className={`flex items-center justify-between p-4 rounded-lg border ${
+                formData.is_reversed 
+                  ? 'bg-orange-500/10 border-orange-500/50' 
+                  : 'bg-dark-tertiary border-dark-border'
+              }`}>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className={`w-4 h-4 ${formData.is_reversed ? 'text-orange-400' : 'text-gray-500'}`} />
+                    <label className={`text-sm font-medium ${formData.is_reversed ? 'text-orange-400' : 'text-gray-400'}`}>
+                      Reverse Signals
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    BUY→SELL, SELL→BUY, swap TP/SL. Use for poorly performing channels.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formData.is_reversed}
+                  onChange={e => setFormData({ ...formData, is_reversed: e.target.checked })}
+                  className="w-5 h-5 rounded border-gray-600 text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              {formData.is_reversed && (
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                  <p className="text-xs text-orange-300">
+                    <strong>⚠️ Reverse Mode Active:</strong> All signals from this channel will be inverted. 
+                    BUY signals become SELL orders, SELL signals become BUY orders, and TP/SL levels are swapped.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -713,7 +751,14 @@ export default function Channels() {
       {/* Channels Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {channels.map(channel => (
-          <div key={channel.id} className="bg-dark-card border border-dark-border rounded-xl p-5">
+          <div 
+            key={channel.id} 
+            className={`bg-dark-card border rounded-xl p-5 ${
+              channel.is_reversed 
+                ? 'border-orange-500/50' 
+                : 'border-dark-border'
+            }`}
+          >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
@@ -721,6 +766,12 @@ export default function Channels() {
                   <span className={`badge ${channel.is_active ? 'badge-success' : 'badge-neutral'}`}>
                     {channel.is_active ? 'Active' : 'Inactive'}
                   </span>
+                  {/* v11.0: Reverse indicator */}
+                  {channel.is_reversed && (
+                    <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" /> Reversed
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-1">Magic: {channel.magic_number}</p>
               </div>
