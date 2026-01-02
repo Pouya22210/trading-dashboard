@@ -45,7 +45,8 @@ export async function createChannel(channelData) {
       magic_number: channelData.magic_number,
       max_slippage_points: channelData.max_slippage_points,
       trade_monitor_interval_sec: channelData.trade_monitor_interval_sec,
-      is_active: true
+      is_active: true,
+      is_reversed: channelData.is_reversed || false  // v11.0: Reverse trade support
     })
     .select()
     .single()
@@ -138,7 +139,8 @@ export async function updateChannel(id, channelData) {
       magic_number: channelData.magic_number,
       max_slippage_points: channelData.max_slippage_points,
       trade_monitor_interval_sec: channelData.trade_monitor_interval_sec,
-      is_active: channelData.is_active
+      is_active: channelData.is_active,
+      is_reversed: channelData.is_reversed ?? false  // v11.0: Reverse trade support
     })
     .eq('id', id)
 
