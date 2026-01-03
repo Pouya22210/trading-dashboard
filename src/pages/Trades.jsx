@@ -203,29 +203,6 @@ function Toast({ message, type, onClose }) {
   )
 }
 
-// Custom tooltip for channel comparison chart
-function ChannelComparisonTooltip({ active, payload, label }) {
-  if (!active || !payload || !payload.length) return null
-
-  return (
-    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl">
-      <p className="text-gray-400 text-xs mb-2">{label}</p>
-      {payload.map((entry, index) => (
-        <div key={index} className="flex items-center gap-2 text-sm">
-          <span 
-            className="w-3 h-3 rounded-full" 
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-gray-300">{entry.name}:</span>
-          <span className={entry.value >= 0 ? 'text-green-400' : 'text-red-400'}>
-            ${entry.value?.toFixed(2)}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // Custom tooltip for outcome distribution chart
 function OutcomeDistributionTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null
@@ -243,32 +220,6 @@ function OutcomeDistributionTooltip({ active, payload, label }) {
           <span className="text-white font-mono">{entry.value}</span>
         </div>
       ))}
-    </div>
-  )
-}
-
-// Custom legend component
-function CustomLegend({ payload, channelStats }) {
-  return (
-    <div className="flex flex-wrap justify-center gap-4 mt-4">
-      {payload.map((entry, index) => {
-        const stats = channelStats[entry.value] || {}
-        return (
-          <div 
-            key={index} 
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-tertiary/50"
-          >
-            <span 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-gray-300 text-sm">{entry.value}</span>
-            <span className={`text-xs font-mono ${stats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              (${stats.totalPnL?.toFixed(0) || 0})
-            </span>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -840,10 +791,10 @@ export default function Trades() {
           Channel Performance Comparison
         </h2>
         
-        {/* Cumulative P&L Over Time - Full Width - INCREASED HEIGHT */}
+        {/* Cumulative P&L Over Time - Full Width - TALLER, NO LEGEND, HOVER SHOWS CHANNEL */}
         <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
           {cumulativePnLData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={500}>
+            <ResponsiveContainer width="100%" height={650}>
               <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <XAxis 
                   dataKey="date" 
@@ -856,11 +807,29 @@ export default function Trades() {
                   fontSize={11}
                   tickFormatter={(value) => `$${value}`}
                 />
-                <Tooltip content={<ChannelComparisonTooltip />} />
-                <Legend 
-                  content={({ payload }) => (
-                    <CustomLegend payload={payload} channelStats={channelStats} />
-                  )}
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null
+                    // Find the hovered line (the one with data at this point)
+                    const hoveredItem = payload.find(p => p.value !== null && p.value !== undefined)
+                    if (!hoveredItem) return null
+                    
+                    return (
+                      <div className="bg-dark-secondary border border-dark-border rounded-lg px-4 py-3 shadow-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: hoveredItem.color }}
+                          />
+                          <span className="text-white font-semibold text-sm">{hoveredItem.name}</span>
+                        </div>
+                        <p className="text-gray-400 text-xs mb-1">{label}</p>
+                        <p className={`text-lg font-mono font-bold ${hoveredItem.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          ${hoveredItem.value?.toFixed(2)}
+                        </p>
+                      </div>
+                    )
+                  }}
                 />
                 {uniqueChannels.map((channel) => (
                   <Line
@@ -872,6 +841,7 @@ export default function Trades() {
                     strokeWidth={2}
                     dot={false}
                     connectNulls
+                    activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
                   />
                 ))}
               </LineChart>
