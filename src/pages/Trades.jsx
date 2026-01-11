@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
   BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight, Layers,
-  CheckSquare, Square
+  CheckSquare, Square, ChevronDown
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
@@ -256,6 +256,126 @@ function OutcomeCheckbox({ outcome, checked, onChange }) {
   )
 }
 
+// ==================== NEW: Multi-Select Channel Filter Component ====================
+// Uses channel_id for filtering (stable) but displays channel_name/key (user-friendly)
+function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channelColorMap }) {
+  const [isOpen, setIsOpen] = useState(false)
+  
+  // channelList is array of { id, name, color }
+  const toggleChannel = (channelId) => {
+    if (selectedChannelIds.includes(channelId)) {
+      onChange(selectedChannelIds.filter(id => id !== channelId))
+    } else {
+      onChange([...selectedChannelIds, channelId])
+    }
+  }
+  
+  const selectAll = () => {
+    onChange(channelList.map(ch => ch.id))
+  }
+  
+  const deselectAll = () => {
+    onChange([])
+  }
+  
+  const getDisplayText = () => {
+    if (selectedChannelIds.length === 0 || selectedChannelIds.length === channelList.length) {
+      return 'All Channels'
+    }
+    if (selectedChannelIds.length === 1) {
+      const channel = channelList.find(ch => ch.id === selectedChannelIds[0])
+      const name = channel?.name || 'Unknown'
+      return name.length > 25 ? name.slice(0, 25) + '...' : name
+    }
+    return `${selectedChannelIds.length} channels selected`
+  }
+  
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-dark-secondary border border-dark-border rounded-lg text-sm text-white hover:border-accent-cyan/50 transition-colors"
+      >
+        <span className="truncate">{getDisplayText()}</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <>
+          {/* Backdrop to close dropdown */}
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Dropdown menu */}
+          <div className="absolute z-20 mt-1 w-full min-w-[280px] max-h-[300px] overflow-y-auto bg-dark-secondary border border-dark-border rounded-lg shadow-xl">
+            {/* Select/Deselect all buttons */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-dark-border bg-dark-tertiary/50">
+              <button 
+                onClick={selectAll}
+                className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+              >
+                Select All
+              </button>
+              <span className="text-gray-600">|</span>
+              <button 
+                onClick={deselectAll}
+                className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+              >
+                Deselect All
+              </button>
+            </div>
+            
+            {/* Channel list */}
+            <div className="py-1">
+              {channelList.map(channel => (
+                <label
+                  key={channel.id}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
+                    selectedChannelIds.includes(channel.id)
+                      ? 'bg-dark-tertiary'
+                      : 'hover:bg-dark-tertiary/50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedChannelIds.includes(channel.id)}
+                    onChange={() => toggleChannel(channel.id)}
+                    className="hidden"
+                  />
+                  {selectedChannelIds.includes(channel.id) ? (
+                    <CheckSquare className="w-4 h-4 text-accent-cyan flex-shrink-0" />
+                  ) : (
+                    <Square className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                  )}
+                  <span 
+                    className="w-3 h-3 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: channelColorMap[channel.id] || '#6e7681' }}
+                  />
+                  <span className={`text-sm truncate ${
+                    selectedChannelIds.includes(channel.id) ? 'text-white' : 'text-gray-400'
+                  }`}>
+                    {channel.name}
+                  </span>
+                </label>
+              ))}
+              
+              {channelList.length === 0 && (
+                <div className="px-3 py-4 text-center text-gray-500 text-sm">
+                  No channels found
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+// ==================== END Multi-Select Channel Filter ====================
+
 export default function Trades() {
   const [trades, setTrades] = useState([])
   const [channels, setChannels] = useState([])
@@ -270,9 +390,11 @@ export default function Trades() {
     OUTCOME_TYPES.map(o => o.key) // All selected by default
   )
   
-  // Filters
+  // ==================== FIX #2: Multi-channel selection by ID ====================
+  const [selectedChannelIds, setSelectedChannelIds] = useState([]) // Empty = all channels
+  
+  // Filters (removed single channel filter, using selectedChannels instead)
   const [filters, setFilters] = useState({
-    channel: '',
     orderType: '',
     side: '',
     status: '',
@@ -387,43 +509,78 @@ export default function Trades() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [filters])
+  }, [filters, selectedChannelIds])
 
-  // Filter trades
-  const filteredTrades = trades.filter(trade => {
-    if (filters.channel && trade.channel_name !== filters.channel) return false
-    if (filters.orderType && trade.order_type !== filters.orderType) return false
-    if (filters.side && trade.direction !== filters.side) return false
-    if (filters.status && trade.status !== filters.status) return false
-    if (filters.startDate && new Date(trade.signal_time) < new Date(filters.startDate)) return false
-    if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
-    return true
-  })
-
-  // Get unique channel names from trades
-  const uniqueChannels = useMemo(() => {
-    const channelSet = new Set(trades.map(t => t.channel_name).filter(Boolean))
-    return Array.from(channelSet)
+  // ==================== FIX #1: Build channel list from trades using channel_id (stable) ====================
+  // Creates a list of unique channels with their IDs and display names
+  const channelList = useMemo(() => {
+    const channelMap = new Map() // Use Map to dedupe by channel_id
+    
+    trades.forEach(trade => {
+      const channelId = trade.channel_id
+      if (channelId && !channelMap.has(channelId)) {
+        // Get display name: prefer channel_name from trade, fallback to channel_id
+        const displayName = trade.channel_name || channelId
+        channelMap.set(channelId, {
+          id: channelId,
+          name: displayName
+        })
+      }
+    })
+    
+    // Convert to array and sort by name
+    return Array.from(channelMap.values()).sort((a, b) => 
+      a.name.localeCompare(b.name)
+    )
   }, [trades])
 
-  // Create color mapping for channels
+  // Create color mapping for channels by ID
   const channelColorMap = useMemo(() => {
     const map = {}
-    uniqueChannels.forEach((channel, index) => {
-      map[channel] = CHANNEL_COLORS[index % CHANNEL_COLORS.length]
+    channelList.forEach((channel, index) => {
+      map[channel.id] = CHANNEL_COLORS[index % CHANNEL_COLORS.length]
     })
     return map
-  }, [uniqueChannels])
+  }, [channelList])
+  
+  // Helper to get color by channel_id (for tables/charts that have channel_id)
+  const getChannelColor = useCallback((channelId) => {
+    return channelColorMap[channelId] || '#6e7681'
+  }, [channelColorMap])
+  
+  // Helper to get channel name by ID
+  const getChannelName = useCallback((channelId) => {
+    const channel = channelList.find(ch => ch.id === channelId)
+    return channel?.name || 'Unknown'
+  }, [channelList])
 
-  // Calculate channel statistics
+  // ==================== FIX #1 & #2: Updated filter logic using channel_id ====================
+  const filteredTrades = useMemo(() => {
+    return trades.filter(trade => {
+      // Multi-channel filter by ID: if selectedChannelIds is empty, show all; otherwise filter
+      if (selectedChannelIds.length > 0 && !selectedChannelIds.includes(trade.channel_id)) {
+        return false
+      }
+      if (filters.orderType && trade.order_type !== filters.orderType) return false
+      if (filters.side && trade.direction !== filters.side) return false
+      if (filters.status && trade.status !== filters.status) return false
+      if (filters.startDate && new Date(trade.signal_time) < new Date(filters.startDate)) return false
+      if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
+      return true
+    })
+  }, [trades, selectedChannelIds, filters])
+
+  // Calculate channel statistics (grouped by channel_id)
   const channelStats = useMemo(() => {
     const stats = {}
     filteredTrades.filter(t => t.status === 'closed').forEach(trade => {
-      const channel = trade.channel_name
-      if (!channel) return
+      const channelId = trade.channel_id
+      if (!channelId) return
       
-      if (!stats[channel]) {
-        stats[channel] = {
+      if (!stats[channelId]) {
+        stats[channelId] = {
+          channelId,
+          channelName: trade.channel_name || 'Unknown',
           totalPnL: 0,
           wins: 0,
           losses: 0,
@@ -432,15 +589,15 @@ export default function Trades() {
         }
       }
       
-      stats[channel].totalPnL += trade.profit_loss || 0
-      stats[channel].totalTrades++
-      if (trade.outcome === 'profit') stats[channel].wins++
-      if (trade.outcome === 'loss') stats[channel].losses++
+      stats[channelId].totalPnL += trade.profit_loss || 0
+      stats[channelId].totalTrades++
+      if (trade.outcome === 'profit') stats[channelId].wins++
+      if (trade.outcome === 'loss') stats[channelId].losses++
     })
     
     // Calculate averages and win rates
-    Object.keys(stats).forEach(channel => {
-      const s = stats[channel]
+    Object.keys(stats).forEach(channelId => {
+      const s = stats[channelId]
       s.avgPnL = s.totalTrades > 0 ? s.totalPnL / s.totalTrades : 0
       s.winRate = s.totalTrades > 0 ? (s.wins / s.totalTrades * 100) : 0
     })
@@ -448,7 +605,7 @@ export default function Trades() {
     return stats
   }, [filteredTrades])
 
-  // Calculate cumulative P&L over time by channel
+  // Calculate cumulative P&L over time by channel (using channel_id for grouping)
   const cumulativePnLData = useMemo(() => {
     // Get closed trades sorted by time
     const closedTrades = filteredTrades
@@ -457,7 +614,7 @@ export default function Trades() {
     
     if (closedTrades.length === 0) return []
 
-    // Group by date and channel
+    // Group by date and channel_id
     const dataByDate = {}
     const runningTotals = {}
     
@@ -466,45 +623,56 @@ export default function Trades() {
         month: 'short', 
         day: 'numeric' 
       })
-      const channel = trade.channel_name || 'Unknown'
+      const channelId = trade.channel_id || 'unknown'
       
-      if (!runningTotals[channel]) {
-        runningTotals[channel] = 0
+      if (!runningTotals[channelId]) {
+        runningTotals[channelId] = 0
       }
-      runningTotals[channel] += trade.profit_loss || 0
+      runningTotals[channelId] += trade.profit_loss || 0
       
       if (!dataByDate[date]) {
         dataByDate[date] = { date }
       }
       
       // Store the cumulative total for this channel at this date
-      dataByDate[date][channel] = runningTotals[channel]
+      dataByDate[date][channelId] = runningTotals[channelId]
     })
     
     // Fill in gaps - carry forward last known value
     const dates = Object.keys(dataByDate)
-    const allChannels = Object.keys(runningTotals)
+    const allChannelIds = Object.keys(runningTotals)
     
     let lastValues = {}
     dates.forEach(date => {
-      allChannels.forEach(channel => {
-        if (dataByDate[date][channel] !== undefined) {
-          lastValues[channel] = dataByDate[date][channel]
-        } else if (lastValues[channel] !== undefined) {
-          dataByDate[date][channel] = lastValues[channel]
+      allChannelIds.forEach(channelId => {
+        if (dataByDate[date][channelId] !== undefined) {
+          lastValues[channelId] = dataByDate[date][channelId]
+        } else if (lastValues[channelId] !== undefined) {
+          dataByDate[date][channelId] = lastValues[channelId]
         }
       })
     })
     
     return Object.values(dataByDate)
   }, [filteredTrades])
+  
+  // Get list of channel IDs that appear in filtered trades (for chart lines)
+  const activeChannelIds = useMemo(() => {
+    const ids = new Set()
+    filteredTrades.forEach(trade => {
+      if (trade.channel_id) ids.add(trade.channel_id)
+    })
+    return Array.from(ids)
+  }, [filteredTrades])
 
-  // Outcome distribution by channel (for new visualization)
+  // ==================== FIX #3: Outcome distribution sorted by (profit - loss) descending ====================
+  // Groups by channel_id for consistency
   const outcomeByChannelData = useMemo(() => {
     const dataByChannel = {}
     
     filteredTrades.forEach(trade => {
-      const channel = trade.channel_name || 'Unknown'
+      const channelId = trade.channel_id || 'unknown'
+      const channelName = trade.channel_name || 'Unknown'
       let outcome = trade.outcome || 'unknown'
       
       // Normalize null/undefined outcomes to 'unknown'
@@ -512,10 +680,11 @@ export default function Trades() {
         outcome = 'unknown'
       }
       
-      if (!dataByChannel[channel]) {
-        dataByChannel[channel] = { 
-          channel,
-          fullName: channel,
+      if (!dataByChannel[channelId]) {
+        dataByChannel[channelId] = { 
+          channelId,
+          channel: channelName, // Display name (may be truncated later)
+          fullName: channelName,
           profit: 0,
           loss: 0,
           breakeven: 0,
@@ -526,33 +695,40 @@ export default function Trades() {
         }
       }
       
-      if (dataByChannel[channel][outcome] !== undefined) {
-        dataByChannel[channel][outcome]++
+      if (dataByChannel[channelId][outcome] !== undefined) {
+        dataByChannel[channelId][outcome]++
       } else {
-        dataByChannel[channel].unknown++
+        dataByChannel[channelId].unknown++
       }
     })
     
-    return Object.values(dataByChannel).map(item => ({
-      ...item,
-      channel: item.channel.length > 20 ? item.channel.slice(0, 20) + '...' : item.channel
-    }))
+    // Convert to array, add sort score, truncate channel names, and sort
+    return Object.values(dataByChannel)
+      .map(item => ({
+        ...item,
+        // Calculate sort score: profit - loss
+        sortScore: item.profit - item.loss,
+        channel: item.channel.length > 20 ? item.channel.slice(0, 20) + '...' : item.channel
+      }))
+      // Sort by (profit - loss) in DESCENDING order (best performers first)
+      .sort((a, b) => b.sortScore - a.sortScore)
   }, [filteredTrades])
 
   // Channel comparison bar chart data
   const channelComparisonData = useMemo(() => {
-    return Object.entries(channelStats).map(([channel, stats]) => ({
-      channel: channel.length > 15 ? channel.slice(0, 15) + '...' : channel,
-      fullName: channel,
+    return Object.entries(channelStats).map(([channelId, stats]) => ({
+      channelId,
+      channel: stats.channelName.length > 15 ? stats.channelName.slice(0, 15) + '...' : stats.channelName,
+      fullName: stats.channelName,
       totalPnL: stats.totalPnL,
       winRate: stats.winRate,
       avgPnL: stats.avgPnL,
       trades: stats.totalTrades,
       wins: stats.wins,
       losses: stats.losses,
-      color: channelColorMap[channel]
+      color: getChannelColor(channelId)
     })).sort((a, b) => b.totalPnL - a.totalPnL)
-  }, [channelStats, channelColorMap])
+  }, [channelStats, getChannelColor])
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredTrades.length / TRADES_PER_PAGE)
@@ -602,7 +778,8 @@ export default function Trades() {
   const dowChartData = days.map(day => dowData[day] || { day, pnl: 0, count: 0 })
 
   function clearFilters() {
-    setFilters({ channel: '', orderType: '', side: '', status: '', startDate: '', endDate: '' })
+    setFilters({ orderType: '', side: '', status: '', startDate: '', endDate: '' })
+    setSelectedChannelIds([]) // Clear channel selection too
     setCurrentPage(1)
   }
 
@@ -697,19 +874,17 @@ export default function Trades() {
               onChange={e => setFilters({ ...filters, endDate: e.target.value })}
             />
           </div>
+          {/* ==================== FIX #2: Multi-select channel filter by ID ==================== */}
           <div>
             <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Filter className="w-3 h-3 text-accent-cyan" /> Channel
+              <Filter className="w-3 h-3 text-accent-cyan" /> Channels
             </label>
-            <select
-              value={filters.channel}
-              onChange={e => setFilters({ ...filters, channel: e.target.value })}
-            >
-              <option value="">All Channels</option>
-              {channels.map(ch => (
-                <option key={ch.id} value={ch.channel_key}>{ch.channel_key}</option>
-              ))}
-            </select>
+            <ChannelMultiSelect
+              channelList={channelList}
+              selectedChannelIds={selectedChannelIds}
+              onChange={setSelectedChannelIds}
+              channelColorMap={channelColorMap}
+            />
           </div>
           <div>
             <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -720,8 +895,8 @@ export default function Trades() {
               onChange={e => setFilters({ ...filters, orderType: e.target.value })}
             >
               <option value="">All Types</option>
-              <option value="market">Market</option>
-              <option value="limit">Limit</option>
+              <option value="MARKET">Market</option>
+              <option value="LIMIT">Limit</option>
             </select>
           </div>
           <div>
@@ -814,6 +989,10 @@ export default function Trades() {
                     const hoveredItem = payload.find(p => p.value !== null && p.value !== undefined)
                     if (!hoveredItem) return null
                     
+                    // Get display name from channelList using the channel_id (dataKey)
+                    const channelId = hoveredItem.dataKey
+                    const displayName = getChannelName(channelId)
+                    
                     return (
                       <div className="bg-dark-secondary border border-dark-border rounded-lg px-4 py-3 shadow-xl">
                         <div className="flex items-center gap-2 mb-2">
@@ -821,7 +1000,7 @@ export default function Trades() {
                             className="w-3 h-3 rounded-full" 
                             style={{ backgroundColor: hoveredItem.color }}
                           />
-                          <span className="text-white font-semibold text-sm">{hoveredItem.name}</span>
+                          <span className="text-white font-semibold text-sm">{displayName}</span>
                         </div>
                         <p className="text-gray-400 text-xs mb-1">{label}</p>
                         <p className={`text-lg font-mono font-bold ${hoveredItem.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -831,13 +1010,13 @@ export default function Trades() {
                     )
                   }}
                 />
-                {uniqueChannels.map((channel) => (
+                {activeChannelIds.map((channelId) => (
                   <Line
-                    key={channel}
+                    key={channelId}
                     type="monotone"
-                    dataKey={channel}
-                    name={channel}
-                    stroke={channelColorMap[channel]}
+                    dataKey={channelId}
+                    name={getChannelName(channelId)}
+                    stroke={getChannelColor(channelId)}
                     strokeWidth={2}
                     dot={false}
                     connectNulls
@@ -921,8 +1100,8 @@ export default function Trades() {
           </ChartCard>
         </div>
 
-        {/* ==================== NEW: OUTCOME DISTRIBUTION BY CHANNEL ==================== */}
-        <ChartCard title="Outcome Distribution by Channel" icon={Target} className="mb-6">
+        {/* ==================== FIX #3: OUTCOME DISTRIBUTION BY CHANNEL (sorted) ==================== */}
+        <ChartCard title="Outcome Distribution by Channel (sorted by Profit - Loss)" icon={Target} className="mb-6">
           {/* Outcome checkboxes */}
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-3">
@@ -953,7 +1132,7 @@ export default function Trades() {
             </div>
           </div>
           
-          {/* Stacked bar chart */}
+          {/* Stacked bar chart - now sorted by (profit - loss) descending */}
           {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={outcomeByChannelData} layout="vertical" margin={{ left: 20, right: 20, top: 10, bottom: 10 }}>
@@ -1036,7 +1215,7 @@ export default function Trades() {
                     <div className="flex items-center gap-2">
                       <span 
                         className="w-2 h-2 rounded-full" 
-                        style={{ backgroundColor: channelColorMap[trade.channel_name] || '#6e7681' }}
+                        style={{ backgroundColor: getChannelColor(trade.channel_id) }}
                       />
                       {trade.channel_name?.slice(0, 20) || '-'}
                     </div>
