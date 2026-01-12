@@ -477,7 +477,7 @@ export default function Trades() {
     async function loadData() {
       try {
         const [tradesData, channelsData] = await Promise.all([
-          fetchTrades({ limit: 500 }),
+          fetchTrades({ limit: 50000 }),
           fetchChannels()
         ])
         setTrades(tradesData)
