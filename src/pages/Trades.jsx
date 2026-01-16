@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
   BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight, Layers,
-  CheckSquare, Square, ChevronDown
+  CheckSquare, Square, ChevronDown, Globe
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
@@ -45,6 +45,43 @@ const OUTCOME_TYPES = [
   { key: 'canceled', label: 'Canceled', color: COLORS.purple },
   { key: 'blocked', label: 'Blocked', color: COLORS.pink },
   { key: 'unknown', label: 'Unknown/Null', color: COLORS.yellow },
+]
+
+// ==================== MARKET SESSIONS DEFINITION ====================
+// Times are in UTC
+const MARKET_SESSIONS = [
+  { 
+    key: 'sydney', 
+    label: 'Sydney', 
+    startHour: 22, 
+    endHour: 7, 
+    color: '#39d5ff',  // cyan
+    crossesMidnight: true 
+  },
+  { 
+    key: 'tokyo', 
+    label: 'Tokyo', 
+    startHour: 0, 
+    endHour: 9, 
+    color: '#f85149',  // red
+    crossesMidnight: false 
+  },
+  { 
+    key: 'london', 
+    label: 'London', 
+    startHour: 8, 
+    endHour: 17, 
+    color: '#3fb950',  // green
+    crossesMidnight: false 
+  },
+  { 
+    key: 'newyork', 
+    label: 'New York', 
+    startHour: 13, 
+    endHour: 22, 
+    color: '#a371f7',  // purple
+    crossesMidnight: false 
+  },
 ]
 
 const TRADES_PER_PAGE = 10
@@ -207,9 +244,12 @@ function Toast({ message, type, onClose }) {
 function OutcomeDistributionTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null
 
+  // Get full channel name from payload
+  const fullName = payload[0]?.payload?.fullName || label
+
   return (
     <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl">
-      <p className="text-gray-400 text-xs mb-2 font-semibold">{label}</p>
+      <p className="text-gray-400 text-xs mb-2 font-semibold">{fullName}</p>
       {payload.map((entry, index) => (
         <div key={index} className="flex items-center gap-2 text-sm">
           <span 
@@ -218,6 +258,37 @@ function OutcomeDistributionTooltip({ active, payload, label }) {
           />
           <span className="text-gray-300">{entry.name}:</span>
           <span className="text-white font-mono">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Custom tooltip for market sessions chart
+function MarketSessionsTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null
+
+  const session = MARKET_SESSIONS.find(s => s.label === label)
+  
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[180px]">
+      <div className="flex items-center gap-2 mb-2">
+        <span 
+          className="w-3 h-3 rounded-full" 
+          style={{ backgroundColor: session?.color || '#6e7681' }}
+        />
+        <p className="text-white font-semibold">{label} Session</p>
+      </div>
+      <div className="text-xs text-gray-400 mb-2">
+        {session?.crossesMidnight 
+          ? `${session.startHour}:00 - ${session.endHour}:00 UTC (next day)`
+          : `${session?.startHour}:00 - ${session?.endHour}:00 UTC`
+        }
+      </div>
+      {payload.map((entry, index) => (
+        <div key={index} className="flex items-center justify-between gap-4 text-sm">
+          <span className="text-gray-300">{entry.name}:</span>
+          <span className="text-white font-mono font-semibold">{entry.value}</span>
         </div>
       ))}
     </div>
@@ -256,12 +327,10 @@ function OutcomeCheckbox({ outcome, checked, onChange }) {
   )
 }
 
-// ==================== NEW: Multi-Select Channel Filter Component ====================
-// Uses channel_id for filtering (stable) but displays channel_name/key (user-friendly)
+// ==================== Multi-Select Channel Filter Component ====================
 function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channelColorMap }) {
   const [isOpen, setIsOpen] = useState(false)
   
-  // channelList is array of { id, name, color }
   const toggleChannel = (channelId) => {
     if (selectedChannelIds.includes(channelId)) {
       onChange(selectedChannelIds.filter(id => id !== channelId))
@@ -303,15 +372,12 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
       
       {isOpen && (
         <>
-          {/* Backdrop to close dropdown */}
           <div 
             className="fixed inset-0 z-10" 
             onClick={() => setIsOpen(false)}
           />
           
-          {/* Dropdown menu */}
           <div className="absolute z-20 mt-1 w-full min-w-[280px] max-h-[300px] overflow-y-auto bg-dark-secondary border border-dark-border rounded-lg shadow-xl">
-            {/* Select/Deselect all buttons */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-dark-border bg-dark-tertiary/50">
               <button 
                 onClick={selectAll}
@@ -328,7 +394,6 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
               </button>
             </div>
             
-            {/* Channel list */}
             <div className="py-1">
               {channelList.map(channel => (
                 <label
@@ -374,7 +439,6 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
     </div>
   )
 }
-// ==================== END Multi-Select Channel Filter ====================
 
 export default function Trades() {
   const [trades, setTrades] = useState([])
@@ -387,13 +451,11 @@ export default function Trades() {
   
   // Outcome filter for the new visualization
   const [selectedOutcomes, setSelectedOutcomes] = useState(
-    OUTCOME_TYPES.map(o => o.key) // All selected by default
+    OUTCOME_TYPES.map(o => o.key)
   )
   
-  // ==================== FIX #2: Multi-channel selection by ID ====================
-  const [selectedChannelIds, setSelectedChannelIds] = useState([]) // Empty = all channels
+  const [selectedChannelIds, setSelectedChannelIds] = useState([])
   
-  // Filters (removed single channel filter, using selectedChannels instead)
   const [filters, setFilters] = useState({
     orderType: '',
     side: '',
@@ -402,7 +464,6 @@ export default function Trades() {
     endDate: '',
   })
 
-  // Toggle outcome selection
   const toggleOutcome = useCallback((outcomeKey) => {
     setSelectedOutcomes(prev => {
       if (prev.includes(outcomeKey)) {
@@ -413,7 +474,6 @@ export default function Trades() {
     })
   }, [])
 
-  // Select/deselect all outcomes
   const selectAllOutcomes = useCallback(() => {
     setSelectedOutcomes(OUTCOME_TYPES.map(o => o.key))
   }, [])
@@ -422,7 +482,6 @@ export default function Trades() {
     setSelectedOutcomes([])
   }, [])
 
-  // Handle real-time INSERT - add new trade to the list
   const handleTradeInsert = useCallback((newTrade) => {
     setTrades(prev => {
       if (prev.some(t => t.id === newTrade.id)) {
@@ -437,7 +496,6 @@ export default function Trades() {
     })
   }, [])
 
-  // Handle real-time UPDATE - update existing trade in place
   const handleTradeUpdate = useCallback((updatedTrade, oldTrade) => {
     setTrades(prev => prev.map(trade => 
       trade.id === updatedTrade.id ? updatedTrade : trade
@@ -454,7 +512,6 @@ export default function Trades() {
     }
   }, [])
 
-  // Handle real-time DELETE - remove trade from list
   const handleTradeDelete = useCallback((deletedTrade) => {
     setTrades(prev => prev.filter(trade => trade.id !== deletedTrade.id))
     
@@ -464,7 +521,6 @@ export default function Trades() {
     })
   }, [])
 
-  // Handle connection status changes
   const handleStatusChange = useCallback((status, error) => {
     setConnectionStatus(status)
     if (error) {
@@ -472,7 +528,6 @@ export default function Trades() {
     }
   }, [])
 
-  // Initial data load
   useEffect(() => {
     async function loadData() {
       try {
@@ -492,7 +547,6 @@ export default function Trades() {
     loadData()
   }, [])
 
-  // Set up real-time subscription
   useEffect(() => {
     const subscription = subscribeToTrades({
       onInsert: handleTradeInsert,
@@ -506,20 +560,17 @@ export default function Trades() {
     }
   }, [handleTradeInsert, handleTradeUpdate, handleTradeDelete, handleStatusChange])
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
   }, [filters, selectedChannelIds])
 
-  // ==================== FIX #1: Build channel list from trades using channel_id (stable) ====================
-  // Creates a list of unique channels with their IDs and display names
+  // Build channel list from trades using channel_id
   const channelList = useMemo(() => {
-    const channelMap = new Map() // Use Map to dedupe by channel_id
+    const channelMap = new Map()
     
     trades.forEach(trade => {
       const channelId = trade.channel_id
       if (channelId && !channelMap.has(channelId)) {
-        // Get display name: prefer channel_name from trade, fallback to channel_id
         const displayName = trade.channel_name || channelId
         channelMap.set(channelId, {
           id: channelId,
@@ -528,7 +579,6 @@ export default function Trades() {
       }
     })
     
-    // Convert to array and sort by name
     return Array.from(channelMap.values()).sort((a, b) => 
       a.name.localeCompare(b.name)
     )
@@ -543,21 +593,19 @@ export default function Trades() {
     return map
   }, [channelList])
   
-  // Helper to get color by channel_id (for tables/charts that have channel_id)
   const getChannelColor = useCallback((channelId) => {
     return channelColorMap[channelId] || '#6e7681'
   }, [channelColorMap])
   
-  // Helper to get channel name by ID
+  // ==================== FIX: Get FULL channel name by ID ====================
   const getChannelName = useCallback((channelId) => {
     const channel = channelList.find(ch => ch.id === channelId)
     return channel?.name || 'Unknown'
   }, [channelList])
 
-  // ==================== FIX #1 & #2: Updated filter logic using channel_id ====================
+  // Filter trades
   const filteredTrades = useMemo(() => {
     return trades.filter(trade => {
-      // Multi-channel filter by ID: if selectedChannelIds is empty, show all; otherwise filter
       if (selectedChannelIds.length > 0 && !selectedChannelIds.includes(trade.channel_id)) {
         return false
       }
@@ -570,7 +618,102 @@ export default function Trades() {
     })
   }, [trades, selectedChannelIds, filters])
 
-  // Calculate channel statistics (grouped by channel_id)
+  // ==================== FIX #1: Sort trades - pending/active FIRST ====================
+  const sortedFilteredTrades = useMemo(() => {
+    const statusPriority = {
+      'pending': 0,
+      'active': 1,
+      'parsed': 2,
+      'closed': 3,
+      'canceled': 4,
+      'blocked': 5
+    }
+    
+    return [...filteredTrades].sort((a, b) => {
+      const priorityA = statusPriority[a.status] ?? 99
+      const priorityB = statusPriority[b.status] ?? 99
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+      
+      // Same status - sort by signal_time descending (newest first)
+      return new Date(b.signal_time) - new Date(a.signal_time)
+    })
+  }, [filteredTrades])
+
+  // ==================== NEW: Market Sessions Analysis ====================
+  const marketSessionsData = useMemo(() => {
+    const sessionStats = {}
+    
+    // Initialize all sessions
+    MARKET_SESSIONS.forEach(session => {
+      sessionStats[session.key] = {
+        session: session.label,
+        profit: 0,
+        loss: 0,
+        breakeven: 0,
+        total: 0,
+        color: session.color,
+        startHour: session.startHour,
+        endHour: session.endHour
+      }
+    })
+    
+    // Helper to determine which session(s) a trade belongs to
+    const getSessionForHour = (hour) => {
+      const sessions = []
+      
+      MARKET_SESSIONS.forEach(session => {
+        if (session.crossesMidnight) {
+          // Sydney: 22:00 - 07:00 (spans midnight)
+          if (hour >= session.startHour || hour < session.endHour) {
+            sessions.push(session.key)
+          }
+        } else {
+          // Normal sessions
+          if (hour >= session.startHour && hour < session.endHour) {
+            sessions.push(session.key)
+          }
+        }
+      })
+      
+      return sessions
+    }
+    
+    // Process closed trades only
+    filteredTrades
+      .filter(t => t.status === 'closed' && t.signal_time)
+      .forEach(trade => {
+        const hour = new Date(trade.signal_time).getUTCHours()
+        const sessions = getSessionForHour(hour)
+        const outcome = trade.outcome || 'unknown'
+        
+        sessions.forEach(sessionKey => {
+          if (sessionStats[sessionKey]) {
+            sessionStats[sessionKey].total++
+            
+            if (outcome === 'profit') {
+              sessionStats[sessionKey].profit++
+            } else if (outcome === 'loss') {
+              sessionStats[sessionKey].loss++
+            } else if (outcome === 'breakeven') {
+              sessionStats[sessionKey].breakeven++
+            }
+          }
+        })
+      })
+    
+    // Convert to array and add win rate
+    return MARKET_SESSIONS.map(session => ({
+      ...sessionStats[session.key],
+      winRate: sessionStats[session.key].total > 0 
+        ? ((sessionStats[session.key].profit / sessionStats[session.key].total) * 100).toFixed(1)
+        : '0.0'
+    }))
+  }, [filteredTrades])
+
+  // Calculate channel statistics
   const channelStats = useMemo(() => {
     const stats = {}
     filteredTrades.filter(t => t.status === 'closed').forEach(trade => {
@@ -595,7 +738,6 @@ export default function Trades() {
       if (trade.outcome === 'loss') stats[channelId].losses++
     })
     
-    // Calculate averages and win rates
     Object.keys(stats).forEach(channelId => {
       const s = stats[channelId]
       s.avgPnL = s.totalTrades > 0 ? s.totalPnL / s.totalTrades : 0
@@ -605,16 +747,14 @@ export default function Trades() {
     return stats
   }, [filteredTrades])
 
-  // Calculate cumulative P&L over time by channel (using channel_id for grouping)
+  // Cumulative P&L over time by channel
   const cumulativePnLData = useMemo(() => {
-    // Get closed trades sorted by time
     const closedTrades = filteredTrades
       .filter(t => t.status === 'closed' && t.close_time)
       .sort((a, b) => new Date(a.close_time) - new Date(b.close_time))
     
     if (closedTrades.length === 0) return []
 
-    // Group by date and channel_id
     const dataByDate = {}
     const runningTotals = {}
     
@@ -634,11 +774,9 @@ export default function Trades() {
         dataByDate[date] = { date }
       }
       
-      // Store the cumulative total for this channel at this date
       dataByDate[date][channelId] = runningTotals[channelId]
     })
     
-    // Fill in gaps - carry forward last known value
     const dates = Object.keys(dataByDate)
     const allChannelIds = Object.keys(runningTotals)
     
@@ -656,7 +794,6 @@ export default function Trades() {
     return Object.values(dataByDate)
   }, [filteredTrades])
   
-  // Get list of channel IDs that appear in filtered trades (for chart lines)
   const activeChannelIds = useMemo(() => {
     const ids = new Set()
     filteredTrades.forEach(trade => {
@@ -665,17 +802,16 @@ export default function Trades() {
     return Array.from(ids)
   }, [filteredTrades])
 
-  // ==================== FIX #3: Outcome distribution sorted by (profit - loss) descending ====================
-  // Groups by channel_id for consistency
+  // ==================== FIX #3: Outcome distribution with FULL channel names ====================
   const outcomeByChannelData = useMemo(() => {
     const dataByChannel = {}
     
     filteredTrades.forEach(trade => {
       const channelId = trade.channel_id || 'unknown'
-      const channelName = trade.channel_name || 'Unknown'
+      // Use getChannelName for full name lookup
+      const channelName = getChannelName(channelId)
       let outcome = trade.outcome || 'unknown'
       
-      // Normalize null/undefined outcomes to 'unknown'
       if (!outcome || outcome === 'null') {
         outcome = 'unknown'
       }
@@ -683,7 +819,7 @@ export default function Trades() {
       if (!dataByChannel[channelId]) {
         dataByChannel[channelId] = { 
           channelId,
-          channel: channelName, // Display name (may be truncated later)
+          channel: channelName, // Full name for display
           fullName: channelName,
           profit: 0,
           loss: 0,
@@ -702,17 +838,15 @@ export default function Trades() {
       }
     })
     
-    // Convert to array, add sort score, truncate channel names, and sort
     return Object.values(dataByChannel)
       .map(item => ({
         ...item,
-        // Calculate sort score: profit - loss
         sortScore: item.profit - item.loss,
-        channel: item.channel.length > 20 ? item.channel.slice(0, 20) + '...' : item.channel
+        // Truncate only for X-axis label, keep fullName for tooltip
+        channel: item.channel.length > 25 ? item.channel.slice(0, 25) + '...' : item.channel
       }))
-      // Sort by (profit - loss) in DESCENDING order (best performers first)
       .sort((a, b) => b.sortScore - a.sortScore)
-  }, [filteredTrades])
+  }, [filteredTrades, getChannelName])
 
   // Channel comparison bar chart data
   const channelComparisonData = useMemo(() => {
@@ -730,11 +864,11 @@ export default function Trades() {
     })).sort((a, b) => b.totalPnL - a.totalPnL)
   }, [channelStats, getChannelColor])
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredTrades.length / TRADES_PER_PAGE)
+  // Pagination calculations - use sorted trades
+  const totalPages = Math.ceil(sortedFilteredTrades.length / TRADES_PER_PAGE)
   const startIndex = (currentPage - 1) * TRADES_PER_PAGE
   const endIndex = startIndex + TRADES_PER_PAGE
-  const paginatedTrades = filteredTrades.slice(startIndex, endIndex)
+  const paginatedTrades = sortedFilteredTrades.slice(startIndex, endIndex)
 
   // Calculate filtered stats
   const closedTrades = filteredTrades.filter(t => t.status === 'closed')
@@ -779,7 +913,7 @@ export default function Trades() {
 
   function clearFilters() {
     setFilters({ orderType: '', side: '', status: '', startDate: '', endDate: '' })
-    setSelectedChannelIds([]) // Clear channel selection too
+    setSelectedChannelIds([])
     setCurrentPage(1)
   }
 
@@ -790,7 +924,7 @@ export default function Trades() {
 
   function exportCSV() {
     const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'Time']
-    const rows = filteredTrades.map(t => [
+    const rows = sortedFilteredTrades.map(t => [
       t.trade_id, t.channel_name, t.symbol, t.direction, t.order_type,
       t.executed_entry_price, t.executed_tp_price, t.executed_sl_price,
       t.profit_loss, t.status, t.outcome, t.signal_time
@@ -805,29 +939,42 @@ export default function Trades() {
     a.click()
   }
 
-  // Helper function to get status badge styling
+  // ==================== FIX #5: Improved status badge logic for STOP orders ====================
+  function getTradeEffectiveStatus(trade) {
+    // STOP orders should be treated as pending until they have a fill_time
+    if (trade.order_type === 'STOP' && !trade.fill_time && trade.status !== 'closed' && trade.status !== 'canceled') {
+      return 'pending'
+    }
+    return trade.status
+  }
+
   function getStatusBadgeClass(trade) {
-    if (trade.status === 'closed') {
-      // Different colors based on outcome
-      if (trade.outcome === 'profit') return 'badge-success' // green
-      if (trade.outcome === 'loss') return 'badge-danger'   // red
-      if (trade.outcome === 'breakeven') return 'badge-neutral' // gray
-      // For manual, canceled, blocked, unknown - use neutral
+    const effectiveStatus = getTradeEffectiveStatus(trade)
+    
+    if (effectiveStatus === 'closed') {
+      if (trade.outcome === 'profit') return 'badge-success'
+      if (trade.outcome === 'loss') return 'badge-danger'
+      if (trade.outcome === 'breakeven') return 'badge-neutral'
       return 'badge-neutral'
     }
-    if (trade.status === 'active') return 'badge-warning'
-    if (trade.status === 'pending') return 'badge-warning'
-    if (trade.status === 'canceled') return 'badge-neutral'
-    if (trade.status === 'blocked') return 'badge-neutral'
+    if (effectiveStatus === 'active') return 'badge-warning'
+    if (effectiveStatus === 'pending') return 'badge-warning'
+    if (effectiveStatus === 'canceled') return 'badge-neutral'
+    if (effectiveStatus === 'blocked') return 'badge-neutral'
     return 'badge-neutral'
   }
 
-  // Helper function to get status display text
   function getStatusDisplay(trade) {
-    if (trade.status === 'closed' && trade.outcome) {
-      return `${trade.status} (${trade.outcome})`
+    const effectiveStatus = getTradeEffectiveStatus(trade)
+    
+    if (effectiveStatus === 'closed' && trade.outcome) {
+      return `${effectiveStatus} (${trade.outcome})`
     }
-    return trade.status || '-'
+    // Show order type for pending orders
+    if (effectiveStatus === 'pending' && trade.order_type) {
+      return `pending (${trade.order_type})`
+    }
+    return effectiveStatus || '-'
   }
 
   if (loading) {
@@ -836,7 +983,6 @@ export default function Trades() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Toast notification */}
       {toast && (
         <Toast 
           message={toast.message} 
@@ -845,7 +991,6 @@ export default function Trades() {
         />
       )}
 
-      {/* Header with connection status */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Trade History</h1>
         <ConnectionStatus status={connectionStatus} />
@@ -874,7 +1019,6 @@ export default function Trades() {
               onChange={e => setFilters({ ...filters, endDate: e.target.value })}
             />
           </div>
-          {/* ==================== FIX #2: Multi-select channel filter by ID ==================== */}
           <div>
             <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               <Filter className="w-3 h-3 text-accent-cyan" /> Channels
@@ -897,6 +1041,7 @@ export default function Trades() {
               <option value="">All Types</option>
               <option value="MARKET">Market</option>
               <option value="LIMIT">Limit</option>
+              <option value="STOP">Stop</option>
             </select>
           </div>
           <div>
@@ -959,14 +1104,14 @@ export default function Trades() {
         </div>
       </div>
 
-      {/* ==================== CHANNEL COMPARISON SECTION ==================== */}
+      {/* CHANNEL COMPARISON SECTION */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Layers className="w-5 h-5 text-accent-cyan" />
           Channel Performance Comparison
         </h2>
         
-        {/* Cumulative P&L Over Time - Full Width - TALLER, NO LEGEND, HOVER SHOWS CHANNEL */}
+        {/* Cumulative P&L Over Time */}
         <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
           {cumulativePnLData.length > 0 ? (
             <ResponsiveContainer width="100%" height={650}>
@@ -985,11 +1130,9 @@ export default function Trades() {
                 <Tooltip 
                   content={({ active, payload, label }) => {
                     if (!active || !payload || !payload.length) return null
-                    // Find the hovered line (the one with data at this point)
                     const hoveredItem = payload.find(p => p.value !== null && p.value !== undefined)
                     if (!hoveredItem) return null
                     
-                    // Get display name from channelList using the channel_id (dataKey)
                     const channelId = hoveredItem.dataKey
                     const displayName = getChannelName(channelId)
                     
@@ -1034,7 +1177,6 @@ export default function Trades() {
 
         {/* Channel Stats Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Total P&L by Channel */}
           <ChartCard title="Total P&L by Channel" icon={BarChart3}>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }}>
@@ -1062,7 +1204,6 @@ export default function Trades() {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Win Rate by Channel */}
           <ChartCard title="Win Rate by Channel" icon={Target}>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }}>
@@ -1100,9 +1241,81 @@ export default function Trades() {
           </ChartCard>
         </div>
 
-        {/* ==================== FIX #3: OUTCOME DISTRIBUTION BY CHANNEL (sorted) ==================== */}
+        {/* ==================== NEW: MARKET SESSIONS CHART ==================== */}
+        <ChartCard title="Performance by Market Session" icon={Globe} className="mb-6">
+          <div className="mb-4 text-sm text-gray-400">
+            Trade outcomes grouped by forex market sessions (based on signal time UTC)
+          </div>
+          {marketSessionsData.some(s => s.total > 0) ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={marketSessionsData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <XAxis 
+                  dataKey="session" 
+                  stroke="#6e7681" 
+                  fontSize={12}
+                  tickMargin={10}
+                />
+                <YAxis 
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<MarketSessionsTooltip />} />
+                <Legend 
+                  wrapperStyle={{ paddingTop: 20 }}
+                  formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
+                />
+                <Bar dataKey="profit" name="Profit" fill={COLORS.green} stackId="outcomes" />
+                <Bar dataKey="loss" name="Loss" fill={COLORS.red} stackId="outcomes" />
+                <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              No closed trades to display
+            </div>
+          )}
+          
+          {/* Session Stats Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-dark-border">
+            {marketSessionsData.map(session => (
+              <div 
+                key={session.session}
+                className="bg-dark-tertiary/50 rounded-lg p-3 border border-dark-border"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: MARKET_SESSIONS.find(s => s.label === session.session)?.color }}
+                  />
+                  <span className="text-sm font-semibold text-white">{session.session}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-500">Total:</span>
+                    <span className="text-white ml-1 font-mono">{session.total}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Win%:</span>
+                    <span className="text-white ml-1 font-mono">{session.winRate}%</span>
+                  </div>
+                  <div>
+                    <span className="text-green-400">W:</span>
+                    <span className="text-green-400 ml-1 font-mono">{session.profit}</span>
+                  </div>
+                  <div>
+                    <span className="text-red-400">L:</span>
+                    <span className="text-red-400 ml-1 font-mono">{session.loss}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+        {/* ==================== END MARKET SESSIONS CHART ==================== */}
+
+        {/* ==================== FIX #4: OUTCOME DISTRIBUTION - Taller Chart ====================  */}
         <ChartCard title="Outcome Distribution by Channel (sorted by Profit - Loss)" icon={Target} className="mb-6">
-          {/* Outcome checkboxes */}
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-sm text-gray-400">Filter outcomes:</span>
@@ -1132,9 +1345,9 @@ export default function Trades() {
             </div>
           </div>
           
-          {/* Stacked bar chart - now sorted by (profit - loss) descending */}
+          {/* Increased height from 350 to 500 for better readability */}
           {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height={Math.max(500, outcomeByChannelData.length * 45)}>
               <BarChart data={outcomeByChannelData} layout="vertical" margin={{ left: 20, right: 20, top: 10, bottom: 10 }}>
                 <XAxis type="number" stroke="#6e7681" fontSize={11} />
                 <YAxis 
@@ -1142,7 +1355,8 @@ export default function Trades() {
                   dataKey="channel" 
                   stroke="#6e7681" 
                   fontSize={11}
-                  width={150}
+                  width={200}  // Increased width to show more of channel name
+                  tick={{ fill: '#9ca3af' }}
                 />
                 <Tooltip content={<OutcomeDistributionTooltip />} />
                 <Legend 
@@ -1169,10 +1383,7 @@ export default function Trades() {
             </div>
           )}
         </ChartCard>
-        {/* ==================== END OUTCOME DISTRIBUTION ==================== */}
       </div>
-
-      {/* ==================== END CHANNEL COMPARISON ==================== */}
 
       {/* Actions */}
       <div className="flex gap-3 mb-6">
@@ -1187,7 +1398,8 @@ export default function Trades() {
           <BarChart3 className="w-4 h-4 text-accent-cyan" />
           <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
           <span className="ml-auto text-xs text-gray-500">
-            Showing {startIndex + 1}-{Math.min(endIndex, filteredTrades.length)} of {filteredTrades.length} trades
+            Showing {startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length} trades
+            <span className="ml-2 text-accent-cyan">(Pending/Active first)</span>
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -1214,10 +1426,13 @@ export default function Trades() {
                   <td>
                     <div className="flex items-center gap-2">
                       <span 
-                        className="w-2 h-2 rounded-full" 
+                        className="w-2 h-2 rounded-full flex-shrink-0" 
                         style={{ backgroundColor: getChannelColor(trade.channel_id) }}
                       />
-                      {trade.channel_name?.slice(0, 20) || '-'}
+                      {/* ==================== FIX #2: Show FULL channel name ==================== */}
+                      <span className="truncate max-w-[200px]" title={getChannelName(trade.channel_id)}>
+                        {getChannelName(trade.channel_id)}
+                      </span>
                     </div>
                   </td>
                   <td className="font-semibold">{trade.symbol || '-'}</td>
@@ -1243,7 +1458,7 @@ export default function Trades() {
                   </td>
                 </tr>
               ))}
-              {filteredTrades.length === 0 && (
+              {sortedFilteredTrades.length === 0 && (
                 <tr>
                   <td colSpan={11} className="text-center text-gray-500 py-8">
                     No trades found
@@ -1254,7 +1469,6 @@ export default function Trades() {
           </table>
         </div>
         
-        {/* Pagination */}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
