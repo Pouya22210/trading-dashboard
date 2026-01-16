@@ -330,6 +330,14 @@ function OutcomeCheckbox({ outcome, checked, onChange }) {
 // ==================== Multi-Select Channel Filter Component ====================
 function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channelColorMap }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Filter channels based on search query
+  const filteredChannels = useMemo(() => {
+    if (!searchQuery.trim()) return channelList
+    const query = searchQuery.toLowerCase()
+    return channelList.filter(ch => ch.name.toLowerCase().includes(query))
+  }, [channelList, searchQuery])
   
   const toggleChannel = (channelId) => {
     if (selectedChannelIds.includes(channelId)) {
@@ -340,11 +348,16 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
   }
   
   const selectAll = () => {
-    onChange(channelList.map(ch => ch.id))
+    // Select all filtered channels
+    const filteredIds = filteredChannels.map(ch => ch.id)
+    const newSelection = [...new Set([...selectedChannelIds, ...filteredIds])]
+    onChange(newSelection)
   }
   
   const deselectAll = () => {
-    onChange([])
+    // Deselect all filtered channels
+    const filteredIds = new Set(filteredChannels.map(ch => ch.id))
+    onChange(selectedChannelIds.filter(id => !filteredIds.has(id)))
   }
   
   const getDisplayText = () => {
@@ -374,10 +387,14 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
         <>
           <div 
             className="fixed inset-0 z-10" 
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              setIsOpen(false)
+              setSearchQuery('')
+            }}
           />
           
-          <div className="absolute z-20 mt-1 w-full min-w-[280px] max-h-[300px] overflow-y-auto bg-dark-secondary border border-dark-border rounded-lg shadow-xl">
+          <div className="absolute z-20 mt-1 w-full min-w-[300px] max-h-[350px] bg-dark-secondary border border-dark-border rounded-lg shadow-xl flex flex-col">
+            {/* Select/Deselect buttons */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-dark-border bg-dark-tertiary/50">
               <button 
                 onClick={selectAll}
@@ -394,8 +411,35 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
               </button>
             </div>
             
-            <div className="py-1">
-              {channelList.map(channel => (
+            {/* Search bar */}
+            <div className="px-3 py-2 border-b border-dark-border">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search channels..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-8 py-1.5 bg-dark-tertiary border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent-cyan/50"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSearchQuery('')
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Channel list */}
+            <div className="py-1 overflow-y-auto flex-1">
+              {filteredChannels.map(channel => (
                 <label
                   key={channel.id}
                   className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
@@ -427,9 +471,9 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
                 </label>
               ))}
               
-              {channelList.length === 0 && (
+              {filteredChannels.length === 0 && (
                 <div className="px-3 py-4 text-center text-gray-500 text-sm">
-                  No channels found
+                  {searchQuery ? 'No channels match your search' : 'No channels found'}
                 </div>
               )}
             </div>
@@ -618,26 +662,18 @@ export default function Trades() {
     })
   }, [trades, selectedChannelIds, filters])
 
-  // ==================== FIX #1: Sort trades - pending/active FIRST ====================
+  // ==================== FIX #1: Sort trades - pending/active FIRST, rest by date ====================
   const sortedFilteredTrades = useMemo(() => {
-    const statusPriority = {
-      'pending': 0,
-      'active': 1,
-      'parsed': 2,
-      'closed': 3,
-      'canceled': 4,
-      'blocked': 5
-    }
-    
     return [...filteredTrades].sort((a, b) => {
-      const priorityA = statusPriority[a.status] ?? 99
-      const priorityB = statusPriority[b.status] ?? 99
+      // Only pending and active should be at the top
+      const isActiveOrPendingA = a.status === 'pending' || a.status === 'active'
+      const isActiveOrPendingB = b.status === 'pending' || b.status === 'active'
       
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB
-      }
+      // If one is active/pending and the other is not, active/pending comes first
+      if (isActiveOrPendingA && !isActiveOrPendingB) return -1
+      if (!isActiveOrPendingA && isActiveOrPendingB) return 1
       
-      // Same status - sort by signal_time descending (newest first)
+      // Both are active/pending OR both are not - sort by date descending
       return new Date(b.signal_time) - new Date(a.signal_time)
     })
   }, [filteredTrades])
@@ -1104,6 +1140,95 @@ export default function Trades() {
         </div>
       </div>
 
+      {/* Actions */}
+      <div className="flex gap-3 mb-6">
+        <button onClick={exportCSV} className="btn-secondary flex items-center gap-2">
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
+      </div>
+
+      {/* Trades Table */}
+      <div id="trades-table" className="chart-card mb-6">
+        <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
+          <BarChart3 className="w-4 h-4 text-accent-cyan" />
+          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
+          <span className="ml-auto text-xs text-gray-500">
+            Showing {startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length} trades
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Trade ID</th>
+                <th>Channel</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Type</th>
+                <th>Entry</th>
+                <th>TP</th>
+                <th>SL</th>
+                <th>P&L</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedTrades.map(trade => (
+                <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
+                  <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="w-2 h-2 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: getChannelColor(trade.channel_id) }}
+                      />
+                      <span className="truncate max-w-[200px]" title={getChannelName(trade.channel_id)}>
+                        {getChannelName(trade.channel_id)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="font-semibold">{trade.symbol || '-'}</td>
+                  <td>
+                    <span className={`badge ${trade.direction === 'buy' ? 'badge-success' : 'badge-danger'}`}>
+                      {trade.direction?.toUpperCase() || '-'}
+                    </span>
+                  </td>
+                  <td>{trade.order_type || '-'}</td>
+                  <td>{trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'}</td>
+                  <td>{trade.executed_tp_price?.toFixed(2) || '-'}</td>
+                  <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
+                  <td className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    {trade.profit_loss ? `$${trade.profit_loss.toFixed(2)}` : '-'}
+                  </td>
+                  <td>
+                    <span className={`badge ${getStatusBadgeClass(trade)}`}>
+                      {getStatusDisplay(trade)}
+                    </span>
+                  </td>
+                  <td className="text-gray-500">
+                    {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
+                  </td>
+                </tr>
+              ))}
+              {sortedFilteredTrades.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="text-center text-gray-500 py-8">
+                    No trades found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
+      </div>
+
       {/* CHANNEL COMPARISON SECTION */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -1345,18 +1470,33 @@ export default function Trades() {
             </div>
           </div>
           
-          {/* Increased height from 350 to 500 for better readability */}
           {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(500, outcomeByChannelData.length * 45)}>
-              <BarChart data={outcomeByChannelData} layout="vertical" margin={{ left: 20, right: 20, top: 10, bottom: 10 }}>
+            <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 28)}>
+              <BarChart 
+                data={outcomeByChannelData} 
+                layout="vertical" 
+                margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
+                barSize={16}
+              >
                 <XAxis type="number" stroke="#6e7681" fontSize={11} />
                 <YAxis 
                   type="category" 
-                  dataKey="channel" 
+                  dataKey="fullName"
                   stroke="#6e7681" 
-                  fontSize={11}
-                  width={200}  // Increased width to show more of channel name
-                  tick={{ fill: '#9ca3af' }}
+                  fontSize={10}
+                  width={280}
+                  tick={({ x, y, payload }) => (
+                    <text 
+                      x={x} 
+                      y={y} 
+                      dy={4} 
+                      textAnchor="end" 
+                      fill="#9ca3af" 
+                      fontSize={10}
+                    >
+                      {payload.value.length > 45 ? payload.value.slice(0, 45) + '...' : payload.value}
+                    </text>
+                  )}
                 />
                 <Tooltip content={<OutcomeDistributionTooltip />} />
                 <Legend 
@@ -1383,97 +1523,6 @@ export default function Trades() {
             </div>
           )}
         </ChartCard>
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-3 mb-6">
-        <button onClick={exportCSV} className="btn-secondary flex items-center gap-2">
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
-      </div>
-
-      {/* Trades Table */}
-      <div id="trades-table" className="chart-card mb-6">
-        <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
-          <BarChart3 className="w-4 h-4 text-accent-cyan" />
-          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
-          <span className="ml-auto text-xs text-gray-500">
-            Showing {startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length} trades
-            <span className="ml-2 text-accent-cyan">(Pending/Active first)</span>
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Trade ID</th>
-                <th>Channel</th>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Type</th>
-                <th>Entry</th>
-                <th>TP</th>
-                <th>SL</th>
-                <th>P&L</th>
-                <th>Status</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedTrades.map(trade => (
-                <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
-                  <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <span 
-                        className="w-2 h-2 rounded-full flex-shrink-0" 
-                        style={{ backgroundColor: getChannelColor(trade.channel_id) }}
-                      />
-                      {/* ==================== FIX #2: Show FULL channel name ==================== */}
-                      <span className="truncate max-w-[200px]" title={getChannelName(trade.channel_id)}>
-                        {getChannelName(trade.channel_id)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="font-semibold">{trade.symbol || '-'}</td>
-                  <td>
-                    <span className={`badge ${trade.direction === 'buy' ? 'badge-success' : 'badge-danger'}`}>
-                      {trade.direction?.toUpperCase() || '-'}
-                    </span>
-                  </td>
-                  <td>{trade.order_type || '-'}</td>
-                  <td>{trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'}</td>
-                  <td>{trade.executed_tp_price?.toFixed(2) || '-'}</td>
-                  <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
-                  <td className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
-                    {trade.profit_loss ? `$${trade.profit_loss.toFixed(2)}` : '-'}
-                  </td>
-                  <td>
-                    <span className={`badge ${getStatusBadgeClass(trade)}`}>
-                      {getStatusDisplay(trade)}
-                    </span>
-                  </td>
-                  <td className="text-gray-500">
-                    {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
-                  </td>
-                </tr>
-              ))}
-              {sortedFilteredTrades.length === 0 && (
-                <tr>
-                  <td colSpan={11} className="text-center text-gray-500 py-8">
-                    No trades found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
       </div>
 
       {/* Analysis Charts */}
