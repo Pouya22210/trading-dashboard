@@ -502,6 +502,9 @@ export default function Trades() {
   
   const [selectedChannelIds, setSelectedChannelIds] = useState([])
   
+  // Gantt chart time range filter
+  const [ganttTimeRange, setGanttTimeRange] = useState('all')
+  
   const [filters, setFilters] = useState({
     orderType: '',
     side: '',
@@ -751,6 +754,92 @@ export default function Trades() {
     }))
   }, [filteredTrades])
 
+  // Gantt chart - Channel activity timeline data
+  const ganttChartData = useMemo(() => {
+    // Calculate the date range based on ganttTimeRange
+    const now = new Date()
+    let startDate = null
+    
+    switch (ganttTimeRange) {
+      case '1d':
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        break
+      case '1w':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case '1m':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+        break
+      default: // 'all'
+        startDate = null
+    }
+    
+    // Filter trades based on time range and apply existing filters
+    const ganttFilteredTrades = filteredTrades.filter(trade => {
+      if (!trade.signal_time) return false
+      if (startDate && new Date(trade.signal_time) < startDate) return false
+      return true
+    })
+    
+    if (ganttFilteredTrades.length === 0) {
+      return { channels: [], minDate: now, maxDate: now, trades: [] }
+    }
+    
+    // Find overall date range
+    let minDate = new Date(ganttFilteredTrades[0].signal_time)
+    let maxDate = new Date(ganttFilteredTrades[0].signal_time)
+    
+    // Group trades by channel and find date ranges
+    const channelActivity = {}
+    
+    ganttFilteredTrades.forEach(trade => {
+      const channelId = trade.channel_id || 'unknown'
+      const tradeDate = new Date(trade.signal_time)
+      
+      if (tradeDate < minDate) minDate = tradeDate
+      if (tradeDate > maxDate) maxDate = tradeDate
+      
+      if (!channelActivity[channelId]) {
+        channelActivity[channelId] = {
+          channelId,
+          channelName: getChannelName(channelId),
+          trades: [],
+          firstTrade: tradeDate,
+          lastTrade: tradeDate,
+          totalTrades: 0
+        }
+      }
+      
+      channelActivity[channelId].trades.push({
+        date: tradeDate,
+        outcome: trade.outcome,
+        symbol: trade.symbol
+      })
+      channelActivity[channelId].totalTrades++
+      
+      if (tradeDate < channelActivity[channelId].firstTrade) {
+        channelActivity[channelId].firstTrade = tradeDate
+      }
+      if (tradeDate > channelActivity[channelId].lastTrade) {
+        channelActivity[channelId].lastTrade = tradeDate
+      }
+    })
+    
+    // Convert to array and sort by first trade date
+    const channels = Object.values(channelActivity)
+      .sort((a, b) => a.firstTrade - b.firstTrade)
+    
+    return {
+      channels,
+      minDate,
+      maxDate,
+      totalRange: maxDate.getTime() - minDate.getTime()
+    }
+  }, [filteredTrades, ganttTimeRange, getChannelName])
+
   // Calculate channel statistics
   const channelStats = useMemo(() => {
     const stats = {}
@@ -779,7 +868,7 @@ export default function Trades() {
     Object.keys(stats).forEach(channelId => {
       const s = stats[channelId]
       s.avgPnL = s.totalTrades > 0 ? s.totalPnL / s.totalTrades : 0
-      s.winRate = s.totalTrades > 0 ? (s.wins / s.totalTrades * 100) : 0
+      s.winRate = (s.wins + s.losses) > 0 ? (s.wins / (s.wins + s.losses) * 100) : 0
     })
     
     return stats
@@ -913,7 +1002,7 @@ export default function Trades() {
   const wins = closedTrades.filter(t => t.outcome === 'profit').length
   const losses = closedTrades.filter(t => t.outcome === 'loss').length
   const netPnL = closedTrades.reduce((sum, t) => sum + (t.profit_loss || 0), 0)
-  const winRate = closedTrades.length > 0 ? (wins / closedTrades.length * 100).toFixed(1) : 0
+  const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 0
 
   // Chart data: Outcome by Side
   const outcomeBySide = filteredTrades.reduce((acc, trade) => {
@@ -1167,7 +1256,6 @@ export default function Trades() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Trade ID</th>
                 <th>Channel</th>
                 <th>Symbol</th>
                 <th>Side</th>
@@ -1183,7 +1271,6 @@ export default function Trades() {
             <tbody>
               {paginatedTrades.map(trade => (
                 <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
-                  <td className="text-accent-cyan">{trade.trade_id?.slice(0, 12) || '-'}</td>
                   <td>
                     <div className="flex items-center gap-2">
                       <span 
@@ -1220,7 +1307,7 @@ export default function Trades() {
               ))}
               {sortedFilteredTrades.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="text-center text-gray-500 py-8">
+                  <td colSpan={10} className="text-center text-gray-500 py-8">
                     No trades found
                   </td>
                 </tr>
@@ -1308,6 +1395,128 @@ export default function Trades() {
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500">
               No closed trades with dates to display
+            </div>
+          )}
+        </ChartCard>
+
+        {/* Channel Activity Timeline (Gantt Chart) */}
+        <ChartCard title="Channel Activity Timeline" icon={Calendar} className="mb-6">
+          {/* Time Range Filter */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm text-gray-400">Time Range:</span>
+            <div className="flex bg-dark-tertiary rounded-lg p-1">
+              {[
+                { key: '1d', label: '1D' },
+                { key: '1w', label: '1W' },
+                { key: '1m', label: '1M' },
+                { key: '1y', label: '1Y' },
+                { key: 'all', label: 'All' },
+              ].map(option => (
+                <button
+                  key={option.key}
+                  onClick={() => setGanttTimeRange(option.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    ganttTimeRange === option.key
+                      ? 'bg-accent-cyan text-dark-primary'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <span className="ml-auto text-xs text-gray-500">
+              {ganttChartData.channels.length} channels active
+            </span>
+          </div>
+          
+          {/* Gantt Chart */}
+          {ganttChartData.channels.length > 0 ? (
+            <div className="relative">
+              {/* Timeline header */}
+              <div className="flex items-center mb-2 pl-[200px]">
+                <div className="flex-1 flex justify-between text-xs text-gray-500">
+                  <span>{ganttChartData.minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                  <span>{ganttChartData.maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                </div>
+              </div>
+              
+              {/* Channel rows */}
+              <div className="space-y-2">
+                {ganttChartData.channels.map((channel, idx) => {
+                  const startPercent = ganttChartData.totalRange > 0 
+                    ? ((channel.firstTrade.getTime() - ganttChartData.minDate.getTime()) / ganttChartData.totalRange) * 100 
+                    : 0
+                  const widthPercent = ganttChartData.totalRange > 0 
+                    ? ((channel.lastTrade.getTime() - channel.firstTrade.getTime()) / ganttChartData.totalRange) * 100 
+                    : 100
+                  const minWidth = Math.max(widthPercent, 1) // Minimum 1% width for visibility
+                  
+                  return (
+                    <div key={channel.channelId} className="flex items-center gap-3 group">
+                      {/* Channel name */}
+                      <div className="w-[200px] flex-shrink-0 flex items-center gap-2">
+                        <span 
+                          className="w-2 h-2 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: getChannelColor(channel.channelId) }}
+                        />
+                        <span className="text-sm text-gray-300 truncate" title={channel.channelName}>
+                          {channel.channelName.length > 25 ? channel.channelName.slice(0, 25) + '...' : channel.channelName}
+                        </span>
+                      </div>
+                      
+                      {/* Timeline bar */}
+                      <div className="flex-1 h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
+                        <div
+                          className="absolute h-full rounded transition-all group-hover:opacity-80"
+                          style={{
+                            left: `${startPercent}%`,
+                            width: `${minWidth}%`,
+                            backgroundColor: getChannelColor(channel.channelId),
+                            minWidth: '4px'
+                          }}
+                          title={`${channel.totalTrades} trades from ${channel.firstTrade.toLocaleDateString()} to ${channel.lastTrade.toLocaleDateString()}`}
+                        >
+                          {/* Trade dots within the bar */}
+                          {channel.trades.slice(0, 50).map((trade, tIdx) => {
+                            const tradePercent = ganttChartData.totalRange > 0 && widthPercent > 5
+                              ? ((trade.date.getTime() - channel.firstTrade.getTime()) / (channel.lastTrade.getTime() - channel.firstTrade.getTime())) * 100
+                              : 50
+                            return (
+                              <div
+                                key={tIdx}
+                                className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/30"
+                                style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
+                              />
+                            )
+                          })}
+                        </div>
+                      </div>
+                      
+                      {/* Trade count */}
+                      <div className="w-[60px] text-right text-xs text-gray-500">
+                        {channel.totalTrades} trades
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              {/* Legend */}
+              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-dark-border/50 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="w-8 h-2 bg-accent-cyan rounded" />
+                  <span>Active period</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-1 h-1 bg-white/50 rounded-full" />
+                  <span>Individual trade</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              No trades in selected time range
             </div>
           )}
         </ChartCard>
@@ -1487,7 +1696,7 @@ export default function Trades() {
           </div>
           
           {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 28)}>
+            <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 32)}>
               <BarChart 
                 data={outcomeByChannelData} 
                 layout="vertical" 
@@ -1501,6 +1710,7 @@ export default function Trades() {
                   stroke="#6e7681" 
                   fontSize={10}
                   width={280}
+                  interval={0}
                   tick={({ x, y, payload }) => (
                     <text 
                       x={x} 
@@ -1595,8 +1805,10 @@ export default function Trades() {
             <LineChart data={
               closedTrades.slice().reverse().map((_, idx, arr) => {
                 const window = arr.slice(Math.max(0, idx - 19), idx + 1)
-                const wins = window.filter(t => t.outcome === 'profit').length
-                return { trade: idx + 1, winRate: (wins / window.length * 100).toFixed(1) }
+                const windowWins = window.filter(t => t.outcome === 'profit').length
+                const windowLosses = window.filter(t => t.outcome === 'loss').length
+                const totalWL = windowWins + windowLosses
+                return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toFixed(1) : '0.0' }
               })
             }>
               <XAxis dataKey="trade" stroke="#6e7681" fontSize={11} />
