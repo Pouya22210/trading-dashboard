@@ -114,12 +114,14 @@ function ConnectionStatus({ status }) {
 
 function ChartCard({ title, icon: Icon, children, className = '' }) {
   return (
-    <div className={`chart-card ${className}`}>
-      <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
-        <Icon className="w-4 h-4 text-accent-cyan" />
-        <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">{title}</span>
+    <div className={`chart-card backdrop-blur-sm ${className}`}>
+      <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+        <div className="p-1.5 rounded-md bg-accent-cyan/10">
+          <Icon className="w-4 h-4 text-accent-cyan" />
+        </div>
+        <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">{title}</span>
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   )
 }
@@ -1018,7 +1020,7 @@ export default function Trades() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {toast && (
         <Toast 
           message={toast.message} 
@@ -1027,14 +1029,17 @@ export default function Trades() {
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Trade History</h1>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Trade History</h1>
+          <p className="text-gray-500 text-sm mt-1">Track and analyze your trading performance</p>
+        </div>
         <ConnectionStatus status={connectionStatus} />
       </div>
 
       {/* Filters */}
-      <div className="bg-dark-card border border-dark-border rounded-xl p-5 mb-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+      <div className="bg-gradient-to-br from-dark-card to-dark-secondary border border-dark-border/50 rounded-2xl p-6 mb-8 shadow-lg">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-5">
           <div>
             <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               <Calendar className="w-3 h-3 text-accent-cyan" /> Start Date
@@ -1109,50 +1114,52 @@ export default function Trades() {
             </select>
           </div>
         </div>
-        <button onClick={clearFilters} className="btn-secondary flex items-center gap-2">
+        <button onClick={clearFilters} className="btn-secondary flex items-center gap-2 hover:bg-dark-tertiary transition-colors">
           <X className="w-4 h-4" /> Clear Filters
         </button>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="kpi-card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Filtered Trades</div>
-          <div className="text-2xl font-bold font-mono text-white">{filteredTrades.length}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
+        <div className="kpi-card group hover:border-accent-cyan/30 transition-all">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Filtered Trades</div>
+          <div className="text-3xl font-bold font-mono text-white">{filteredTrades.length}</div>
         </div>
-        <div className="kpi-card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Net P&L</div>
-          <div className={`text-2xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            ${netPnL.toFixed(2)}
+        <div className="kpi-card group hover:border-green-500/30 transition-all">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&L</div>
+          <div className={`text-3xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
           </div>
         </div>
-        <div className="kpi-card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Win Rate</div>
-          <div className="text-2xl font-bold font-mono text-white">{winRate}%</div>
+        <div className="kpi-card group hover:border-blue-500/30 transition-all">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
+          <div className="text-3xl font-bold font-mono text-white">{winRate}%</div>
         </div>
-        <div className="kpi-card">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">W/L</div>
-          <div className="text-2xl font-bold font-mono">
+        <div className="kpi-card group hover:border-purple-500/30 transition-all">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
+          <div className="text-3xl font-bold font-mono">
             <span className="text-green-400">{wins}</span>
-            <span className="text-gray-500"> / </span>
+            <span className="text-gray-600 mx-1">/</span>
             <span className="text-red-400">{losses}</span>
           </div>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 mb-6">
-        <button onClick={exportCSV} className="btn-secondary flex items-center gap-2">
+      <div className="flex gap-3 mb-8">
+        <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 px-4 py-2.5 hover:bg-dark-tertiary transition-colors">
           <Download className="w-4 h-4" /> Export CSV
         </button>
       </div>
 
       {/* Trades Table */}
-      <div id="trades-table" className="chart-card mb-6">
-        <div className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-dark-tertiary to-dark-secondary border-b border-dark-border">
-          <BarChart3 className="w-4 h-4 text-accent-cyan" />
-          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Trade History</span>
-          <span className="ml-auto text-xs text-gray-500">
+      <div id="trades-table" className="chart-card mb-8 overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+          <div className="p-1.5 rounded-md bg-accent-cyan/10">
+            <BarChart3 className="w-4 h-4 text-accent-cyan" />
+          </div>
+          <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Trade History</span>
+          <span className="ml-auto text-xs text-gray-500 bg-dark-tertiary/50 px-3 py-1 rounded-full">
             Showing {startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length} trades
           </span>
         </div>
@@ -1231,10 +1238,15 @@ export default function Trades() {
 
       {/* CHANNEL COMPARISON SECTION */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <Layers className="w-5 h-5 text-accent-cyan" />
-          Channel Performance Comparison
-        </h2>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-accent-cyan/10">
+            <Layers className="w-5 h-5 text-accent-cyan" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white tracking-tight">Channel Performance Comparison</h2>
+            <p className="text-sm text-gray-500">Compare trading performance across different signal channels</p>
+          </div>
+        </div>
         
         {/* Cumulative P&L Over Time */}
         <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
@@ -1304,7 +1316,7 @@ export default function Trades() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <ChartCard title="Total P&L by Channel" icon={BarChart3}>
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }}>
+              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
                 <XAxis type="number" stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
                 <YAxis 
                   type="category" 
@@ -1331,7 +1343,7 @@ export default function Trades() {
 
           <ChartCard title="Win Rate by Channel" icon={Target}>
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }}>
+              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
                 <XAxis 
                   type="number" 
                   stroke="#6e7681" 
@@ -1372,8 +1384,8 @@ export default function Trades() {
             Trade outcomes grouped by forex market sessions (based on signal time UTC)
           </div>
           {marketSessionsData.some(s => s.total > 0) ? (
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={marketSessionsData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={marketSessionsData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }} barSize={32}>
                 <XAxis 
                   dataKey="session" 
                   stroke="#6e7681" 
@@ -1390,9 +1402,9 @@ export default function Trades() {
                   wrapperStyle={{ paddingTop: 20 }}
                   formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
                 />
-                <Bar dataKey="profit" name="Profit" fill={COLORS.green} stackId="outcomes" />
-                <Bar dataKey="loss" name="Loss" fill={COLORS.red} stackId="outcomes" />
-                <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" />
+                <Bar dataKey="profit" name="Profit" fill={COLORS.green} stackId="outcomes" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="loss" name="Loss" fill={COLORS.red} stackId="outcomes" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -1402,39 +1414,43 @@ export default function Trades() {
           )}
           
           {/* Session Stats Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-dark-border">
-            {marketSessionsData.map(session => (
-              <div 
-                key={session.session}
-                className="bg-dark-tertiary/50 rounded-lg p-3 border border-dark-border"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: MARKET_SESSIONS.find(s => s.label === session.session)?.color }}
-                  />
-                  <span className="text-sm font-semibold text-white">{session.session}</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-dark-border/50">
+            {marketSessionsData.map(session => {
+              const sessionColor = MARKET_SESSIONS.find(s => s.label === session.session)?.color
+              return (
+                <div 
+                  key={session.session}
+                  className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30 hover:border-dark-border/60 transition-all"
+                  style={{ borderLeftColor: sessionColor, borderLeftWidth: '3px' }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span 
+                      className="w-2.5 h-2.5 rounded-full shadow-lg" 
+                      style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }}
+                    />
+                    <span className="text-sm font-semibold text-white">{session.session}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Total</span>
+                      <span className="text-white font-mono text-base font-semibold">{session.total}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Win Rate</span>
+                      <span className="text-white font-mono text-base font-semibold">{session.winRate}%</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Wins</span>
+                      <span className="text-green-400 font-mono text-base font-semibold">{session.profit}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Losses</span>
+                      <span className="text-red-400 font-mono text-base font-semibold">{session.loss}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-gray-500">Total:</span>
-                    <span className="text-white ml-1 font-mono">{session.total}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Win%:</span>
-                    <span className="text-white ml-1 font-mono">{session.winRate}%</span>
-                  </div>
-                  <div>
-                    <span className="text-green-400">W:</span>
-                    <span className="text-green-400 ml-1 font-mono">{session.profit}</span>
-                  </div>
-                  <div>
-                    <span className="text-red-400">L:</span>
-                    <span className="text-red-400 ml-1 font-mono">{session.loss}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </ChartCard>
         {/* ==================== END MARKET SESSIONS CHART ==================== */}
@@ -1503,13 +1519,14 @@ export default function Trades() {
                   wrapperStyle={{ paddingTop: 20 }}
                   formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
                 />
-                {OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key)).map(outcome => (
+                {OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key)).map((outcome, index, arr) => (
                   <Bar
                     key={outcome.key}
                     dataKey={outcome.key}
                     name={outcome.label}
                     fill={outcome.color}
                     stackId="outcomes"
+                    radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
                   />
                 ))}
               </BarChart>
@@ -1526,24 +1543,25 @@ export default function Trades() {
       </div>
 
       {/* Analysis Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <ChartCard title="Outcomes by Side" icon={Target}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={outcomeBySideData}>
-              <XAxis dataKey="side" stroke="#6e7681" fontSize={11} />
+            <BarChart data={outcomeBySideData} barSize={40}>
+              <XAxis dataKey="side" stroke="#6e7681" fontSize={11} tickMargin={8} />
               <YAxis stroke="#6e7681" fontSize={11} />
               <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
-              <Bar dataKey="profit" fill={COLORS.green} name="Profit" stackId="a" />
-              <Bar dataKey="loss" fill={COLORS.red} name="Loss" stackId="a" />
-              <Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" />
+              <Legend wrapperStyle={{ paddingTop: 10 }} />
+              <Bar dataKey="profit" fill={COLORS.green} name="Profit" stackId="a" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="loss" fill={COLORS.red} name="Loss" stackId="a" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         <ChartCard title="Performance by Hour" icon={Clock}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={hourlyChartData}>
-              <XAxis dataKey="hour" stroke="#6e7681" fontSize={10} />
+            <BarChart data={hourlyChartData} barSize={12}>
+              <XAxis dataKey="hour" stroke="#6e7681" fontSize={10} tickMargin={8} />
               <YAxis stroke="#6e7681" fontSize={11} />
               <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
               <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
@@ -1556,11 +1574,11 @@ export default function Trades() {
         </ChartCard>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard title="Day of Week Analysis" icon={Calendar}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={dowChartData}>
-              <XAxis dataKey="day" stroke="#6e7681" fontSize={11} />
+            <BarChart data={dowChartData} barSize={32}>
+              <XAxis dataKey="day" stroke="#6e7681" fontSize={11} tickMargin={8} />
               <YAxis stroke="#6e7681" fontSize={11} />
               <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
               <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
@@ -1589,6 +1607,9 @@ export default function Trades() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+      
+      {/* Bottom spacing */}
+      <div className="pb-8" />
     </div>
   )
 }
