@@ -1109,7 +1109,7 @@ export default function Trades() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="flex min-h-screen">
       {toast && (
         <Toast 
           message={toast.message} 
@@ -1118,131 +1118,145 @@ export default function Trades() {
         />
       )}
 
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Trade History</h1>
-          <p className="text-gray-500 text-sm mt-1">Track and analyze your trading performance</p>
+      {/* Left Sidebar - Sticky Filters */}
+      <div className="w-72 flex-shrink-0 bg-dark-secondary border-r border-dark-border sticky top-0 h-screen overflow-y-auto">
+        <div className="p-5">
+          {/* Header */}
+          <div className="mb-6">
+            <h1 className="text-xl font-bold text-white tracking-tight">Trade History</h1>
+            <p className="text-gray-500 text-xs mt-1">Filter and analyze trades</p>
+          </div>
+          
+          {/* Connection Status */}
+          <div className="mb-6">
+            <ConnectionStatus status={connectionStatus} />
+          </div>
+
+          {/* Filters */}
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <Calendar className="w-3 h-3 text-accent-cyan" /> Start Date
+              </label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={e => setFilters({ ...filters, startDate: e.target.value })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <Calendar className="w-3 h-3 text-accent-cyan" /> End Date
+              </label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={e => setFilters({ ...filters, endDate: e.target.value })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <Filter className="w-3 h-3 text-accent-cyan" /> Channels
+              </label>
+              <ChannelMultiSelect
+                channelList={channelList}
+                selectedChannelIds={selectedChannelIds}
+                onChange={setSelectedChannelIds}
+                channelColorMap={channelColorMap}
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Order Type
+              </label>
+              <select
+                value={filters.orderType}
+                onChange={e => setFilters({ ...filters, orderType: e.target.value })}
+                className="w-full"
+              >
+                <option value="">All Types</option>
+                <option value="MARKET">Market</option>
+                <option value="LIMIT">Limit</option>
+                <option value="STOP">Stop</option>
+              </select>
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Side
+              </label>
+              <select
+                value={filters.side}
+                onChange={e => setFilters({ ...filters, side: e.target.value })}
+                className="w-full"
+              >
+                <option value="">All Sides</option>
+                <option value="buy">Buy</option>
+                <option value="sell">Sell</option>
+              </select>
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Status
+              </label>
+              <select
+                value={filters.status}
+                onChange={e => setFilters({ ...filters, status: e.target.value })}
+                className="w-full"
+              >
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="closed">Closed</option>
+                <option value="canceled">Canceled</option>
+              </select>
+            </div>
+            
+            <button onClick={clearFilters} className="btn-secondary w-full flex items-center justify-center gap-2 hover:bg-dark-tertiary transition-colors">
+              <X className="w-4 h-4" /> Clear Filters
+            </button>
+          </div>
+
+          {/* Stats Summary in Sidebar */}
+          <div className="space-y-3 mb-6 pt-4 border-t border-dark-border">
+            <div className="bg-dark-tertiary/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Filtered Trades</div>
+              <div className="text-2xl font-bold font-mono text-white">{filteredTrades.length}</div>
+            </div>
+            <div className="bg-dark-tertiary/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&L</div>
+              <div className={`text-2xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-dark-tertiary/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
+              <div className="text-2xl font-bold font-mono text-white">{winRate}%</div>
+            </div>
+            <div className="bg-dark-tertiary/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
+              <div className="text-xl font-bold font-mono">
+                <span className="text-green-400">{wins}</span>
+                <span className="text-gray-600 mx-1">/</span>
+                <span className="text-red-400">{losses}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Export Button */}
+          <button onClick={exportCSV} className="btn-secondary w-full flex items-center justify-center gap-2 px-4 py-2.5 hover:bg-dark-tertiary transition-colors">
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
         </div>
-        <ConnectionStatus status={connectionStatus} />
       </div>
 
-      {/* Filters */}
-      <div className="bg-gradient-to-br from-dark-card to-dark-secondary border border-dark-border/50 rounded-2xl p-6 mb-8 shadow-lg">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-5">
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Calendar className="w-3 h-3 text-accent-cyan" /> Start Date
-            </label>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={e => setFilters({ ...filters, startDate: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Calendar className="w-3 h-3 text-accent-cyan" /> End Date
-            </label>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={e => setFilters({ ...filters, endDate: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Filter className="w-3 h-3 text-accent-cyan" /> Channels
-            </label>
-            <ChannelMultiSelect
-              channelList={channelList}
-              selectedChannelIds={selectedChannelIds}
-              onChange={setSelectedChannelIds}
-              channelColorMap={channelColorMap}
-            />
-          </div>
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Order Type
-            </label>
-            <select
-              value={filters.orderType}
-              onChange={e => setFilters({ ...filters, orderType: e.target.value })}
-            >
-              <option value="">All Types</option>
-              <option value="MARKET">Market</option>
-              <option value="LIMIT">Limit</option>
-              <option value="STOP">Stop</option>
-            </select>
-          </div>
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Side
-            </label>
-            <select
-              value={filters.side}
-              onChange={e => setFilters({ ...filters, side: e.target.value })}
-            >
-              <option value="">All Sides</option>
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
-          </div>
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Status
-            </label>
-            <select
-              value={filters.status}
-              onChange={e => setFilters({ ...filters, status: e.target.value })}
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="pending">Pending</option>
-              <option value="closed">Closed</option>
-              <option value="canceled">Canceled</option>
-            </select>
-          </div>
-        </div>
-        <button onClick={clearFilters} className="btn-secondary flex items-center gap-2 hover:bg-dark-tertiary transition-colors">
-          <X className="w-4 h-4" /> Clear Filters
-        </button>
-      </div>
+      {/* Main Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 lg:p-8">
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
-        <div className="kpi-card group hover:border-accent-cyan/30 transition-all">
-          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Filtered Trades</div>
-          <div className="text-3xl font-bold font-mono text-white">{filteredTrades.length}</div>
-        </div>
-        <div className="kpi-card group hover:border-green-500/30 transition-all">
-          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&L</div>
-          <div className={`text-3xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
-          </div>
-        </div>
-        <div className="kpi-card group hover:border-blue-500/30 transition-all">
-          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
-          <div className="text-3xl font-bold font-mono text-white">{winRate}%</div>
-        </div>
-        <div className="kpi-card group hover:border-purple-500/30 transition-all">
-          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
-          <div className="text-3xl font-bold font-mono">
-            <span className="text-green-400">{wins}</span>
-            <span className="text-gray-600 mx-1">/</span>
-            <span className="text-red-400">{losses}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-3 mb-8">
-        <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 px-4 py-2.5 hover:bg-dark-tertiary transition-colors">
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
-      </div>
-
-      {/* Trades Table */}
-      <div id="trades-table" className="chart-card mb-8 overflow-hidden">
+          {/* Trades Table */}
+          <div id="trades-table" className="chart-card mb-8 overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
           <div className="p-1.5 rounded-md bg-accent-cyan/10">
             <BarChart3 className="w-4 h-4 text-accent-cyan" />
@@ -1822,8 +1836,10 @@ export default function Trades() {
         </ChartCard>
       </div>
       
-      {/* Bottom spacing */}
-      <div className="pb-8" />
+          {/* Bottom spacing */}
+          <div className="pb-8" />
+        </div>
+      </div>
     </div>
   )
 }
