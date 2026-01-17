@@ -1593,104 +1593,76 @@ export default function Trades() {
             Trade outcomes grouped by forex market sessions (based on signal time UTC)
           </div>
           {marketSessionsData.some(s => s.total > 0) ? (
-            <div className="space-y-4">
-              {marketSessionsData.map(session => {
-                const sessionConfig = MARKET_SESSIONS.find(s => s.label === session.session)
-                const sessionColor = sessionConfig?.color || '#6e7681'
-                const maxTotal = Math.max(...marketSessionsData.map(s => s.total))
-                const totalWidth = maxTotal > 0 ? (session.total / maxTotal) * 100 : 0
-                const profitWidth = session.total > 0 ? (session.profit / session.total) * 100 : 0
-                const lossWidth = session.total > 0 ? (session.loss / session.total) * 100 : 0
-                const breakevenWidth = session.total > 0 ? (session.breakeven / session.total) * 100 : 0
-                
-                return (
-                  <div key={session.session} className="group">
-                    {/* Session Header */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span 
-                          className="w-3 h-3 rounded-full shadow-lg" 
-                          style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}50` }}
-                        />
-                        <span className="text-white font-semibold">{session.session}</span>
-                        <span className="text-gray-500 text-sm">({session.total} trades)</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-gray-400">
-                          Win Rate: <span className={`font-mono font-semibold ${parseFloat(session.winRate) >= 50 ? 'text-green-400' : 'text-red-400'}`}>{session.winRate}%</span>
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-green-400 font-mono">{session.profit}W</span>
-                          <span className="text-gray-600">/</span>
-                          <span className="text-red-400 font-mono">{session.loss}L</span>
-                          {session.breakeven > 0 && (
-                            <>
-                              <span className="text-gray-600">/</span>
-                              <span className="text-gray-400 font-mono">{session.breakeven}B</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="relative h-8 bg-dark-tertiary/50 rounded-lg overflow-hidden">
-                      {/* Background showing relative session activity */}
-                      <div 
-                        className="absolute inset-y-0 left-0 bg-dark-tertiary/30 transition-all"
-                        style={{ width: `${totalWidth}%` }}
-                      />
-                      
-                      {/* Stacked outcome bars */}
-                      <div className="absolute inset-y-0 left-0 flex" style={{ width: `${totalWidth}%` }}>
-                        {session.profit > 0 && (
-                          <div 
-                            className="h-full bg-green-500/80 transition-all group-hover:bg-green-500"
-                            style={{ width: `${profitWidth}%` }}
-                            title={`${session.profit} Profit`}
-                          />
-                        )}
-                        {session.loss > 0 && (
-                          <div 
-                            className="h-full bg-red-500/80 transition-all group-hover:bg-red-500"
-                            style={{ width: `${lossWidth}%` }}
-                            title={`${session.loss} Loss`}
-                          />
-                        )}
-                        {session.breakeven > 0 && (
-                          <div 
-                            className="h-full bg-gray-500/80 transition-all group-hover:bg-gray-500"
-                            style={{ width: `${breakevenWidth}%` }}
-                            title={`${session.breakeven} Breakeven`}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-              
-              {/* Legend */}
-              <div className="flex items-center justify-center gap-6 pt-4 mt-2 border-t border-dark-border/30">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-green-500" />
-                  <span className="text-sm text-gray-400">Profit</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-red-500" />
-                  <span className="text-sm text-gray-400">Loss</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-gray-500" />
-                  <span className="text-sm text-gray-400">Breakeven</span>
-                </div>
-              </div>
-            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 30, left: 80, bottom: 10 }} barSize={20}>
+                <XAxis 
+                  type="number"
+                  stroke="#6e7681" 
+                  fontSize={11}
+                  allowDecimals={false}
+                />
+                <YAxis 
+                  type="category"
+                  dataKey="session" 
+                  stroke="#6e7681" 
+                  fontSize={12}
+                  width={70}
+                />
+                <Tooltip content={<MarketSessionsTooltip />} />
+                <Legend 
+                  wrapperStyle={{ paddingTop: 10 }}
+                  formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
+                />
+                <Bar dataKey="profit" name="Profit" fill={COLORS.green} stackId="outcomes" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="loss" name="Loss" fill={COLORS.red} stackId="outcomes" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500">
               No closed trades to display
             </div>
           )}
+          
+          {/* Session Stats Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-dark-border/50">
+            {marketSessionsData.map(session => {
+              const sessionColor = MARKET_SESSIONS.find(s => s.label === session.session)?.color
+              return (
+                <div 
+                  key={session.session}
+                  className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30 hover:border-dark-border/60 transition-all"
+                  style={{ borderLeftColor: sessionColor, borderLeftWidth: '3px' }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span 
+                      className="w-2.5 h-2.5 rounded-full shadow-lg" 
+                      style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }}
+                    />
+                    <span className="text-sm font-semibold text-white">{session.session}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Total</span>
+                      <span className="text-white font-mono text-base font-semibold">{session.total}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Win Rate</span>
+                      <span className="text-white font-mono text-base font-semibold">{session.winRate}%</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Wins</span>
+                      <span className="text-green-400 font-mono text-base font-semibold">{session.profit}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 mb-0.5">Losses</span>
+                      <span className="text-red-400 font-mono text-base font-semibold">{session.loss}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </ChartCard>
         {/* ==================== END MARKET SESSIONS CHART ==================== */}
 
