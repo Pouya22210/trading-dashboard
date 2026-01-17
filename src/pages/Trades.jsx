@@ -1343,10 +1343,6 @@ export default function Trades() {
           <div className="p-2 rounded-lg bg-accent-cyan/10">
             <Layers className="w-5 h-5 text-accent-cyan" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Channel Performance Comparison</h2>
-            <p className="text-sm text-gray-500">Compare trading performance across different signal channels</p>
-          </div>
         </div>
         
         {/* Cumulative P&L Over Time */}
