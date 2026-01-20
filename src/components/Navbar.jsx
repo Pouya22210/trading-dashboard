@@ -27,21 +27,21 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-dark-secondary border-b border-dark-border sticky top-0 z-50 shadow-lg">
+      <nav className="bg-dark-secondary border-b border-dark-border sticky top-0 z-50 shadow-lg overflow-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             {/* Logo - Always visible */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 lg:flex-initial">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-dark-tertiary to-dark-secondary border border-dark-border flex items-center justify-center flex-shrink-0">
                 <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-accent-cyan" />
               </div>
-              <div className="min-w-0 flex-1 lg:flex-initial">
+              <div className="min-w-0 hidden sm:block">
                 <div className="text-sm sm:text-base lg:text-lg font-bold text-white tracking-tight truncate">Trading Analytics</div>
                 <div className="text-xs text-gray-500 uppercase tracking-wider hidden sm:block">Real-time Dashboard</div>
               </div>
             </div>
 
-            {/* Desktop Tabs - Hidden on mobile */}
+            {/* Desktop Tabs - ONLY visible on large screens */}
             <div className="hidden lg:flex tab-nav">
               {tabs.map(tab => (
                 <Link
@@ -63,7 +63,7 @@ export default function Navbar() {
               </div>
 
               {/* Clock - Hidden on small mobile */}
-              <div className="hidden sm:flex items-center gap-2 text-gray-500">
+              <div className="hidden md:flex items-center gap-2 text-gray-500">
                 <Clock className="w-3 h-3" />
                 <span className="font-mono text-xs">{currentTime}</span>
               </div>
