@@ -27,16 +27,16 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-dark-secondary border-b border-dark-border sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4">
+      <nav className="bg-dark-secondary border-b border-dark-border sticky top-0 z-50 shadow-lg">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             {/* Logo - Always visible */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 lg:flex-initial">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-dark-tertiary to-dark-secondary border border-dark-border flex items-center justify-center flex-shrink-0">
                 <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-accent-cyan" />
               </div>
-              <div className="min-w-0">
-                <div className="text-base sm:text-lg font-bold text-white tracking-tight truncate">Trading Analytics</div>
+              <div className="min-w-0 flex-1 lg:flex-initial">
+                <div className="text-sm sm:text-base lg:text-lg font-bold text-white tracking-tight truncate">Trading Analytics</div>
                 <div className="text-xs text-gray-500 uppercase tracking-wider hidden sm:block">Real-time Dashboard</div>
               </div>
             </div>
@@ -55,10 +55,10 @@ export default function Navbar() {
             </div>
 
             {/* Right side - Status and Menu */}
-            <div className="flex items-center gap-2 sm:gap-5">
+            <div className="flex items-center gap-2 sm:gap-3 lg:gap-5 flex-shrink-0">
               {/* Live Status - Responsive */}
-              <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-full bg-green-500/10">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-green-500/10">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500 animate-pulse"></span>
                 <span className="text-xs font-bold text-green-500 tracking-wider">LIVE</span>
               </div>
 
@@ -71,7 +71,7 @@ export default function Navbar() {
               {/* Mobile Menu Button - Only visible on mobile */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 bg-dark-tertiary border border-dark-border rounded-lg hover:bg-dark-border transition-colors"
+                className="lg:hidden p-2 bg-dark-tertiary border border-dark-border rounded-lg hover:bg-dark-border transition-colors flex-shrink-0"
               >
                 {mobileMenuOpen ? (
                   <X className="w-5 h-5 text-white" />
@@ -87,16 +87,17 @@ export default function Navbar() {
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          className="lg:hidden fixed inset-0 bg-black/50 z-40 top-[65px] sm:top-[73px]"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Slide-out Menu */}
       <div className={`
-        lg:hidden fixed top-[73px] right-0 h-[calc(100vh-73px)] w-64
-        bg-dark-secondary border-l border-dark-border
-        transform transition-transform duration-300 ease-in-out z-40
+        lg:hidden fixed top-[65px] sm:top-[73px] right-0 h-[calc(100vh-65px)] sm:h-[calc(100vh-73px)] w-72
+        bg-dark-secondary border-l border-dark-border shadow-2xl
+        transform transition-transform duration-300 ease-in-out z-50
+        overflow-y-auto
         ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
         <div className="p-4">
