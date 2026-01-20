@@ -404,3 +404,10 @@ input::placeholder { color: #6e7681; }
   .lg\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .lg\:col-span-2 { grid-column: span 2 / span 2; }
 }
+
+@media (max-width: 1023px) {
+  .tab-nav {
+    display: none;
+  }
+}
+
