@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
   BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight,
-  CheckSquare, Square, ChevronDown, Globe
+  CheckSquare, Square, ChevronDown, Globe, Menu
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
@@ -114,7 +114,7 @@ function ConnectionStatus({ status }) {
 
 function ChartCard({ title, icon: Icon, children, className = '' }) {
   return (
-    <div className={`chart-card backdrop-blur-sm ${className}`}>
+    <div className={`chart-card backdrop-blur-sm ${className}`} style={{ willChange: 'transform' }}>
       <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
         <div className="p-1.5 rounded-md bg-accent-cyan/10">
           <Icon className="w-4 h-4 text-accent-cyan" />
@@ -181,7 +181,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
         }`}
       >
         <ChevronLeft className="w-4 h-4" />
-        Prev
+        <span className="hidden sm:inline">Prev</span>
       </button>
 
       <div className="flex items-center gap-1">
@@ -192,7 +192,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
             <button
               key={page}
               onClick={() => onPageChange(page)}
-              className={`min-w-[40px] h-10 rounded-lg text-sm font-semibold transition-all ${
+              className={`min-w-[36px] sm:min-w-[40px] h-9 sm:h-10 rounded-lg text-sm font-semibold transition-all ${
                 currentPage === page
                   ? 'bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary'
                   : 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
@@ -213,7 +213,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
             : 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
         }`}
       >
-        Next
+        <span className="hidden sm:inline">Next</span>
         <ChevronRight className="w-4 h-4" />
       </button>
     </div>
@@ -494,6 +494,7 @@ export default function Trades() {
   const [currentPage, setCurrentPage] = useState(1)
   const [connectionStatus, setConnectionStatus] = useState('CONNECTING')
   const [toast, setToast] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar state
   
   // Outcome filter for the new visualization
   const [selectedOutcomes, setSelectedOutcomes] = useState(
@@ -646,7 +647,6 @@ export default function Trades() {
     return channelColorMap[channelId] || '#6e7681'
   }, [channelColorMap])
   
-  // ==================== FIX: Get FULL channel name by ID ====================
   const getChannelName = useCallback((channelId) => {
     const channel = channelList.find(ch => ch.id === channelId)
     return channel?.name || 'Unknown'
@@ -667,27 +667,22 @@ export default function Trades() {
     })
   }, [trades, selectedChannelIds, filters])
 
-  // ==================== FIX #1: Sort trades - pending/active FIRST, rest by date ====================
   const sortedFilteredTrades = useMemo(() => {
     return [...filteredTrades].sort((a, b) => {
-      // Only pending and active should be at the top
       const isActiveOrPendingA = a.status === 'pending' || a.status === 'active'
       const isActiveOrPendingB = b.status === 'pending' || b.status === 'active'
       
-      // If one is active/pending and the other is not, active/pending comes first
       if (isActiveOrPendingA && !isActiveOrPendingB) return -1
       if (!isActiveOrPendingA && isActiveOrPendingB) return 1
       
-      // Both are active/pending OR both are not - sort by date descending
       return new Date(b.signal_time) - new Date(a.signal_time)
     })
   }, [filteredTrades])
 
-  // ==================== NEW: Market Sessions Analysis ====================
+  // ==================== Market Sessions Analysis ====================
   const marketSessionsData = useMemo(() => {
     const sessionStats = {}
     
-    // Initialize all sessions
     MARKET_SESSIONS.forEach(session => {
       sessionStats[session.key] = {
         session: session.label,
@@ -701,18 +696,15 @@ export default function Trades() {
       }
     })
     
-    // Helper to determine which session(s) a trade belongs to
     const getSessionForHour = (hour) => {
       const sessions = []
       
       MARKET_SESSIONS.forEach(session => {
         if (session.crossesMidnight) {
-          // Sydney: 22:00 - 07:00 (spans midnight)
           if (hour >= session.startHour || hour < session.endHour) {
             sessions.push(session.key)
           }
         } else {
-          // Normal sessions
           if (hour >= session.startHour && hour < session.endHour) {
             sessions.push(session.key)
           }
@@ -722,7 +714,6 @@ export default function Trades() {
       return sessions
     }
     
-    // Process closed trades only
     filteredTrades
       .filter(t => t.status === 'closed' && t.signal_time)
       .forEach(trade => {
@@ -745,7 +736,6 @@ export default function Trades() {
         })
       })
     
-    // Convert to array and add win rate
     return MARKET_SESSIONS.map(session => ({
       ...sessionStats[session.key],
       winRate: sessionStats[session.key].total > 0 
@@ -754,9 +744,8 @@ export default function Trades() {
     }))
   }, [filteredTrades])
 
-  // Gantt chart - Channel activity timeline data
+  // Gantt chart data
   const ganttChartData = useMemo(() => {
-    // Calculate the date range based on ganttTimeRange
     const now = new Date()
     let startDate = null
     
@@ -773,11 +762,10 @@ export default function Trades() {
       case '1y':
         startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
         break
-      default: // 'all'
+      default:
         startDate = null
     }
     
-    // Filter trades based on time range and apply existing filters
     const ganttFilteredTrades = filteredTrades.filter(trade => {
       if (!trade.signal_time) return false
       if (startDate && new Date(trade.signal_time) < startDate) return false
@@ -788,11 +776,9 @@ export default function Trades() {
       return { channels: [], minDate: now, maxDate: now, trades: [] }
     }
     
-    // Find overall date range
     let minDate = new Date(ganttFilteredTrades[0].signal_time)
     let maxDate = new Date(ganttFilteredTrades[0].signal_time)
     
-    // Group trades by channel and find date ranges
     const channelActivity = {}
     
     ganttFilteredTrades.forEach(trade => {
@@ -828,7 +814,6 @@ export default function Trades() {
       }
     })
     
-    // Convert to array and sort by first trade date
     const channels = Object.values(channelActivity)
       .sort((a, b) => a.firstTrade - b.firstTrade)
     
@@ -929,13 +914,11 @@ export default function Trades() {
     return Array.from(ids)
   }, [filteredTrades])
 
-  // ==================== FIX #3: Outcome distribution with FULL channel names ====================
   const outcomeByChannelData = useMemo(() => {
     const dataByChannel = {}
     
     filteredTrades.forEach(trade => {
       const channelId = trade.channel_id || 'unknown'
-      // Use getChannelName for full name lookup
       const channelName = getChannelName(channelId)
       let outcome = trade.outcome || 'unknown'
       
@@ -946,7 +929,7 @@ export default function Trades() {
       if (!dataByChannel[channelId]) {
         dataByChannel[channelId] = { 
           channelId,
-          channel: channelName, // Full name for display
+          channel: channelName,
           fullName: channelName,
           profit: 0,
           loss: 0,
@@ -969,7 +952,6 @@ export default function Trades() {
       .map(item => ({
         ...item,
         sortScore: item.profit - item.loss,
-        // Truncate only for X-axis label, keep fullName for tooltip
         channel: item.channel.length > 25 ? item.channel.slice(0, 25) + '...' : item.channel
       }))
       .sort((a, b) => b.sortScore - a.sortScore)
@@ -991,7 +973,7 @@ export default function Trades() {
     })).sort((a, b) => b.totalPnL - a.totalPnL)
   }, [channelStats, getChannelColor])
 
-  // Pagination calculations - use sorted trades
+  // Pagination calculations
   const totalPages = Math.ceil(sortedFilteredTrades.length / TRADES_PER_PAGE)
   const startIndex = (currentPage - 1) * TRADES_PER_PAGE
   const endIndex = startIndex + TRADES_PER_PAGE
@@ -1066,9 +1048,7 @@ export default function Trades() {
     a.click()
   }
 
-  // ==================== FIX #5: Improved status badge logic for STOP orders ====================
   function getTradeEffectiveStatus(trade) {
-    // STOP orders should be treated as pending until they have a fill_time
     if (trade.order_type === 'STOP' && !trade.fill_time && trade.status !== 'closed' && trade.status !== 'canceled') {
       return 'pending'
     }
@@ -1097,7 +1077,6 @@ export default function Trades() {
     if (effectiveStatus === 'closed' && trade.outcome) {
       return `${effectiveStatus} (${trade.outcome})`
     }
-    // Show order type for pending orders
     if (effectiveStatus === 'pending' && trade.order_type) {
       return `pending (${trade.order_type})`
     }
@@ -1109,7 +1088,7 @@ export default function Trades() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen relative">
       {toast && (
         <Toast 
           message={toast.message} 
@@ -1118,13 +1097,45 @@ export default function Trades() {
         />
       )}
 
-      {/* Left Sidebar - Sticky Filters */}
-      <div className="w-72 flex-shrink-0 bg-dark-secondary border-r border-dark-border sticky top-0 h-screen overflow-y-auto">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-dark-secondary border border-dark-border rounded-lg shadow-lg"
+      >
+        <Menu className="w-5 h-5 text-white" />
+      </button>
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Left Sidebar - Fixed positioning */}
+      <div className={`
+        fixed lg:sticky top-0 left-0 h-screen
+        w-80 lg:w-72 flex-shrink-0 
+        bg-dark-secondary border-r border-dark-border 
+        overflow-y-auto overflow-x-hidden
+        transition-transform duration-300 ease-in-out
+        z-40
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         <div className="p-5">
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-xl font-bold text-white tracking-tight">Trade History</h1>
-            <p className="text-gray-500 text-xs mt-1">Filter and analyze trades</p>
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-tight">Trade History</h1>
+              <p className="text-gray-500 text-xs mt-1">Filter and analyze trades</p>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-1 hover:bg-dark-tertiary rounded"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
           </div>
           
           {/* Connection Status */}
@@ -1251,580 +1262,582 @@ export default function Trades() {
         </div>
       </div>
 
-      {/* Main Content Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-6 lg:p-8">
+      {/* Main Content Area - Improved scrolling */}
+      <div className="flex-1 overflow-y-auto" style={{ 
+        WebkitOverflowScrolling: 'touch',
+        scrollBehavior: 'smooth'
+      }}>
+        <div className="p-4 sm:p-6 lg:p-8 pt-16 lg:pt-6">
 
           {/* Trades Table */}
           <div id="trades-table" className="chart-card mb-8 overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
-          <div className="p-1.5 rounded-md bg-accent-cyan/10">
-            <BarChart3 className="w-4 h-4 text-accent-cyan" />
-          </div>
-          <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Trade History</span>
-          <span className="ml-auto text-xs text-gray-500 bg-dark-tertiary/50 px-3 py-1 rounded-full">
-            Showing {startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length} trades
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Channel</th>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Type</th>
-                <th>Entry</th>
-                <th>TP</th>
-                <th>SL</th>
-                <th>P&L</th>
-                <th>Status</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedTrades.map(trade => (
-                <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <span 
-                        className="w-2 h-2 rounded-full flex-shrink-0" 
-                        style={{ backgroundColor: getChannelColor(trade.channel_id) }}
-                      />
-                      <span className="truncate max-w-[200px]" title={getChannelName(trade.channel_id)}>
-                        {getChannelName(trade.channel_id)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="font-semibold">{trade.symbol || '-'}</td>
-                  <td>
-                    <span className={`badge ${trade.direction === 'buy' ? 'badge-success' : 'badge-danger'}`}>
-                      {trade.direction?.toUpperCase() || '-'}
-                    </span>
-                  </td>
-                  <td>{trade.order_type || '-'}</td>
-                  <td>{trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'}</td>
-                  <td>{trade.executed_tp_price?.toFixed(2) || '-'}</td>
-                  <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
-                  <td className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
-                    {trade.profit_loss ? `$${trade.profit_loss.toFixed(2)}` : '-'}
-                  </td>
-                  <td>
-                    <span className={`badge ${getStatusBadgeClass(trade)}`}>
-                      {getStatusDisplay(trade)}
-                    </span>
-                  </td>
-                  <td className="text-gray-500">
-                    {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
-                  </td>
-                </tr>
-              ))}
-              {sortedFilteredTrades.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="text-center text-gray-500 py-8">
-                    No trades found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      </div>
-
-      {/* CHANNEL COMPARISON SECTION */}
-      <div className="mb-8">
-        {/* Cumulative P&L Over Time */}
-        <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
-          {cumulativePnLData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={650}>
-              <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <XAxis 
-                  dataKey="date" 
-                  stroke="#6e7681" 
-                  fontSize={11}
-                  tickMargin={10}
-                />
-                <YAxis 
-                  stroke="#6e7681" 
-                  fontSize={11}
-                  tickFormatter={(value) => `$${value}`}
-                />
-                <Tooltip 
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload || !payload.length) return null
-                    const hoveredItem = payload.find(p => p.value !== null && p.value !== undefined)
-                    if (!hoveredItem) return null
-                    
-                    const channelId = hoveredItem.dataKey
-                    const displayName = getChannelName(channelId)
-                    
-                    return (
-                      <div className="bg-dark-secondary border border-dark-border rounded-lg px-4 py-3 shadow-xl">
-                        <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-3 px-3 sm:px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+              <div className="p-1.5 rounded-md bg-accent-cyan/10">
+                <BarChart3 className="w-4 h-4 text-accent-cyan" />
+              </div>
+              <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Trade History</span>
+              <span className="ml-auto text-xs text-gray-500 bg-dark-tertiary/50 px-2 sm:px-3 py-1 rounded-full">
+                <span className="hidden sm:inline">Showing </span>{startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th className="min-w-[150px]">Channel</th>
+                    <th className="min-w-[80px]">Symbol</th>
+                    <th className="min-w-[70px]">Side</th>
+                    <th className="min-w-[80px]">Type</th>
+                    <th className="min-w-[80px]">Entry</th>
+                    <th className="min-w-[70px]">TP</th>
+                    <th className="min-w-[70px]">SL</th>
+                    <th className="min-w-[80px]">P&L</th>
+                    <th className="min-w-[120px]">Status</th>
+                    <th className="min-w-[150px]">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedTrades.map(trade => (
+                    <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
+                      <td>
+                        <div className="flex items-center gap-2">
                           <span 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: hoveredItem.color }}
+                            className="w-2 h-2 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: getChannelColor(trade.channel_id) }}
                           />
-                          <span className="text-white font-semibold text-sm">{displayName}</span>
+                          <span className="truncate max-w-[180px]" title={getChannelName(trade.channel_id)}>
+                            {getChannelName(trade.channel_id)}
+                          </span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-1">{label}</p>
-                        <p className={`text-lg font-mono font-bold ${hoveredItem.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ${hoveredItem.value?.toFixed(2)}
-                        </p>
-                      </div>
-                    )
-                  }}
-                />
-                {activeChannelIds.map((channelId) => (
-                  <Line
-                    key={channelId}
-                    type="monotone"
-                    dataKey={channelId}
-                    name={getChannelName(channelId)}
-                    stroke={getChannelColor(channelId)}
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                    activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              No closed trades with dates to display
+                      </td>
+                      <td className="font-semibold">{trade.symbol || '-'}</td>
+                      <td>
+                        <span className={`badge ${trade.direction === 'buy' ? 'badge-success' : 'badge-danger'}`}>
+                          {trade.direction?.toUpperCase() || '-'}
+                        </span>
+                      </td>
+                      <td>{trade.order_type || '-'}</td>
+                      <td>{trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'}</td>
+                      <td>{trade.executed_tp_price?.toFixed(2) || '-'}</td>
+                      <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
+                      <td className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {trade.profit_loss ? `$${trade.profit_loss.toFixed(2)}` : '-'}
+                      </td>
+                      <td>
+                        <span className={`badge ${getStatusBadgeClass(trade)}`}>
+                          {getStatusDisplay(trade)}
+                        </span>
+                      </td>
+                      <td className="text-gray-500 text-xs sm:text-sm">
+                        {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                  {sortedFilteredTrades.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="text-center text-gray-500 py-8">
+                        No trades found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
-        </ChartCard>
-
-        {/* Channel Activity Timeline (Gantt Chart) */}
-        <ChartCard title="Channel Activity Timeline" icon={Calendar} className="mb-6">
-          {/* Time Range Filter */}
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-sm text-gray-400">Time Range:</span>
-            <div className="flex bg-dark-tertiary rounded-lg p-1">
-              {[
-                { key: '1d', label: '1D' },
-                { key: '1w', label: '1W' },
-                { key: '1m', label: '1M' },
-                { key: '1y', label: '1Y' },
-                { key: 'all', label: 'All' },
-              ].map(option => (
-                <button
-                  key={option.key}
-                  onClick={() => setGanttTimeRange(option.key)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    ganttTimeRange === option.key
-                      ? 'bg-accent-cyan text-dark-primary'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <span className="ml-auto text-xs text-gray-500">
-              {ganttChartData.channels.length} channels active
-            </span>
+            
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
           </div>
-          
-          {/* Gantt Chart */}
-          {ganttChartData.channels.length > 0 ? (
-            <div className="relative">
-              {/* Timeline header */}
-              <div className="flex items-center mb-2 pl-[200px]">
-                <div className="flex-1 flex justify-between text-xs text-gray-500">
-                  <span>{ganttChartData.minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-                  <span>{ganttChartData.maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+
+          {/* CHANNEL COMPARISON SECTION */}
+          <div className="mb-8">
+            {/* Cumulative P&L Over Time */}
+            <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
+              {cumulativePnLData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={500}>
+                  <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#6e7681" 
+                      fontSize={11}
+                      tickMargin={10}
+                    />
+                    <YAxis 
+                      stroke="#6e7681" 
+                      fontSize={11}
+                      tickFormatter={(value) => `$${value}`}
+                    />
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null
+                        const hoveredItem = payload.find(p => p.value !== null && p.value !== undefined)
+                        if (!hoveredItem) return null
+                        
+                        const channelId = hoveredItem.dataKey
+                        const displayName = getChannelName(channelId)
+                        
+                        return (
+                          <div className="bg-dark-secondary border border-dark-border rounded-lg px-4 py-3 shadow-xl">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: hoveredItem.color }}
+                              />
+                              <span className="text-white font-semibold text-sm">{displayName}</span>
+                            </div>
+                            <p className="text-gray-400 text-xs mb-1">{label}</p>
+                            <p className={`text-lg font-mono font-bold ${hoveredItem.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              ${hoveredItem.value?.toFixed(2)}
+                            </p>
+                          </div>
+                        )
+                      }}
+                    />
+                    {activeChannelIds.map((channelId) => (
+                      <Line
+                        key={channelId}
+                        type="monotone"
+                        dataKey={channelId}
+                        name={getChannelName(channelId)}
+                        stroke={getChannelColor(channelId)}
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                        activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  No closed trades with dates to display
                 </div>
+              )}
+            </ChartCard>
+
+            {/* Channel Activity Timeline (Gantt Chart) */}
+            <ChartCard title="Channel Activity Timeline" icon={Calendar} className="mb-6">
+              {/* Time Range Filter */}
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="text-sm text-gray-400">Time Range:</span>
+                <div className="flex bg-dark-tertiary rounded-lg p-1">
+                  {[
+                    { key: '1d', label: '1D' },
+                    { key: '1w', label: '1W' },
+                    { key: '1m', label: '1M' },
+                    { key: '1y', label: '1Y' },
+                    { key: 'all', label: 'All' },
+                  ].map(option => (
+                    <button
+                      key={option.key}
+                      onClick={() => setGanttTimeRange(option.key)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        ganttTimeRange === option.key
+                          ? 'bg-accent-cyan text-dark-primary'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="ml-auto text-xs text-gray-500">
+                  {ganttChartData.channels.length} channels active
+                </span>
               </div>
               
-              {/* Channel rows */}
-              <div className="space-y-2">
-                {ganttChartData.channels.map((channel, idx) => {
-                  const startPercent = ganttChartData.totalRange > 0 
-                    ? ((channel.firstTrade.getTime() - ganttChartData.minDate.getTime()) / ganttChartData.totalRange) * 100 
-                    : 0
-                  const widthPercent = ganttChartData.totalRange > 0 
-                    ? ((channel.lastTrade.getTime() - channel.firstTrade.getTime()) / ganttChartData.totalRange) * 100 
-                    : 100
-                  const minWidth = Math.max(widthPercent, 1) // Minimum 1% width for visibility
+              {/* Gantt Chart */}
+              {ganttChartData.channels.length > 0 ? (
+                <div className="relative overflow-x-auto">
+                  {/* Timeline header */}
+                  <div className="flex items-center mb-2 pl-[200px] min-w-[600px]">
+                    <div className="flex-1 flex justify-between text-xs text-gray-500">
+                      <span>{ganttChartData.minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                      <span>{ganttChartData.maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                    </div>
+                  </div>
                   
-                  return (
-                    <div key={channel.channelId} className="flex items-center gap-3 group">
-                      {/* Channel name */}
-                      <div className="w-[200px] flex-shrink-0 flex items-center gap-2">
-                        <span 
-                          className="w-2 h-2 rounded-full flex-shrink-0" 
-                          style={{ backgroundColor: getChannelColor(channel.channelId) }}
-                        />
-                        <span className="text-sm text-gray-300 truncate" title={channel.channelName}>
-                          {channel.channelName.length > 25 ? channel.channelName.slice(0, 25) + '...' : channel.channelName}
-                        </span>
-                      </div>
+                  {/* Channel rows */}
+                  <div className="space-y-2 min-w-[600px]">
+                    {ganttChartData.channels.map((channel, idx) => {
+                      const startPercent = ganttChartData.totalRange > 0 
+                        ? ((channel.firstTrade.getTime() - ganttChartData.minDate.getTime()) / ganttChartData.totalRange) * 100 
+                        : 0
+                      const widthPercent = ganttChartData.totalRange > 0 
+                        ? ((channel.lastTrade.getTime() - channel.firstTrade.getTime()) / ganttChartData.totalRange) * 100 
+                        : 100
+                      const minWidth = Math.max(widthPercent, 1)
                       
-                      {/* Timeline bar */}
-                      <div className="flex-1 h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
-                        <div
-                          className="absolute h-full rounded transition-all group-hover:opacity-80"
-                          style={{
-                            left: `${startPercent}%`,
-                            width: `${minWidth}%`,
-                            backgroundColor: getChannelColor(channel.channelId),
-                            minWidth: '4px'
-                          }}
-                          title={`${channel.totalTrades} trades from ${channel.firstTrade.toLocaleDateString()} to ${channel.lastTrade.toLocaleDateString()}`}
-                        >
-                          {/* Trade dots within the bar */}
-                          {channel.trades.slice(0, 50).map((trade, tIdx) => {
-                            const tradePercent = ganttChartData.totalRange > 0 && widthPercent > 5
-                              ? ((trade.date.getTime() - channel.firstTrade.getTime()) / (channel.lastTrade.getTime() - channel.firstTrade.getTime())) * 100
-                              : 50
-                            return (
-                              <div
-                                key={tIdx}
-                                className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/30"
-                                style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
-                              />
-                            )
-                          })}
+                      return (
+                        <div key={channel.channelId} className="flex items-center gap-3 group">
+                          {/* Channel name */}
+                          <div className="w-[200px] flex-shrink-0 flex items-center gap-2">
+                            <span 
+                              className="w-2 h-2 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: getChannelColor(channel.channelId) }}
+                            />
+                            <span className="text-sm text-gray-300 truncate" title={channel.channelName}>
+                              {channel.channelName.length > 25 ? channel.channelName.slice(0, 25) + '...' : channel.channelName}
+                            </span>
+                          </div>
+                          
+                          {/* Timeline bar */}
+                          <div className="flex-1 h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
+                            <div
+                              className="absolute h-full rounded transition-all group-hover:opacity-80"
+                              style={{
+                                left: `${startPercent}%`,
+                                width: `${minWidth}%`,
+                                backgroundColor: getChannelColor(channel.channelId),
+                                minWidth: '4px'
+                              }}
+                              title={`${channel.totalTrades} trades from ${channel.firstTrade.toLocaleDateString()} to ${channel.lastTrade.toLocaleDateString()}`}
+                            >
+                              {/* Trade dots within the bar */}
+                              {channel.trades.slice(0, 50).map((trade, tIdx) => {
+                                const tradePercent = ganttChartData.totalRange > 0 && widthPercent > 5
+                                  ? ((trade.date.getTime() - channel.firstTrade.getTime()) / (channel.lastTrade.getTime() - channel.firstTrade.getTime())) * 100
+                                  : 50
+                                return (
+                                  <div
+                                    key={tIdx}
+                                    className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/30"
+                                    style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
+                                  />
+                                )
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Trade count */}
+                          <div className="w-[60px] text-right text-xs text-gray-500">
+                            {channel.totalTrades} <span className="hidden sm:inline">trades</span>
+                          </div>
                         </div>
+                      )
+                    })}
+                  </div>
+                  
+                  {/* Legend */}
+                  <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-dark-border/50 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <div className="w-8 h-2 bg-accent-cyan rounded" />
+                      <span>Active period</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-1 h-1 bg-white/50 rounded-full" />
+                      <span>Individual trade</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  No trades in selected time range
+                </div>
+              )}
+            </ChartCard>
+
+            {/* Channel Stats Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <ChartCard title="Total P&L by Channel" icon={BarChart3}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
+                    <XAxis type="number" stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
+                    <YAxis 
+                      type="category" 
+                      dataKey="channel" 
+                      stroke="#6e7681" 
+                      fontSize={11}
+                      width={120}
+                    />
+                    <Tooltip
+                      contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
+                      formatter={(value, name, props) => [`$${value.toFixed(2)}`, props.payload.fullName]}
+                    />
+                    <Bar dataKey="totalPnL" radius={[0, 4, 4, 0]}>
+                      {channelComparisonData.map((entry, index) => (
+                        <Cell 
+                          key={index} 
+                          fill={entry.totalPnL >= 0 ? COLORS.green : COLORS.red}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="Win Rate by Channel" icon={Target}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
+                    <XAxis 
+                      type="number" 
+                      stroke="#6e7681" 
+                      fontSize={11} 
+                      domain={[0, 100]}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="channel" 
+                      stroke="#6e7681" 
+                      fontSize={11}
+                      width={120}
+                    />
+                    <Tooltip
+                      contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
+                      formatter={(value, name, props) => [
+                        `${value.toFixed(1)}% (${props.payload.wins}W / ${props.payload.losses}L)`,
+                        props.payload.fullName
+                      ]}
+                    />
+                    <Bar dataKey="winRate" radius={[0, 4, 4, 0]}>
+                      {channelComparisonData.map((entry, index) => (
+                        <Cell 
+                          key={index} 
+                          fill={entry.color}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
+
+            {/* Market Sessions Chart */}
+            <ChartCard title="Performance by Market Session" icon={Globe} className="mb-6">
+              <div className="mb-4 text-sm text-gray-400">
+                Trade outcomes grouped by forex market sessions (based on signal time UTC)
+              </div>
+              {marketSessionsData.some(s => s.total > 0) ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 30, left: 80, bottom: 10 }} barSize={20}>
+                    <XAxis 
+                      type="number"
+                      stroke="#6e7681" 
+                      fontSize={11}
+                      allowDecimals={false}
+                    />
+                    <YAxis 
+                      type="category"
+                      dataKey="session" 
+                      stroke="#6e7681" 
+                      fontSize={12}
+                      width={70}
+                    />
+                    <Tooltip content={<MarketSessionsTooltip />} />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: 10 }}
+                      formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
+                    />
+                    <Bar dataKey="profit" name="Profit" fill={COLORS.green} stackId="outcomes" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="loss" name="Loss" fill={COLORS.red} stackId="outcomes" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  No closed trades to display
+                </div>
+              )}
+              
+              {/* Session Stats Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5 pt-5 border-t border-dark-border/50">
+                {marketSessionsData.map(session => {
+                  const sessionColor = MARKET_SESSIONS.find(s => s.label === session.session)?.color
+                  return (
+                    <div 
+                      key={session.session}
+                      className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30 hover:border-dark-border/60 transition-all"
+                      style={{ borderLeftColor: sessionColor, borderLeftWidth: '3px' }}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <span 
+                          className="w-2.5 h-2.5 rounded-full shadow-lg" 
+                          style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }}
+                        />
+                        <span className="text-sm font-semibold text-white">{session.session}</span>
                       </div>
-                      
-                      {/* Trade count */}
-                      <div className="w-[60px] text-right text-xs text-gray-500">
-                        {channel.totalTrades} trades
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-gray-500 mb-0.5">Total</span>
+                          <span className="text-white font-mono text-base font-semibold">{session.total}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500 mb-0.5">Win Rate</span>
+                          <span className="text-white font-mono text-base font-semibold">{session.winRate}%</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500 mb-0.5">Wins</span>
+                          <span className="text-green-400 font-mono text-base font-semibold">{session.profit}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500 mb-0.5">Losses</span>
+                          <span className="text-red-400 font-mono text-base font-semibold">{session.loss}</span>
+                        </div>
                       </div>
                     </div>
                   )
                 })}
               </div>
-              
-              {/* Legend */}
-              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-dark-border/50 text-xs text-gray-500">
-                <div className="flex items-center gap-1">
-                  <div className="w-8 h-2 bg-accent-cyan rounded" />
-                  <span>Active period</span>
+            </ChartCard>
+
+            {/* Outcome Distribution */}
+            <ChartCard title="Outcome Distribution by Channel (sorted by Profit - Loss)" icon={Target} className="mb-6">
+              <div className="mb-4">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="text-sm text-gray-400">Filter outcomes:</span>
+                  <button 
+                    onClick={selectAllOutcomes}
+                    className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-gray-600">|</span>
+                  <button 
+                    onClick={deselectAllOutcomes}
+                    className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+                  >
+                    Deselect All
+                  </button>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-1 h-1 bg-white/50 rounded-full" />
-                  <span>Individual trade</span>
+                <div className="flex flex-wrap gap-2">
+                  {OUTCOME_TYPES.map(outcome => (
+                    <OutcomeCheckbox
+                      key={outcome.key}
+                      outcome={outcome}
+                      checked={selectedOutcomes.includes(outcome.key)}
+                      onChange={toggleOutcome}
+                    />
+                  ))}
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              No trades in selected time range
-            </div>
-          )}
-        </ChartCard>
-
-        {/* Channel Stats Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <ChartCard title="Total P&L by Channel" icon={BarChart3}>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
-                <XAxis type="number" stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
-                <YAxis 
-                  type="category" 
-                  dataKey="channel" 
-                  stroke="#6e7681" 
-                  fontSize={11}
-                  width={120}
-                />
-                <Tooltip
-                  contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
-                  formatter={(value, name, props) => [`$${value.toFixed(2)}`, props.payload.fullName]}
-                />
-                <Bar dataKey="totalPnL" radius={[0, 4, 4, 0]}>
-                  {channelComparisonData.map((entry, index) => (
-                    <Cell 
-                      key={index} 
-                      fill={entry.totalPnL >= 0 ? COLORS.green : COLORS.red}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="Win Rate by Channel" icon={Target}>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
-                <XAxis 
-                  type="number" 
-                  stroke="#6e7681" 
-                  fontSize={11} 
-                  domain={[0, 100]}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="channel" 
-                  stroke="#6e7681" 
-                  fontSize={11}
-                  width={120}
-                />
-                <Tooltip
-                  contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
-                  formatter={(value, name, props) => [
-                    `${value.toFixed(1)}% (${props.payload.wins}W / ${props.payload.losses}L)`,
-                    props.payload.fullName
-                  ]}
-                />
-                <Bar dataKey="winRate" radius={[0, 4, 4, 0]}>
-                  {channelComparisonData.map((entry, index) => (
-                    <Cell 
-                      key={index} 
-                      fill={entry.color}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </div>
-
-        {/* ==================== NEW: MARKET SESSIONS CHART ==================== */}
-        <ChartCard title="Performance by Market Session" icon={Globe} className="mb-6">
-          <div className="mb-4 text-sm text-gray-400">
-            Trade outcomes grouped by forex market sessions (based on signal time UTC)
-          </div>
-          {marketSessionsData.some(s => s.total > 0) ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 30, left: 80, bottom: 10 }} barSize={20}>
-                <XAxis 
-                  type="number"
-                  stroke="#6e7681" 
-                  fontSize={11}
-                  allowDecimals={false}
-                />
-                <YAxis 
-                  type="category"
-                  dataKey="session" 
-                  stroke="#6e7681" 
-                  fontSize={12}
-                  width={70}
-                />
-                <Tooltip content={<MarketSessionsTooltip />} />
-                <Legend 
-                  wrapperStyle={{ paddingTop: 10 }}
-                  formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
-                />
-                <Bar dataKey="profit" name="Profit" fill={COLORS.green} stackId="outcomes" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="loss" name="Loss" fill={COLORS.red} stackId="outcomes" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              No closed trades to display
-            </div>
-          )}
-          
-          {/* Session Stats Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-dark-border/50">
-            {marketSessionsData.map(session => {
-              const sessionColor = MARKET_SESSIONS.find(s => s.label === session.session)?.color
-              return (
-                <div 
-                  key={session.session}
-                  className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30 hover:border-dark-border/60 transition-all"
-                  style={{ borderLeftColor: sessionColor, borderLeftWidth: '3px' }}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span 
-                      className="w-2.5 h-2.5 rounded-full shadow-lg" 
-                      style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }}
-                    />
-                    <span className="text-sm font-semibold text-white">{session.session}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="flex flex-col">
-                      <span className="text-gray-500 mb-0.5">Total</span>
-                      <span className="text-white font-mono text-base font-semibold">{session.total}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-gray-500 mb-0.5">Win Rate</span>
-                      <span className="text-white font-mono text-base font-semibold">{session.winRate}%</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-gray-500 mb-0.5">Wins</span>
-                      <span className="text-green-400 font-mono text-base font-semibold">{session.profit}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-gray-500 mb-0.5">Losses</span>
-                      <span className="text-red-400 font-mono text-base font-semibold">{session.loss}</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </ChartCard>
-        {/* ==================== END MARKET SESSIONS CHART ==================== */}
-
-        {/* ==================== FIX #4: OUTCOME DISTRIBUTION - Taller Chart ====================  */}
-        <ChartCard title="Outcome Distribution by Channel (sorted by Profit - Loss)" icon={Target} className="mb-6">
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm text-gray-400">Filter outcomes:</span>
-              <button 
-                onClick={selectAllOutcomes}
-                className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
-              >
-                Select All
-              </button>
-              <span className="text-gray-600">|</span>
-              <button 
-                onClick={deselectAllOutcomes}
-                className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
-              >
-                Deselect All
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {OUTCOME_TYPES.map(outcome => (
-                <OutcomeCheckbox
-                  key={outcome.key}
-                  outcome={outcome}
-                  checked={selectedOutcomes.includes(outcome.key)}
-                  onChange={toggleOutcome}
-                />
-              ))}
-            </div>
-          </div>
-          
-          {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 32)}>
-              <BarChart 
-                data={outcomeByChannelData} 
-                layout="vertical" 
-                margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
-                barSize={16}
-              >
-                <XAxis type="number" stroke="#6e7681" fontSize={11} />
-                <YAxis 
-                  type="category" 
-                  dataKey="fullName"
-                  stroke="#6e7681" 
-                  fontSize={10}
-                  width={280}
-                  interval={0}
-                  tick={({ x, y, payload }) => (
-                    <text 
-                      x={x} 
-                      y={y} 
-                      dy={4} 
-                      textAnchor="end" 
-                      fill="#9ca3af" 
+              
+              {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 32)}>
+                  <BarChart 
+                    data={outcomeByChannelData} 
+                    layout="vertical" 
+                    margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
+                    barSize={16}
+                  >
+                    <XAxis type="number" stroke="#6e7681" fontSize={11} />
+                    <YAxis 
+                      type="category" 
+                      dataKey="fullName"
+                      stroke="#6e7681" 
                       fontSize={10}
-                    >
-                      {payload.value.length > 45 ? payload.value.slice(0, 45) + '...' : payload.value}
-                    </text>
-                  )}
-                />
-                <Tooltip content={<OutcomeDistributionTooltip />} />
-                <Legend 
-                  wrapperStyle={{ paddingTop: 20 }}
-                  formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
-                />
-                {OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key)).map((outcome, index, arr) => (
-                  <Bar
-                    key={outcome.key}
-                    dataKey={outcome.key}
-                    name={outcome.label}
-                    fill={outcome.color}
-                    stackId="outcomes"
-                    radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              {selectedOutcomes.length === 0 
-                ? 'Select at least one outcome type to display'
-                : 'No trades to display'
-              }
-            </div>
-          )}
-        </ChartCard>
-      </div>
+                      width={280}
+                      interval={0}
+                      tick={({ x, y, payload }) => (
+                        <text 
+                          x={x} 
+                          y={y} 
+                          dy={4} 
+                          textAnchor="end" 
+                          fill="#9ca3af" 
+                          fontSize={10}
+                        >
+                          {payload.value.length > 45 ? payload.value.slice(0, 45) + '...' : payload.value}
+                        </text>
+                      )}
+                    />
+                    <Tooltip content={<OutcomeDistributionTooltip />} />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: 20 }}
+                      formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
+                    />
+                    {OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key)).map((outcome, index, arr) => (
+                      <Bar
+                        key={outcome.key}
+                        dataKey={outcome.key}
+                        name={outcome.label}
+                        fill={outcome.color}
+                        stackId="outcomes"
+                        radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  {selectedOutcomes.length === 0 
+                    ? 'Select at least one outcome type to display'
+                    : 'No trades to display'
+                  }
+                </div>
+              )}
+            </ChartCard>
+          </div>
 
-      {/* Analysis Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <ChartCard title="Outcomes by Side" icon={Target}>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={outcomeBySideData} barSize={40}>
-              <XAxis dataKey="side" stroke="#6e7681" fontSize={11} tickMargin={8} />
-              <YAxis stroke="#6e7681" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
-              <Legend wrapperStyle={{ paddingTop: 10 }} />
-              <Bar dataKey="profit" fill={COLORS.green} name="Profit" stackId="a" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="loss" fill={COLORS.red} name="Loss" stackId="a" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          {/* Analysis Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <ChartCard title="Outcomes by Side" icon={Target}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={outcomeBySideData} barSize={40}>
+                  <XAxis dataKey="side" stroke="#6e7681" fontSize={11} tickMargin={8} />
+                  <YAxis stroke="#6e7681" fontSize={11} />
+                  <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+                  <Legend wrapperStyle={{ paddingTop: 10 }} />
+                  <Bar dataKey="profit" fill={COLORS.green} name="Profit" stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="loss" fill={COLORS.red} name="Loss" stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
 
-        <ChartCard title="Performance by Hour" icon={Clock}>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={hourlyChartData} barSize={12}>
-              <XAxis dataKey="hour" stroke="#6e7681" fontSize={10} tickMargin={8} />
-              <YAxis stroke="#6e7681" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
-              <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
-                {hourlyChartData.map((entry, index) => (
-                  <Cell key={index} fill={entry.pnl >= 0 ? COLORS.green : COLORS.red} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+            <ChartCard title="Performance by Hour" icon={Clock}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={hourlyChartData} barSize={12}>
+                  <XAxis dataKey="hour" stroke="#6e7681" fontSize={10} tickMargin={8} />
+                  <YAxis stroke="#6e7681" fontSize={11} />
+                  <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+                  <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
+                    {hourlyChartData.map((entry, index) => (
+                      <Cell key={index} fill={entry.pnl >= 0 ? COLORS.green : COLORS.red} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Day of Week Analysis" icon={Calendar}>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={dowChartData} barSize={32}>
-              <XAxis dataKey="day" stroke="#6e7681" fontSize={11} tickMargin={8} />
-              <YAxis stroke="#6e7681" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
-              <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
-                {dowChartData.map((entry, index) => (
-                  <Cell key={index} fill={entry.pnl >= 0 ? COLORS.green : COLORS.red} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Day of Week Analysis" icon={Calendar}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={dowChartData} barSize={32}>
+                  <XAxis dataKey="day" stroke="#6e7681" fontSize={11} tickMargin={8} />
+                  <YAxis stroke="#6e7681" fontSize={11} />
+                  <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+                  <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
+                    {dowChartData.map((entry, index) => (
+                      <Cell key={index} fill={entry.pnl >= 0 ? COLORS.green : COLORS.red} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
 
-        <ChartCard title="Rolling Win Rate (20 trades)" icon={TrendingUp}>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={
-              closedTrades.slice().reverse().map((_, idx, arr) => {
-                const window = arr.slice(Math.max(0, idx - 19), idx + 1)
-                const windowWins = window.filter(t => t.outcome === 'profit').length
-                const windowLosses = window.filter(t => t.outcome === 'loss').length
-                const totalWL = windowWins + windowLosses
-                return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toFixed(1) : '0.0' }
-              })
-            }>
-              <XAxis dataKey="trade" stroke="#6e7681" fontSize={11} />
-              <YAxis stroke="#6e7681" fontSize={11} domain={[0, 100]} />
-              <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
-              <Line type="monotone" dataKey="winRate" stroke={COLORS.cyan} strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+            <ChartCard title="Rolling Win Rate (20 trades)" icon={TrendingUp}>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={
+                  closedTrades.slice().reverse().map((_, idx, arr) => {
+                    const window = arr.slice(Math.max(0, idx - 19), idx + 1)
+                    const windowWins = window.filter(t => t.outcome === 'profit').length
+                    const windowLosses = window.filter(t => t.outcome === 'loss').length
+                    const totalWL = windowWins + windowLosses
+                    return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toFixed(1) : '0.0' }
+                  })
+                }>
+                  <XAxis dataKey="trade" stroke="#6e7681" fontSize={11} />
+                  <YAxis stroke="#6e7681" fontSize={11} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+                  <Line type="monotone" dataKey="winRate" stroke={COLORS.cyan} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
       
           {/* Bottom spacing */}
           <div className="pb-8" />
