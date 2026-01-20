@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
   BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight,
-  CheckSquare, Square, ChevronDown, Globe, Menu
+  CheckSquare, Square, ChevronDown, Globe
 } from 'lucide-react'
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
@@ -114,14 +114,14 @@ function ConnectionStatus({ status }) {
 
 function ChartCard({ title, icon: Icon, children, className = '' }) {
   return (
-    <div className={`chart-card backdrop-blur-sm ${className}`} style={{ willChange: 'transform' }}>
-      <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
-        <div className="p-1.5 rounded-md bg-accent-cyan/10">
+    <div className={`chart-card backdrop-blur-sm overflow-hidden ${className}`} style={{ willChange: 'transform' }}>
+      <div className="flex items-center gap-3 px-3 sm:px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+        <div className="p-1.5 rounded-md bg-accent-cyan/10 flex-shrink-0">
           <Icon className="w-4 h-4 text-accent-cyan" />
         </div>
-        <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">{title}</span>
+        <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider truncate">{title}</span>
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-3 sm:p-5 overflow-x-auto">{children}</div>
     </div>
   )
 }
@@ -1088,7 +1088,7 @@ export default function Trades() {
   }
 
   return (
-    <div className="flex min-h-screen relative">
+    <div className="flex min-h-screen relative overflow-x-hidden max-w-full">
       {toast && (
         <Toast 
           message={toast.message} 
@@ -1096,14 +1096,6 @@ export default function Trades() {
           onClose={() => setToast(null)} 
         />
       )}
-
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-dark-secondary border border-dark-border rounded-lg shadow-lg"
-      >
-        <Menu className="w-5 h-5 text-white" />
-      </button>
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -1263,11 +1255,19 @@ export default function Trades() {
       </div>
 
       {/* Main Content Area - Improved scrolling */}
-      <div className="flex-1 overflow-y-auto" style={{ 
+      <div className="flex-1 overflow-y-auto overflow-x-hidden max-w-full" style={{ 
         WebkitOverflowScrolling: 'touch',
         scrollBehavior: 'smooth'
       }}>
-        <div className="p-4 sm:p-6 lg:p-8 pt-16 lg:pt-6">
+        {/* Mobile Filter Button - Floating */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="lg:hidden fixed bottom-6 right-6 z-30 p-4 bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary rounded-full shadow-xl hover:shadow-2xl transition-all"
+        >
+          <Filter className="w-6 h-6" />
+        </button>
+
+        <div className="p-4 sm:p-6 lg:p-8 max-w-full">
 
           {/* Trades Table */}
           <div id="trades-table" className="chart-card mb-8 overflow-hidden">
@@ -1356,8 +1356,9 @@ export default function Trades() {
             {/* Cumulative P&L Over Time */}
             <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
               {cumulativePnLData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={500}>
-                  <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <div className="w-full min-w-[300px]">
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={cumulativePnLData} margin={{ top: 20, right: 10, left: 0, bottom: 20 }}>
                     <XAxis 
                       dataKey="date" 
                       stroke="#6e7681" 
@@ -1410,6 +1411,7 @@ export default function Trades() {
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   No closed trades with dates to display
@@ -1542,8 +1544,9 @@ export default function Trades() {
             {/* Channel Stats Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <ChartCard title="Total P&L by Channel" icon={BarChart3}>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
+                <div className="w-full min-w-[280px]">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 10, right: 10 }} barSize={18}>
                     <XAxis type="number" stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
                     <YAxis 
                       type="category" 
@@ -1566,11 +1569,13 @@ export default function Trades() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               </ChartCard>
 
               <ChartCard title="Win Rate by Channel" icon={Target}>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 20, right: 20 }} barSize={18}>
+                <div className="w-full min-w-[280px]">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={channelComparisonData} layout="vertical" margin={{ left: 10, right: 10 }} barSize={18}>
                     <XAxis 
                       type="number" 
                       stroke="#6e7681" 
@@ -1602,6 +1607,7 @@ export default function Trades() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               </ChartCard>
             </div>
 
@@ -1611,8 +1617,9 @@ export default function Trades() {
                 Trade outcomes grouped by forex market sessions (based on signal time UTC)
               </div>
               {marketSessionsData.some(s => s.total > 0) ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 30, left: 80, bottom: 10 }} barSize={20}>
+                <div className="w-full min-w-[300px]">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 10, left: 60, bottom: 10 }} barSize={20}>
                     <XAxis 
                       type="number"
                       stroke="#6e7681" 
@@ -1636,6 +1643,7 @@ export default function Trades() {
                     <Bar dataKey="breakeven" name="Breakeven" fill={COLORS.gray} stackId="outcomes" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   No closed trades to display
@@ -1715,13 +1723,14 @@ export default function Trades() {
               </div>
               
               {outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
-                <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 32)}>
-                  <BarChart 
-                    data={outcomeByChannelData} 
-                    layout="vertical" 
-                    margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
-                    barSize={16}
-                  >
+                <div className="w-full min-w-[300px]">
+                  <ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 32)}>
+                    <BarChart 
+                      data={outcomeByChannelData} 
+                      layout="vertical" 
+                      margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
+                      barSize={16}
+                    >
                     <XAxis type="number" stroke="#6e7681" fontSize={11} />
                     <YAxis 
                       type="category" 
@@ -1760,6 +1769,7 @@ export default function Trades() {
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   {selectedOutcomes.length === 0 
@@ -1774,8 +1784,9 @@ export default function Trades() {
           {/* Analysis Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <ChartCard title="Outcomes by Side" icon={Target}>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={outcomeBySideData} barSize={40}>
+              <div className="w-full min-w-[280px]">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={outcomeBySideData} barSize={40} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <XAxis dataKey="side" stroke="#6e7681" fontSize={11} tickMargin={8} />
                   <YAxis stroke="#6e7681" fontSize={11} />
                   <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
@@ -1785,11 +1796,13 @@ export default function Trades() {
                   <Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </ChartCard>
 
             <ChartCard title="Performance by Hour" icon={Clock}>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={hourlyChartData} barSize={12}>
+              <div className="w-full min-w-[280px]">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={hourlyChartData} barSize={12} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <XAxis dataKey="hour" stroke="#6e7681" fontSize={10} tickMargin={8} />
                   <YAxis stroke="#6e7681" fontSize={11} />
                   <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
@@ -1800,13 +1813,15 @@ export default function Trades() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </ChartCard>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ChartCard title="Day of Week Analysis" icon={Calendar}>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={dowChartData} barSize={32}>
+              <div className="w-full min-w-[280px]">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={dowChartData} barSize={32} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <XAxis dataKey="day" stroke="#6e7681" fontSize={11} tickMargin={8} />
                   <YAxis stroke="#6e7681" fontSize={11} />
                   <Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
@@ -1817,11 +1832,13 @@ export default function Trades() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </ChartCard>
 
             <ChartCard title="Rolling Win Rate (20 trades)" icon={TrendingUp}>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={
+              <div className="w-full min-w-[280px]">
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={
                   closedTrades.slice().reverse().map((_, idx, arr) => {
                     const window = arr.slice(Math.max(0, idx - 19), idx + 1)
                     const windowWins = window.filter(t => t.outcome === 'profit').length
@@ -1836,6 +1853,7 @@ export default function Trades() {
                   <Line type="monotone" dataKey="winRate" stroke={COLORS.cyan} strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             </ChartCard>
           </div>
       
