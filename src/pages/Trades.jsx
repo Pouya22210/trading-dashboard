@@ -1088,7 +1088,7 @@ export default function Trades() {
   }
 
   return (
-    <div className="flex min-h-screen relative overflow-x-hidden max-w-full">
+    <div className="flex min-h-screen relative max-w-full">
       {toast && (
         <Toast 
           message={toast.message} 
@@ -1105,10 +1105,14 @@ export default function Trades() {
         />
       )}
 
-      {/* Left Sidebar - Fixed positioning */}
-      <div className={`
-        fixed lg:sticky top-0 left-0 h-screen
-        w-80 lg:w-72 flex-shrink-0 
+      {/* Left Sidebar - Sticky on desktop, slide-out on mobile */}
+      <aside className={`
+        fixed lg:sticky 
+        top-0 
+        left-0 
+        h-screen
+        w-80 lg:w-72 
+        flex-shrink-0 
         bg-dark-secondary border-r border-dark-border 
         overflow-y-auto overflow-x-hidden
         transition-transform duration-300 ease-in-out
@@ -1252,10 +1256,10 @@ export default function Trades() {
             <Download className="w-4 h-4" /> Export CSV
           </button>
         </div>
-      </div>
+      </aside>
 
       {/* Main Content Area - Improved scrolling */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden max-w-full" style={{ 
+      <main className="flex-1 min-w-0 overflow-x-hidden" style={{ 
         WebkitOverflowScrolling: 'touch',
         scrollBehavior: 'smooth'
       }}>
@@ -1860,7 +1864,7 @@ export default function Trades() {
           {/* Bottom spacing */}
           <div className="pb-8" />
         </div>
-      </div>
+      </main>
     </div>
   )
 }
