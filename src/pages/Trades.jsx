@@ -506,6 +506,9 @@ export default function Trades() {
   // Gantt chart time range filter
   const [ganttTimeRange, setGanttTimeRange] = useState('all')
   
+  // Logarithmic scale toggle for cumulative P&L
+  const [useLogScale, setUseLogScale] = useState(false)
+  
   const [filters, setFilters] = useState({
     orderType: '',
     side: '',
@@ -1359,20 +1362,43 @@ export default function Trades() {
           <div className="mb-8">
             {/* Cumulative P&L Over Time */}
             <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
+              {/* Log Scale Toggle */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-dark-border/50">
+                <div className="text-sm text-gray-400">
+                  Track each channel's cumulative performance over time
+                </div>
+                <button
+                  onClick={() => setUseLogScale(!useLogScale)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    useLogScale 
+                      ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30' 
+                      : 'bg-dark-tertiary text-gray-400 border border-dark-border hover:border-accent-cyan/50'
+                  }`}
+                >
+                  <span>{useLogScale ? '📊 Logarithmic Scale' : '📈 Linear Scale'}</span>
+                </button>
+              </div>
+              
               {cumulativePnLData.length > 0 ? (
                 <div className="w-full min-w-[300px]">
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={cumulativePnLData} margin={{ top: 20, right: 10, left: 0, bottom: 20 }}>
+                  <ResponsiveContainer width="100%" height={800}>
+                    <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 50, bottom: 60 }}>
                     <XAxis 
                       dataKey="date" 
                       stroke="#6e7681" 
                       fontSize={11}
                       tickMargin={10}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
                     />
                     <YAxis 
                       stroke="#6e7681" 
                       fontSize={11}
-                      tickFormatter={(value) => `$${value}`}
+                      tickFormatter={(value) => `$${value.toFixed(0)}`}
+                      scale={useLogScale ? "log" : "linear"}
+                      domain={useLogScale ? ['auto', 'auto'] : ['auto', 'auto']}
+                      allowDataOverflow={false}
                     />
                     <Tooltip 
                       content={({ active, payload, label }) => {
@@ -1400,14 +1426,21 @@ export default function Trades() {
                         )
                       }}
                     />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: 20, paddingBottom: 10 }}
+                      formatter={(value) => {
+                        const name = getChannelName(value)
+                        return <span className="text-gray-300 text-xs">{name.length > 20 ? name.slice(0, 20) + '...' : name}</span>
+                      }}
+                    />
                     {activeChannelIds.map((channelId) => (
                       <Line
                         key={channelId}
                         type="monotone"
                         dataKey={channelId}
-                        name={getChannelName(channelId)}
+                        name={channelId}
                         stroke={getChannelColor(channelId)}
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                         dot={false}
                         connectNulls
                         activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
