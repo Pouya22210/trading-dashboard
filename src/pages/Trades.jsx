@@ -1132,40 +1132,23 @@ console.error('WebSocket error:', error)
 }, [])
 
 
-
 useEffect(() => {
+  async function loadData() {
+    try {
+      const [tradesData, channelsData] = await Promise.all([
+        fetchTrades({ limit: 50000 }),  // <-- REMOVE THIS limit parameter
+        fetchChannels()
+      ])
+      setTrades(tradesData)
+      setChannels(channelsData)
+    } catch (err) {
+      console.error('Failed to load data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-async function loadData() {
-
-try {
-
-const [tradesData, channelsData] = await Promise.all([
-
-fetchTrades({ limit: 50000 }),
-
-fetchChannels()
-
-])
-
-setTrades(tradesData)
-
-setChannels(channelsData)
-
-} catch (err) {
-
-console.error('Failed to load data:', err)
-
-} finally {
-
-setLoading(false)
-
-}
-
-}
-
-
-loadData()
-
+  loadData()
 }, [])
 
 
