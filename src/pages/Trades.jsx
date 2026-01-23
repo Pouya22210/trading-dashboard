@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 
 import {
-
-Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
-
-BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight,
-
-CheckSquare, Square, ChevronDown, Globe
-
+  Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
+  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight,
+  CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff
 } from 'lucide-react'
 
 import {
@@ -650,24 +646,27 @@ style={{ backgroundColor: outcome.color }}
 
 // ==================== Multi-Select Channel Filter Component ====================
 
-function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channelColorMap }) {
+function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channelColorMap, showOrphaned, onToggleOrphaned }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
-const [isOpen, setIsOpen] = useState(false)
-
-const [searchQuery, setSearchQuery] = useState('')
-
-
-// Filter channels based on search query
-
-const filteredChannels = useMemo(() => {
-
-if (!searchQuery.trim()) return channelList
-
-const query = searchQuery.toLowerCase()
-
-return channelList.filter(ch => ch.name.toLowerCase().includes(query))
-
-}, [channelList, searchQuery])
+  // Filter channels based on search query and orphaned status
+  const filteredChannels = useMemo(() => {
+    let filtered = channelList
+    
+    // Filter by orphaned status
+    if (!showOrphaned) {
+      filtered = filtered.filter(ch => !ch.isOrphaned)
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(ch => ch.name.toLowerCase().includes(query))
+    }
+    
+    return filtered
+  }, [channelList, searchQuery, showOrphaned])
 
 
 const toggleChannel = (channelId) => {
@@ -776,35 +775,30 @@ setSearchQuery('')
 
 {/* Select/Deselect buttons */}
 
-<div className="flex items-center gap-2 px-3 py-2 border-b border-dark-border bg-dark-tertiary/50">
-
-<button
-
-onClick={selectAll}
-
-className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
-
->
-
-Select All
-
-</button>
-
-<span className="text-gray-600">|</span>
-
-<button
-
-onClick={deselectAll}
-
-className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
-
->
-
-Deselect All
-
-</button>
-
-</div>
+<div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-dark-border bg-dark-tertiary/50">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={selectAll}
+                    className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-gray-600">|</span>
+                  <button
+                    onClick={deselectAll}
+                    className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+                <button
+                  onClick={onToggleOrphaned}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  {showOrphaned ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                  <span>{showOrphaned ? 'Hide' : 'Show'} Deleted</span>
+                </button>
+              </div>
 
 
 {/* Search bar */}
@@ -910,15 +904,14 @@ style={{ backgroundColor: channelColorMap[channel.id] || '#6e7681' }}
 
 />
 
-<span className={`text-sm truncate ${
-
-selectedChannelIds.includes(channel.id) ? 'text-white' : 'text-gray-400'
-
-}`}>
-
-{channel.name}
-
-</span>
+<span className={`text-sm truncate flex-1 ${
+                  selectedChannelIds.includes(channel.id) ? 'text-white' : 'text-gray-400'
+                } ${channel.isOrphaned ? 'italic' : ''}`}>
+                  {channel.name}
+                </span>
+                {channel.isOrphaned && (
+                  <span className="text-xs text-red-400">🗑️</span>
+                )}
 
 </label>
 
@@ -989,8 +982,11 @@ const [ganttTimeRange, setGanttTimeRange] = useState('all')
 
 // Logarithmic scale toggle for cumulative P&L
 
+// Logarithmic scale toggle for cumulative P&L
 const [useLogScale, setUseLogScale] = useState(false)
-
+  
+  // Show/hide orphaned (deleted) channels
+const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
 
 const [filters, setFilters] = useState({
 
@@ -1188,40 +1184,24 @@ setCurrentPage(1)
 
 
 // Build channel list from trades using channel_id
-
 const channelList = useMemo(() => {
+    const channelMap = new Map()
 
-const channelMap = new Map()
+    trades.forEach(trade => {
+      const channelId = trade.channel_id
+      if (channelId && !channelMap.has(channelId)) {
+        channelMap.set(channelId, {
+          id: channelId,
+          name: trade.display_channel_name || trade.channel_name || 'Unknown',
+          isOrphaned: trade.is_orphaned_channel || false,
+        })
+      }
+    })
 
-
-trades.forEach(trade => {
-
-const channelId = trade.channel_id
-
-if (channelId && !channelMap.has(channelId)) {
-
-const displayName = trade.channel_name || channelId
-
-channelMap.set(channelId, {
-
-id: channelId,
-
-name: displayName
-
-})
-
-}
-
-})
-
-
-return Array.from(channelMap.values()).sort((a, b) =>
-
-a.name.localeCompare(b.name)
-
-)
-
-}, [trades])
+    return Array.from(channelMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+  }, [trades])
 
 
 
@@ -1262,30 +1242,30 @@ return channel?.name || 'Unknown'
 // Filter trades
 
 const filteredTrades = useMemo(() => {
+    return trades.filter(trade => {
+      // Filter orphaned channels if hidden
+      if (!showOrphanedChannels && trade.is_orphaned_channel) {
+        return false
+      }
+      
+      if (selectedChannelIds.length > 0 && !selectedChannelIds.includes(trade.channel_id)) {
+        return false
+      }
+      if (filters.orderType && trade.order_type !== filters.orderType) return false
 
-return trades.filter(trade => {
+      if (filters.side && trade.direction !== filters.side) return false
 
-if (selectedChannelIds.length > 0 && !selectedChannelIds.includes(trade.channel_id)) {
+      if (filters.status && trade.status !== filters.status) return false
 
-return false
+      if (filters.startDate && new Date(trade.signal_time) < new Date(filters.startDate)) return false
 
-}
+      if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
 
-if (filters.orderType && trade.order_type !== filters.orderType) return false
+      return true
 
-if (filters.side && trade.direction !== filters.side) return false
+      })
 
-if (filters.status && trade.status !== filters.status) return false
-
-if (filters.startDate && new Date(trade.signal_time) < new Date(filters.startDate)) return false
-
-if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
-
-return true
-
-})
-
-}, [trades, selectedChannelIds, filters])
+      }, [trades, selectedChannelIds, filters, showOrphanedChannels])
 
 
 
@@ -2246,16 +2226,13 @@ className="w-full"
 </label>
 
 <ChannelMultiSelect
-
-channelList={channelList}
-
-selectedChannelIds={selectedChannelIds}
-
-onChange={setSelectedChannelIds}
-
-channelColorMap={channelColorMap}
-
-/>
+                channelList={channelList}
+                selectedChannelIds={selectedChannelIds}
+                onChange={setSelectedChannelIds}
+                channelColorMap={channelColorMap}
+                showOrphaned={showOrphanedChannels}
+                onToggleOrphaned={() => setShowOrphanedChannels(!showOrphanedChannels)}
+              />
 
 </div>
 
