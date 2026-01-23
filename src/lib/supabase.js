@@ -228,7 +228,7 @@ export async function deleteChannel(id) {
 export async function fetchTrades(filters = {}) {
   let query = supabase
     .from('trades')
-    .select('*')
+    .select('*', { count: 'exact' })  // Add count to know total records
     .order('signal_time', { ascending: false })
 
   if (filters.channel) {
@@ -243,16 +243,11 @@ export async function fetchTrades(filters = {}) {
   if (filters.endDate) {
     query = query.lte('signal_time', filters.endDate)
   }
-  
-  // ============================================================================
-  // CRITICAL FIX: Always apply a limit to prevent Supabase's 1000 row default
-  // Default to 999999 if no limit specified (effectively unlimited)
-  // ============================================================================
-  const limit = filters.limit ?? 999999
-  query = query.limit(limit)
-  // ============================================================================
 
-  const { data, error } = await query
+  // Fetch ALL records by using a very large limit
+  // Supabase can handle up to 1000 per query, so we use range for larger datasets
+  const { data, error, count } = await query.range(0, 99999)  // This will get up to 100k records
+  
   if (error) throw error
   return data || []
 }
