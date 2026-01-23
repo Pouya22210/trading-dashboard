@@ -224,6 +224,7 @@ export async function deleteChannel(id) {
 
 // ============================================================================
 // CRITICAL FIX: Fetch ALL trades using pagination to bypass 1000-row limit
+// UPDATED: Use v_trades_with_channels view for current channel info
 // ============================================================================
 export async function fetchTrades(filters = {}) {
   const BATCH_SIZE = 1000  // Supabase's max-rows limit
@@ -235,14 +236,18 @@ export async function fetchTrades(filters = {}) {
 
   while (hasMore) {
     let query = supabase
-      .from('trades')
+      .from('v_trades_with_channels')  // ✅ Use view instead of trades table
       .select('*', { count: 'exact' })
       .order('signal_time', { ascending: false })
       .range(offset, offset + BATCH_SIZE - 1)  // Fetch in batches
 
-    // Apply filters
+    // Apply filters - UPDATED to use channel_id instead of channel_name
+    if (filters.channelId) {
+      query = query.eq('channel_id', filters.channelId)
+    }
+    // Legacy support for channel name filter (for backward compatibility)
     if (filters.channel) {
-      query = query.eq('channel_name', filters.channel)
+      query = query.eq('display_channel_name', filters.channel)
     }
     if (filters.status) {
       query = query.eq('status', filters.status)
@@ -252,6 +257,10 @@ export async function fetchTrades(filters = {}) {
     }
     if (filters.endDate) {
       query = query.lte('signal_time', filters.endDate)
+    }
+    // New filter: exclude orphaned channels
+    if (filters.excludeOrphaned) {
+      query = query.eq('is_orphaned_channel', false)
     }
 
     const { data, error, count } = await query
