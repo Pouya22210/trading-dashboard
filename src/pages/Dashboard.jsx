@@ -144,15 +144,15 @@ export default function Dashboard() {
   }, [])
 
   async function loadTrades() {
-    try {
-      const data = await fetchTrades({ limit: 50000 })
-      setTrades(data)
-    } catch (err) {
-      console.error('Failed to load trades:', err)
-    } finally {
-      setLoading(false)
-    }
+  try {
+    const data = await fetchTrades()  // <-- No limit
+    setTrades(data)
+  } catch (err) {
+    console.error('Failed to load trades:', err)
+  } finally {
+    setLoading(false)
   }
+}
 
   // Filter trades by time range
   const filterByTimeRange = useCallback((tradesArray, timeRange) => {
