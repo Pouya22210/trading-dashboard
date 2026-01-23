@@ -1136,7 +1136,7 @@ useEffect(() => {
   async function loadData() {
     try {
       const [tradesData, channelsData] = await Promise.all([
-        fetchTrades({ limit: 50000 }),  // <-- REMOVE THIS limit parameter
+        fetchTrades(),  // <-- No limit parameter
         fetchChannels()
       ])
       setTrades(tradesData)
