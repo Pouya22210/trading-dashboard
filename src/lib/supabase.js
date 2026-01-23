@@ -240,9 +240,10 @@ export async function fetchTrades(filters = {}) {
   if (filters.endDate) {
     query = query.lte('signal_time', filters.endDate)
   }
-  if (filters.limit) {
-    query = query.limit(filters.limit)
-  }
+  
+  // FIXED: Always apply a limit (default to 999999 for "unlimited")
+  const limit = filters.limit ?? 999999
+  query = query.limit(limit)
 
   const { data, error } = await query
   if (error) throw error
