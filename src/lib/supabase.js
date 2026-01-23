@@ -222,6 +222,9 @@ export async function deleteChannel(id) {
   return true
 }
 
+// ============================================================================
+// 🔥 FIXED FUNCTION - This is the critical change to fix the 1000 limit issue
+// ============================================================================
 export async function fetchTrades(filters = {}) {
   let query = supabase
     .from('trades')
@@ -241,9 +244,13 @@ export async function fetchTrades(filters = {}) {
     query = query.lte('signal_time', filters.endDate)
   }
   
-  // FIXED: Always apply a limit (default to 999999 for "unlimited")
+  // ============================================================================
+  // CRITICAL FIX: Always apply a limit to prevent Supabase's 1000 row default
+  // Default to 999999 if no limit specified (effectively unlimited)
+  // ============================================================================
   const limit = filters.limit ?? 999999
   query = query.limit(limit)
+  // ============================================================================
 
   const { data, error } = await query
   if (error) throw error
