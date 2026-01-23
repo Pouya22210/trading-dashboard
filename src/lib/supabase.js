@@ -223,42 +223,67 @@ export async function deleteChannel(id) {
 }
 
 // ============================================================================
-// CRITICAL FIX: Fetch ALL trades without 1000 row limit
+// CRITICAL FIX: Fetch ALL trades using pagination to bypass 1000-row limit
 // ============================================================================
 export async function fetchTrades(filters = {}) {
-  let query = supabase
-    .from('trades')
-    .select('*', { count: 'exact' })  // Add count to get total
-    .order('signal_time', { ascending: false })
+  const BATCH_SIZE = 1000  // Supabase's max-rows limit
+  const allTrades = []
+  let offset = 0
+  let hasMore = true
 
-  // Apply filters
-  if (filters.channel) {
-    query = query.eq('channel_name', filters.channel)
-  }
-  if (filters.status) {
-    query = query.eq('status', filters.status)
-  }
-  if (filters.startDate) {
-    query = query.gte('signal_time', filters.startDate)
-  }
-  if (filters.endDate) {
-    query = query.lte('signal_time', filters.endDate)
+  console.log('🔄 Starting to fetch all trades...')
+
+  while (hasMore) {
+    let query = supabase
+      .from('trades')
+      .select('*', { count: 'exact' })
+      .order('signal_time', { ascending: false })
+      .range(offset, offset + BATCH_SIZE - 1)  // Fetch in batches
+
+    // Apply filters
+    if (filters.channel) {
+      query = query.eq('channel_name', filters.channel)
+    }
+    if (filters.status) {
+      query = query.eq('status', filters.status)
+    }
+    if (filters.startDate) {
+      query = query.gte('signal_time', filters.startDate)
+    }
+    if (filters.endDate) {
+      query = query.lte('signal_time', filters.endDate)
+    }
+
+    const { data, error, count } = await query
+
+    if (error) {
+      console.error('Error fetching trades:', error)
+      throw error
+    }
+
+    if (data && data.length > 0) {
+      allTrades.push(...data)
+      console.log(`📦 Fetched batch: ${data.length} trades (offset: ${offset}, total so far: ${allTrades.length}/${count})`)
+      
+      // Check if there are more records to fetch
+      if (data.length < BATCH_SIZE || allTrades.length >= count) {
+        hasMore = false
+      } else {
+        offset += BATCH_SIZE
+      }
+    } else {
+      hasMore = false
+    }
+
+    // Safety check: stop if we've fetched an unreasonable number (prevents infinite loop)
+    if (allTrades.length > 100000) {
+      console.warn('⚠️ Stopped fetching after 100,000 trades (safety limit)')
+      hasMore = false
+    }
   }
 
-  // CRITICAL FIX: Set a very high limit to get all trades
-  // Supabase has a default limit of 1000 rows, so we need to explicitly set a higher limit
-  // Using a limit of 1,000,000 to effectively get all records
-  const limit = filters.limit || 1000000
-  query = query.limit(limit)
-
-  const { data, error, count } = await query
-  if (error) {
-    console.error('Error fetching trades:', error)
-    throw error
-  }
-  
-  console.log(`Fetched ${data?.length || 0} trades (total in DB: ${count || 'unknown'})`)
-  return data || []
+  console.log(`✅ Fetched ${allTrades.length} trades total`)
+  return allTrades
 }
 
 export async function fetchDailyStats() {
