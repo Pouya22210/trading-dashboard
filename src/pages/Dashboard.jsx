@@ -65,7 +65,7 @@ function ChartCard({ title, icon: Icon, children, headerRight, className = '' })
   )
 }
 
-function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop, isOrphaned }) {
+function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, trend, isTop, isOrphaned }) {
   const getRankIcon = (rank, isTop) => {
     if (isTop) {
       if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-400" />
@@ -101,6 +101,12 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop, is
           <span>•</span>
           <span className={winRate >= 50 ? 'text-green-400' : 'text-red-400'}>
             {winRate.toFixed(1)}% win
+          </span>
+          <span>•</span>
+          <span className="flex items-center gap-1">
+            <span className="text-green-400">{wins}</span>
+            <span className="text-gray-600">/</span>
+            <span className="text-red-400">{losses}</span>
           </span>
         </div>
       </div>
@@ -290,6 +296,8 @@ export default function Dashboard() {
                   pnl={channel.pnl}
                   winRate={channel.winRate}
                   trades={channel.trades}
+                  wins={channel.wins}
+                  losses={channel.losses}
                   isTop={true}
                   isOrphaned={channel.isOrphaned}
                 />
@@ -315,6 +323,8 @@ export default function Dashboard() {
                   pnl={channel.pnl}
                   winRate={channel.winRate}
                   trades={channel.trades}
+                  wins={channel.wins}
+                  losses={channel.losses}
                   isTop={false}
                   isOrphaned={channel.isOrphaned}
                 />
