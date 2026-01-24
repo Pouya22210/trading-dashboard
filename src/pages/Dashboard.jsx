@@ -65,7 +65,7 @@ function ChartCard({ title, icon: Icon, children, headerRight, className = '' })
   )
 }
 
-function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop }) {
+function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop, isOrphaned }) {
   const getRankIcon = (rank, isTop) => {
     if (isTop) {
       if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-400" />
@@ -80,25 +80,27 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop }) 
   return (
     <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all hover:scale-[1.02] ${
       isTop 
-        ? 'bg-gradient-to-r from-dark-tertiary to-dark-secondary border-dark-border hover:border-accent-cyan/50' 
-        : 'bg-dark-secondary/50 border-red-500/20 hover:border-red-500/50'
+        ? 'bg-gradient-to-r from-green-500/5 to-transparent border-green-500/20 hover:border-green-500/40'
+        : 'bg-gradient-to-r from-red-500/5 to-transparent border-red-500/20 hover:border-red-500/40'
     }`}>
-      {/* Rank Icon */}
-      <div className="flex-shrink-0">
+      {/* Rank */}
+      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-dark-tertiary">
         {getRankIcon(rank, isTop)}
       </div>
-
+      
       {/* Channel Info */}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-white truncate">{channel}</div>
-        <div className="flex items-center gap-3 mt-1">
-          <span className={`text-xs ${
-            winRate >= 50 ? 'text-green-400' : 'text-red-400'
-          }`}>
-            {winRate.toFixed(1)}% win
+        <div className="flex items-center gap-2">
+          <span className={`text-white font-semibold truncate ${isOrphaned ? 'italic' : ''}`} title={channel}>
+            {channel.length > 30 ? channel.slice(0, 30) + '...' : channel}
           </span>
-          <span className="text-xs text-gray-500">
-            {trades} trade{trades !== 1 ? 's' : ''}
+          {isOrphaned && <span className="text-xs text-red-400">🗑️</span>}
+        </div>
+        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+          <span>{trades} trades</span>
+          <span>•</span>
+          <span className={winRate >= 50 ? 'text-green-400' : 'text-red-400'}>
+            {winRate.toFixed(1)}% win
           </span>
         </div>
       </div>
@@ -144,7 +146,7 @@ export default function Dashboard() {
 
   async function loadTrades() {
     try {
-      const data = await fetchTrades()  // Fetches all trades
+      const data = await fetchTrades()
       setTrades(data)
     } catch (err) {
       console.error('Failed to load trades:', err)
@@ -167,23 +169,21 @@ export default function Dashboard() {
     })
   }, [])
 
-  // ✅ UPDATED: Channel performance using channel_id and display_channel_name
+  // Channel performance data for leaderboard
   const channelPerformance = useMemo(() => {
     const filteredTrades = filterByTimeRange(trades, leaderboardTimeRange)
     const channelStats = {}
     
     filteredTrades.filter(t => t.status === 'closed').forEach(trade => {
-      const channelId = trade.channel_id
-      if (!channelId) return  // Skip trades without channel_id
-      
-      // ✅ Use display_channel_name from the view
+      const channelId = trade.channel_id || 'unknown'
       const channelName = trade.display_channel_name || trade.channel_name || 'Unknown'
+      const isOrphaned = trade.is_orphaned_channel || false
       
       if (!channelStats[channelId]) {
         channelStats[channelId] = {
           channelId,
           channelName,
-          isOrphaned: trade.is_orphaned_channel || false,  // Track orphaned status
+          isOrphaned,
           pnl: 0,
           wins: 0,
           losses: 0,
@@ -203,337 +203,239 @@ export default function Dashboard() {
       ch.winRate = totalWL > 0 ? (ch.wins / totalWL * 100) : 0
     })
     
-    return Object.values(channelStats)
+    const sorted = Object.values(channelStats).sort((a, b) => b.pnl - a.pnl)
+    
+    return {
+      top5: sorted.slice(0, 5),
+      bottom5: sorted.slice(-5).reverse(),
+      all: sorted
+    }
   }, [trades, leaderboardTimeRange, filterByTimeRange])
 
-  // Sort channels by P&L
-  const topPerformers = useMemo(() => {
-    return [...channelPerformance]
-      .sort((a, b) => b.pnl - a.pnl)
-      .slice(0, 5)
-  }, [channelPerformance])
-
-  const worstPerformers = useMemo(() => {
-    return [...channelPerformance]
-      .sort((a, b) => a.pnl - b.pnl)
-      .slice(0, 5)
-  }, [channelPerformance])
-
-  // ✅ UPDATED: Overall stats using channel_id grouping
-  const overallStats = useMemo(() => {
-    const closedTrades = trades.filter(t => t.status === 'closed')
-    const totalPnL = closedTrades.reduce((sum, t) => sum + (t.profit_loss || 0), 0)
-    const wins = closedTrades.filter(t => t.outcome === 'profit').length
-    const losses = closedTrades.filter(t => t.outcome === 'loss').length
-    const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100) : 0
+  // Recent hot channels (most active in last 24h with good performance)
+  const hotChannels = useMemo(() => {
+    const last24h = new Date()
+    last24h.setHours(last24h.getHours() - 24)
     
-    // Count active channels (using channel_id)
-    const activeChannelIds = new Set()
-    trades.forEach(t => {
-      if (t.channel_id && !t.is_orphaned_channel) {
-        activeChannelIds.add(t.channel_id)
+    const recentTrades = trades.filter(t => {
+      const tradeDate = new Date(t.signal_time || t.close_time)
+      return tradeDate >= last24h
+    })
+    
+    const channelActivity = {}
+    
+    recentTrades.forEach(trade => {
+      const channelId = trade.channel_id || 'unknown'
+      const channelName = trade.display_channel_name || trade.channel_name || 'Unknown'
+      const isOrphaned = trade.is_orphaned_channel || false
+      
+      if (!channelActivity[channelId]) {
+        channelActivity[channelId] = {
+          channelId,
+          name: channelName,
+          isOrphaned,
+          signals: 0,
+          wins: 0,
+          losses: 0,
+          pnl: 0
+        }
+      }
+      
+      channelActivity[channelId].signals++
+      if (trade.status === 'closed') {
+        channelActivity[channelId].pnl += trade.profit_loss || 0
+        if (trade.outcome === 'profit') channelActivity[channelId].wins++
+        if (trade.outcome === 'loss') channelActivity[channelId].losses++
       }
     })
     
-    return {
-      totalPnL,
-      totalTrades: closedTrades.length,
-      wins,
-      losses,
-      winRate,
-      activeChannels: activeChannelIds.size,
-      avgPnL: closedTrades.length > 0 ? totalPnL / closedTrades.length : 0
-    }
-  }, [trades])
-
-  // ✅ UPDATED: Recent activity using display_channel_name
-  const recentActivity = useMemo(() => {
-    return trades
-      .filter(t => t.status === 'closed')
-      .sort((a, b) => new Date(b.close_time) - new Date(a.close_time))
-      .slice(0, 10)
-      .map(t => ({
-        ...t,
-        displayChannel: t.display_channel_name || t.channel_name || 'Unknown'  // ✅ Use display name
-      }))
+    return Object.values(channelActivity)
+      .filter(ch => ch.signals >= 2)
+      .sort((a, b) => b.signals - a.signals)
+      .slice(0, 5)
   }, [trades])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-accent-cyan border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading dashboard...</p>
-        </div>
+        <div className="text-gray-500">Loading dashboard...</div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-      {/* Header Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total P&L */}
-        <div className="bg-dark-card border border-dark-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500 uppercase tracking-wider">Total P&L</span>
-            <Zap className="w-4 h-4 text-accent-cyan" />
-          </div>
-          <div className={`text-2xl font-bold font-mono ${
-            overallStats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
-          }`}>
-            {overallStats.totalPnL >= 0 ? '+' : ''}${overallStats.totalPnL.toFixed(2)}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {overallStats.totalTrades} closed trades
-          </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Top/Bottom Channels Leaderboard */}
+      <div className="mb-8">
+        <div className="flex items-center justify-end mb-6">
+          <TimeRangeSelector
+            value={leaderboardTimeRange}
+            onChange={setLeaderboardTimeRange}
+          />
         </div>
 
-        {/* Win Rate */}
-        <div className="bg-dark-card border border-dark-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500 uppercase tracking-wider">Win Rate</span>
-            <Target className="w-4 h-4 text-accent-cyan" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-white">
-            {overallStats.winRate.toFixed(1)}%
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            <span className="text-green-400">{overallStats.wins}W</span>
-            {' / '}
-            <span className="text-red-400">{overallStats.losses}L</span>
-          </div>
-        </div>
-
-        {/* Avg P&L per Trade */}
-        <div className="bg-dark-card border border-dark-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500 uppercase tracking-wider">Avg P&L</span>
-            <BarChart3 className="w-4 h-4 text-accent-cyan" />
-          </div>
-          <div className={`text-2xl font-bold font-mono ${
-            overallStats.avgPnL >= 0 ? 'text-green-400' : 'text-red-400'
-          }`}>
-            {overallStats.avgPnL >= 0 ? '+' : ''}${overallStats.avgPnL.toFixed(2)}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">per trade</div>
-        </div>
-
-        {/* Active Channels */}
-        <div className="bg-dark-card border border-dark-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500 uppercase tracking-wider">Active Channels</span>
-            <Crown className="w-4 h-4 text-accent-cyan" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-white">
-            {overallStats.activeChannels}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">channels trading</div>
-        </div>
-      </div>
-
-      {/* Leaderboards Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Performers */}
-        <ChartCard 
-          title="Top Performers" 
-          icon={Crown}
-          headerRight={
-            <TimeRangeSelector 
-              value={leaderboardTimeRange} 
-              onChange={setLeaderboardTimeRange}
-            />
-          }
-        >
-          <div className="space-y-3">
-            {topPerformers.length > 0 ? (
-              topPerformers.map((channel, index) => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top 5 */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="w-5 h-5 text-green-400" />
+              <h3 className="text-lg font-semibold text-white">Top 5 Performers</h3>
+            </div>
+            <div className="space-y-3">
+              {channelPerformance.top5.map((channel, idx) => (
                 <ChannelRankCard
                   key={channel.channelId}
-                  rank={index + 1}
+                  rank={idx + 1}
                   channel={channel.channelName}
                   pnl={channel.pnl}
                   winRate={channel.winRate}
                   trades={channel.trades}
                   isTop={true}
+                  isOrphaned={channel.isOrphaned}
                 />
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No data for selected time range
-              </div>
-            )}
+              ))}
+              {channelPerformance.top5.length === 0 && (
+                <div className="text-center text-gray-500 py-8">No data for selected period</div>
+              )}
+            </div>
           </div>
-        </ChartCard>
-
-        {/* Worst Performers */}
-        <ChartCard 
-          title="Needs Improvement" 
-          icon={AlertTriangle}
-          headerRight={
-            <TimeRangeSelector 
-              value={leaderboardTimeRange} 
-              onChange={setLeaderboardTimeRange}
-            />
-          }
-        >
-          <div className="space-y-3">
-            {worstPerformers.length > 0 ? (
-              worstPerformers.map((channel, index) => (
+          
+          {/* Bottom 5 */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+              <h3 className="text-lg font-semibold text-white">Bottom 5 Performers</h3>
+            </div>
+            <div className="space-y-3">
+              {channelPerformance.bottom5.map((channel, idx) => (
                 <ChannelRankCard
                   key={channel.channelId}
-                  rank={index + 1}
+                  rank={idx + 1}
                   channel={channel.channelName}
                   pnl={channel.pnl}
                   winRate={channel.winRate}
                   trades={channel.trades}
                   isTop={false}
+                  isOrphaned={channel.isOrphaned}
                 />
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No data for selected time range
-              </div>
-            )}
+              ))}
+              {channelPerformance.bottom5.length === 0 && (
+                <div className="text-center text-gray-500 py-8">No data for selected period</div>
+              )}
+            </div>
           </div>
-        </ChartCard>
+        </div>
       </div>
 
-      {/* Recent Activity */}
-      <ChartCard title="Recent Closed Trades" icon={BarChart3}>
+      {/* Hot Channels - 24h Activity */}
+      {hotChannels.length > 0 && (
+        <div className="mb-8">
+          <ChartCard 
+            title="Hot Channels (Last 24h)" 
+            icon={Zap}
+            headerRight={
+              <span className="text-xs text-gray-500 bg-dark-tertiary/50 px-3 py-1 rounded-full">
+                Most active channels
+              </span>
+            }
+          >
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {hotChannels.map((channel, idx) => (
+                <div 
+                  key={channel.channelId}
+                  className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className={`w-4 h-4 ${idx === 0 ? 'text-yellow-400' : 'text-gray-500'}`} />
+                    <span className={`text-sm font-medium text-white truncate ${channel.isOrphaned ? 'italic' : ''}`} title={channel.name}>
+                      {channel.name.length > 15 ? channel.name.slice(0, 15) + '...' : channel.name}
+                    </span>
+                    {channel.isOrphaned && <span className="text-xs text-red-400">🗑️</span>}
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Signals</span>
+                      <span className="text-white font-mono">{channel.signals}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">W/L</span>
+                      <span className="font-mono">
+                        <span className="text-green-400">{channel.wins}</span>
+                        <span className="text-gray-600">/</span>
+                        <span className="text-red-400">{channel.losses}</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">P&L</span>
+                      <span className={`font-mono font-semibold ${channel.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {channel.pnl >= 0 ? '+' : ''}${channel.pnl.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+        </div>
+      )}
+
+      {/* Channel Performance Summary Table */}
+      <ChartCard title="All Channels Performance Summary" icon={BarChart3}>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-500 uppercase tracking-wider border-b border-dark-border">
-                <th className="pb-3 font-semibold">Channel</th>
-                <th className="pb-3 font-semibold">Symbol</th>
-                <th className="pb-3 font-semibold">Side</th>
-                <th className="pb-3 font-semibold">P&L</th>
-                <th className="pb-3 font-semibold">Outcome</th>
-                <th className="pb-3 font-semibold">Time</th>
+              <tr className="text-left text-gray-500 text-xs uppercase tracking-wider border-b border-dark-border">
+                <th className="pb-3 pr-4">Rank</th>
+                <th className="pb-3 pr-4">Channel</th>
+                <th className="pb-3 pr-4 text-right">P&L</th>
+                <th className="pb-3 pr-4 text-right">Win Rate</th>
+                <th className="pb-3 pr-4 text-right">Trades</th>
+                <th className="pb-3 pr-4 text-right">Wins</th>
+                <th className="pb-3 text-right">Losses</th>
               </tr>
             </thead>
             <tbody>
-              {recentActivity.map((trade) => (
-                <tr key={trade.id} className="border-b border-dark-border/50 hover:bg-dark-tertiary/30 transition-colors">
-                  <td className="py-3">
-                    {/* ✅ Use displayChannel which contains display_channel_name */}
-                    <div className={`text-sm ${
-                      trade.is_orphaned_channel ? 'text-gray-500 italic' : 'text-white'
+              {channelPerformance.all.slice(0, 15).map((channel, idx) => (
+                <tr 
+                  key={channel.channelId}
+                  className="border-b border-dark-border/30 hover:bg-dark-tertiary/30 transition-colors"
+                >
+                  <td className="py-3 pr-4">
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                      idx < 3 ? 'bg-green-500/20 text-green-400' : 
+                      idx >= channelPerformance.all.length - 3 ? 'bg-red-500/20 text-red-400' :
+                      'bg-dark-tertiary text-gray-400'
                     }`}>
-                      {trade.displayChannel}
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <div className="text-sm font-semibold text-white">{trade.symbol}</div>
-                  </td>
-                  <td className="py-3">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      trade.direction === 'buy' 
-                        ? 'bg-green-500/20 text-green-400' 
-                        : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {trade.direction?.toUpperCase()}
+                      {idx + 1}
                     </span>
                   </td>
-                  <td className="py-3">
-                    <div className={`text-sm font-mono font-semibold ${
-                      trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {trade.profit_loss >= 0 ? '+' : ''}${trade.profit_loss?.toFixed(2) || '0.00'}
+                  <td className="py-3 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-white font-medium truncate block max-w-[200px] ${channel.isOrphaned ? 'italic' : ''}`} title={channel.channelName}>
+                        {channel.channelName}
+                      </span>
+                      {channel.isOrphaned && <span className="text-xs text-red-400">🗑️</span>}
                     </div>
                   </td>
-                  <td className="py-3">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      trade.outcome === 'profit' 
-                        ? 'bg-green-500/20 text-green-400' 
-                        : trade.outcome === 'loss'
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {trade.outcome || 'unknown'}
-                    </span>
+                  <td className={`py-3 pr-4 text-right font-mono font-semibold ${channel.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {channel.pnl >= 0 ? '+' : ''}${channel.pnl.toFixed(2)}
                   </td>
-                  <td className="py-3">
-                    <div className="text-xs text-gray-500">
-                      {new Date(trade.close_time).toLocaleString()}
-                    </div>
+                  <td className={`py-3 pr-4 text-right font-mono ${channel.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                    {channel.winRate.toFixed(1)}%
+                  </td>
+                  <td className="py-3 pr-4 text-right font-mono text-gray-300">
+                    {channel.trades}
+                  </td>
+                  <td className="py-3 pr-4 text-right font-mono text-green-400">
+                    {channel.wins}
+                  </td>
+                  <td className="py-3 text-right font-mono text-red-400">
+                    {channel.losses}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {recentActivity.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No recent trades
-            </div>
-          )}
-        </div>
-      </ChartCard>
-
-      {/* All Channels Performance Table */}
-      <ChartCard title="All Channels Performance" icon={BarChart3}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 uppercase tracking-wider border-b border-dark-border">
-                <th className="pb-3 font-semibold">Channel</th>
-                <th className="pb-3 font-semibold text-right">Total P&L</th>
-                <th className="pb-3 font-semibold text-right">Win Rate</th>
-                <th className="pb-3 font-semibold text-right">Trades</th>
-                <th className="pb-3 font-semibold text-right">Wins</th>
-                <th className="pb-3 font-semibold text-right">Losses</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* ✅ Sorted by P&L, using channelId as key */}
-              {[...channelPerformance]
-                .sort((a, b) => b.pnl - a.pnl)
-                .map((channel) => (
-                  <tr key={channel.channelId} className="border-b border-dark-border/50 hover:bg-dark-tertiary/30 transition-colors">
-                    <td className="py-3">
-                      {/* ✅ Show orphaned indicator */}
-                      <div className={`text-sm ${
-                        channel.isOrphaned ? 'text-gray-500 italic' : 'text-white'
-                      }`}>
-                        {channel.channelName}
-                        {channel.isOrphaned && (
-                          <span className="ml-2 text-xs text-red-400">🗑️</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className={`text-sm font-mono font-semibold ${
-                        channel.pnl >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {channel.pnl >= 0 ? '+' : ''}${channel.pnl.toFixed(2)}
-                      </div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className={`text-sm ${
-                        channel.winRate >= 50 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {channel.winRate.toFixed(1)}%
-                      </div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="text-sm text-white">{channel.trades}</div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="text-sm text-green-400">{channel.wins}</div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="text-sm text-red-400">{channel.losses}</div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-          {channelPerformance.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No channel data available
-            </div>
-          )}
         </div>
       </ChartCard>
     </div>
