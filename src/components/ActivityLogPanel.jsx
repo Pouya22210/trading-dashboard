@@ -176,8 +176,17 @@ function EventCard({ event, isExpanded, onToggle }) {
     }
   }
   
-  // Handle policy_updated changes
-  if (eventData.changes && typeof eventData.changes === 'object') {
+  // Handle policy_updated changes (from policy table triggers)
+  if (eventData.policy && eventData.changes && typeof eventData.changes === 'object') {
+    Object.entries(eventData.changes).forEach(([field, change]) => {
+      if (typeof change === 'object' && change.old !== undefined) {
+        changes.push({ field, old: change.old, new: change.new })
+      }
+    })
+  }
+  
+  // Handle generic changes object (fallback)
+  if (!eventData.policy && eventData.changes && typeof eventData.changes === 'object') {
     Object.entries(eventData.changes).forEach(([field, change]) => {
       if (typeof change === 'object' && change.old !== undefined) {
         changes.push({ field, old: change.old, new: change.new })
@@ -198,6 +207,7 @@ function EventCard({ event, isExpanded, onToggle }) {
   
   const hasChanges = changes.length > 0
   const channelName = event.new_channel_name || event.old_channel_name || event.current_channel_name || 'Unknown Channel'
+  const policyName = eventData.policy ? formatFieldName(eventData.policy) : null
   
   return (
     <div className={`rounded-xl border transition-all ${config.borderColor} ${config.bgColor} overflow-hidden`}>
@@ -226,6 +236,13 @@ function EventCard({ event, isExpanded, onToggle }) {
             <p className="text-sm text-white font-medium truncate" title={channelName}>
               {channelName}
             </p>
+            
+            {/* Show policy name for policy updates */}
+            {policyName && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {policyName}
+              </p>
+            )}
             
             {/* Quick preview of changes count */}
             {hasChanges && !isExpanded && (
@@ -279,7 +296,8 @@ function EventCard({ event, isExpanded, onToggle }) {
 const FILTER_OPTIONS = [
   { key: 'all', label: 'All' },
   { key: 'telegram_name_changed', label: 'Renames' },
-  { key: 'channel_updated', label: 'Updates' },
+  { key: 'channel_updated', label: 'Settings' },
+  { key: 'policy_updated', label: 'Policies' },
   { key: 'channel_created', label: 'Created' },
   { key: 'channel_deleted', label: 'Deleted' }
 ]
