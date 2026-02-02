@@ -66,7 +66,7 @@ function ChartCard({ title, icon: Icon, children, headerRight, className = '' })
   )
 }
 
-function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop }) {
+function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, trend, isTop }) {
   const getRankIcon = (rank, isTop) => {
     if (isTop) {
       if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-400" />
@@ -95,7 +95,7 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, trend, isTop }) 
           {channel}
         </p>
         <p className="text-xs text-gray-500">
-          {trades} trades • {winRate.toFixed(1)}% win
+          {trades} trades • {winRate.toFixed(1)}% <span className="font-mono">(<span className="text-green-400">{wins}</span>/<span className="text-red-400">{losses}</span>)</span>
         </p>
       </div>
       
@@ -269,6 +269,8 @@ export default function Dashboard() {
                       pnl={channel.pnl}
                       winRate={channel.winRate}
                       trades={channel.trades}
+                      wins={channel.wins}
+                      losses={channel.losses}
                       isTop={true}
                     />
                   ))}
@@ -293,6 +295,8 @@ export default function Dashboard() {
                       pnl={channel.pnl}
                       winRate={channel.winRate}
                       trades={channel.trades}
+                      wins={channel.wins}
+                      losses={channel.losses}
                       isTop={false}
                     />
                   ))}
