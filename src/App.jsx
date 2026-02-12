@@ -6,6 +6,7 @@ import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
 import Channels from './pages/Channels'
+import Backtest from './pages/Backtest'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -28,6 +29,7 @@ export default function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route path="/backtest" element={<Backtest />} />
             </Routes>
           </main>
         </div>
