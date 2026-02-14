@@ -7,7 +7,8 @@ import {
 import { supabase } from '../lib/supabase'
 
 // API Base URL - adjust based on your setup
-const API_BASE_URL = import.meta.env.VITE_BACKTEST_API_URL || 'http://195.248.241.7:5001'
+const API_BASE_URL = import.meta.env.VITE_BACKTEST_API_URL || 'https://unkindhearted-lilian-unspent.ngrok-free.dev'
+
 
 export default function Backtest() {
   // State
