@@ -4,7 +4,7 @@ import {
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
   Save, X, Check, RefreshCw
 } from 'lucide-react'
-import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels } from '../lib/supabase'
+import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 
 function Toggle({ checked, onChange, label }) {
@@ -679,9 +679,14 @@ export default function Channels() {
   const [editingChannel, setEditingChannel] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  
+  // Global settings state (Issue 1: Pending order expiry)
+  const [pendingExpiryHours, setPendingExpiryHours] = useState(6)
+  const [savingExpiry, setSavingExpiry] = useState(false)
 
   useEffect(() => {
     loadChannels()
+    loadGlobalSettings()
     
     const subscription = subscribeToChannels(() => loadChannels())
     return () => subscription.unsubscribe()
@@ -695,6 +700,17 @@ export default function Channels() {
       console.error('Failed to load channels:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadGlobalSettings() {
+    try {
+      const expiry = await fetchAppSetting('pending_order_expiry_hours')
+      if (expiry !== null && expiry !== undefined) {
+        setPendingExpiryHours(expiry)
+      }
+    } catch (err) {
+      console.error('Failed to load global settings:', err)
     }
   }
 
@@ -728,6 +744,17 @@ export default function Channels() {
     }
   }
 
+  async function handleSaveExpiry() {
+    setSavingExpiry(true)
+    try {
+      await updateAppSetting('pending_order_expiry_hours', pendingExpiryHours)
+    } catch (err) {
+      alert('Failed to save: ' + err.message)
+    } finally {
+      setSavingExpiry(false)
+    }
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-96 text-gray-500">Loading channels...</div>
   }
@@ -745,6 +772,41 @@ export default function Channels() {
           <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" /> Add Channel
           </button>
+        </div>
+      </div>
+
+      {/* Global Settings (Issue 1: Pending Order Expiry) */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-5 mb-6">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Settings className="w-5 h-5 text-accent-cyan" />
+          Global Settings
+        </h3>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-400 mb-2">
+              Pending Order Expiry (hours)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={pendingExpiryHours}
+                onChange={e => setPendingExpiryHours(parseFloat(e.target.value) || 0)}
+                className="w-32"
+              />
+              <button
+                onClick={handleSaveExpiry}
+                disabled={savingExpiry}
+                className="btn-primary flex items-center gap-2"
+              >
+                {savingExpiry ? 'Saving...' : <><Save className="w-4 h-4" /> Save</>}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Unfilled STOP/LIMIT orders are automatically canceled after this time. Set to 0 to disable.
+            </p>
+          </div>
         </div>
       </div>
 
