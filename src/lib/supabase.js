@@ -307,6 +307,36 @@ export async function fetchDailyStats() {
 }
 
 // ============================================================================
+// APP SETTINGS
+// ============================================================================
+// Add these two functions to your existing supabase.js file
+// (before the REAL-TIME SUBSCRIPTIONS section)
+
+export async function fetchAppSetting(key) {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', key)
+    .single()
+
+  if (error) throw error
+  return data?.value
+}
+
+export async function updateAppSetting(key, value) {
+  const { error } = await supabase
+    .from('app_settings')
+    .update({
+      value: value,
+      updated_at: new Date().toISOString()
+    })
+    .eq('key', key)
+
+  if (error) throw error
+  return true
+}
+
+// ============================================================================
 // REAL-TIME SUBSCRIPTIONS (Improved)
 // ============================================================================
 
