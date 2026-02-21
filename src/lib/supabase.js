@@ -375,3 +375,55 @@ export function subscribeToChannels(callback) {
 
   return channel
 }
+
+
+// ============================================================================
+// APP SETTINGS
+// ============================================================================
+
+export async function fetchAppSetting(key) {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', key)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null // not found
+    throw error
+  }
+  return data?.value
+}
+
+export async function fetchAllAppSettings() {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('*')
+    .order('key')
+
+  if (error) throw error
+  return data || []
+}
+
+export async function updateAppSetting(key, value, description = null) {
+  // Try update first
+  const { data, error } = await supabase
+    .from('app_settings')
+    .update({ value, description, updated_at: new Date().toISOString() })
+    .eq('key', key)
+    .select()
+    .single()
+
+  if (error || !data) {
+    // Insert if doesn't exist
+    const { data: inserted, error: insertError } = await supabase
+      .from('app_settings')
+      .insert({ key, value, description })
+      .select()
+      .single()
+
+    if (insertError) throw insertError
+    return inserted
+  }
+  return data
+}
