@@ -1,11 +1,11 @@
+import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
 import React, { useState, useEffect } from 'react'
 import { 
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap, 
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
-  Save, X, Check, RefreshCw, Clock, Copy
+  Save, X, Check, RefreshCw
 } from 'lucide-react'
 import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels } from '../lib/supabase'
-import { supabase } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 
 function Toggle({ checked, onChange, label }) {
@@ -46,112 +46,9 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   )
 }
 
-// ==================== Global Settings Component ====================
-function GlobalSettings({ settings, onSave }) {
-  const [pendingExpiry, setPendingExpiry] = useState(settings.pending_order_expiry_hours ?? 6)
-  const [dupWindow, setDupWindow] = useState(settings.duplicate_signal_window_minutes ?? 5)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    setPendingExpiry(settings.pending_order_expiry_hours ?? 6)
-    setDupWindow(settings.duplicate_signal_window_minutes ?? 5)
-  }, [settings])
-
-  async function handleSave() {
-    setSaving(true)
-    try {
-      await onSave({
-        pending_order_expiry_hours: parseFloat(pendingExpiry),
-        duplicate_signal_window_minutes: parseInt(dupWindow)
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch (err) {
-      console.error('Save settings failed:', err)
-      alert('Failed to save settings: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="bg-dark-card border border-dark-border rounded-xl p-5 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-accent-cyan/10">
-            <Settings className="w-5 h-5 text-accent-cyan" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">Global Bot Settings</h2>
-            <p className="text-xs text-gray-500">These settings apply to all channels</p>
-          </div>
-        </div>
-        <button 
-          onClick={handleSave} 
-          disabled={saving}
-          className={`btn-primary flex items-center gap-2 px-4 py-2 text-sm ${saved ? 'bg-green-600 hover:bg-green-700' : ''}`}
-        >
-          {saved ? (
-            <><Check className="w-4 h-4" /> Saved</>
-          ) : saving ? (
-            'Saving...'
-          ) : (
-            <><Save className="w-4 h-4" /> Save Settings</>
-          )}
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-dark-tertiary/50 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-accent-cyan" />
-            <label className="text-sm font-medium text-gray-300">Pending Order Expiry</label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              step="0.5"
-              min="0"
-              max="168"
-              value={pendingExpiry}
-              onChange={e => setPendingExpiry(e.target.value)}
-              className="w-24"
-            />
-            <span className="text-sm text-gray-400">hours</span>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Auto-cancel pending orders after this time (0 = disabled)</p>
-        </div>
-        
-        <div className="bg-dark-tertiary/50 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Copy className="w-4 h-4 text-accent-cyan" />
-            <label className="text-sm font-medium text-gray-300">Duplicate Signal Window</label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              step="1"
-              min="0"
-              max="60"
-              value={dupWindow}
-              onChange={e => setDupWindow(e.target.value)}
-              className="w-24"
-            />
-            <span className="text-sm text-gray-400">minutes</span>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Block duplicate signals within this window (0 = disabled)</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ==================== Channel Editor Modal ====================
-function ChannelEditorModal({ channel, channels, onSave, onClose }) {
+function ChannelEditorModal({ channel, onSave, onClose }) {
   const [activeTab, setActiveTab] = useState('basic')
   const [saving, setSaving] = useState(false)
-  const [validationError, setValidationError] = useState('')
   const [formData, setFormData] = useState({
     channel_key: '',
     risk_per_trade: 0.02,
@@ -160,7 +57,7 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
     max_slippage_points: 20,
     trade_monitor_interval_sec: 0.5,
     is_active: true,
-    is_reversed: false,
+    is_reversed: false,  // v11.0: Reverse trade feature
     instruments: [{ logical_symbol: 'XAUUSD', broker_symbol: 'XAUUSD', pip_tolerance_pips: 1.5 }],
     final_tp_policy: { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
     riskfree_policy: { enabled: true, kind: '%path', percent: 50, pips: 10, tp_index: 1 },
@@ -180,7 +77,7 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
         max_slippage_points: channel.max_slippage_points || 20,
         trade_monitor_interval_sec: channel.trade_monitor_interval_sec || 0.5,
         is_active: channel.is_active ?? true,
-        is_reversed: channel.is_reversed ?? false,
+        is_reversed: channel.is_reversed ?? false,  // v11.0: Reverse trade feature
         instruments: channel.instruments || [{ logical_symbol: 'XAUUSD', broker_symbol: 'XAUUSD', pip_tolerance_pips: 1.5 }],
         final_tp_policy: channel.final_tp_policy || { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
         riskfree_policy: channel.riskfree_policy || { enabled: false, kind: '%path', percent: 50 },
@@ -192,41 +89,7 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
     }
   }, [channel])
 
-  // v11.4: Validate uniqueness of channel_key and magic_number
-  function validateUniqueness() {
-    const otherChannels = channels.filter(ch => {
-      if (channel && ch.id === channel.id) return false  // Exclude current channel on edit
-      return true
-    })
-
-    // Check channel_key uniqueness
-    const dupKey = otherChannels.find(ch => 
-      ch.channel_key?.trim().toLowerCase() === formData.channel_key.trim().toLowerCase()
-    )
-    if (dupKey) {
-      return `A channel with the name "${formData.channel_key}" already exists.`
-    }
-
-    // Check magic_number uniqueness
-    const dupMagic = otherChannels.find(ch => 
-      ch.magic_number === parseInt(formData.magic_number)
-    )
-    if (dupMagic) {
-      return `Magic number ${formData.magic_number} is already used by channel "${dupMagic.channel_key}".`
-    }
-
-    return ''
-  }
-
   async function handleSave() {
-    // v11.4: Validate uniqueness before saving
-    const error = validateUniqueness()
-    if (error) {
-      setValidationError(error)
-      return
-    }
-    setValidationError('')
-    
     setSaving(true)
     try {
       await onSave(formData)
@@ -263,17 +126,6 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
           </button>
         </div>
 
-        {/* v11.4: Validation Error Banner */}
-        {validationError && (
-          <div className="mx-4 mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-300">{validationError}</p>
-            <button onClick={() => setValidationError('')} className="ml-auto text-red-400 hover:text-red-300">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         <div className="border-b border-dark-border">
           <div className="flex flex-wrap gap-2 p-4">
             {tabs.map(tab => (
@@ -296,7 +148,7 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
                 <input
                   type="text"
                   value={formData.channel_key}
-                  onChange={e => { setFormData({ ...formData, channel_key: e.target.value }); setValidationError(''); }}
+                  onChange={e => setFormData({ ...formData, channel_key: e.target.value })}
                   placeholder="e.g., FOREX TRADING MASTER™🏙"
                 />
               </FormField>
@@ -326,7 +178,7 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
                 <input
                   type="number"
                   value={formData.magic_number}
-                  onChange={e => { setFormData({ ...formData, magic_number: parseInt(e.target.value) }); setValidationError(''); }}
+                  onChange={e => setFormData({ ...formData, magic_number: parseInt(e.target.value) })}
                 />
               </FormField>
               <div className="grid grid-cols-2 gap-4">
@@ -822,18 +674,15 @@ function ChannelEditorModal({ channel, channels, onSave, onClose }) {
   )
 }
 
-// ==================== Main Channels Page ====================
 export default function Channels() {
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingChannel, setEditingChannel] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [globalSettings, setGlobalSettings] = useState({})
 
   useEffect(() => {
     loadChannels()
-    loadGlobalSettings()
     
     const subscription = subscribeToChannels(() => loadChannels())
     return () => subscription.unsubscribe()
@@ -848,47 +697,6 @@ export default function Channels() {
     } finally {
       setLoading(false)
     }
-  }
-
-  // v11.4: Load global settings from app_settings table
-  async function loadGlobalSettings() {
-    try {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('key, value')
-        .in('key', ['pending_order_expiry_hours', 'duplicate_signal_window_minutes'])
-      
-      if (error) throw error
-      
-      const settings = {}
-      if (data) {
-        data.forEach(row => {
-          settings[row.key] = row.value
-        })
-      }
-      setGlobalSettings(settings)
-    } catch (err) {
-      console.error('Failed to load global settings:', err)
-    }
-  }
-
-  // v11.4: Save global settings to app_settings table
-  async function saveGlobalSettings(newSettings) {
-    const entries = Object.entries(newSettings)
-    for (const [key, value] of entries) {
-      const { error } = await supabase
-        .from('app_settings')
-        .upsert({ 
-          key, 
-          value, 
-          description: key === 'pending_order_expiry_hours' 
-            ? 'Hours before pending orders auto-expire (0 = disabled)' 
-            : 'Minutes window for duplicate signal detection (0 = disabled)'
-        }, { onConflict: 'key' })
-      
-      if (error) throw error
-    }
-    setGlobalSettings(prev => ({ ...prev, ...newSettings }))
   }
 
   function openAddModal() {
@@ -941,9 +749,6 @@ export default function Channels() {
         </div>
       </div>
 
-      {/* v11.4: Global Bot Settings */}
-      <GlobalSettings settings={globalSettings} onSave={saveGlobalSettings} />
-
       {/* Channels Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {channels.map(channel => (
@@ -962,6 +767,7 @@ export default function Channels() {
                   <span className={`badge ${channel.is_active ? 'badge-success' : 'badge-neutral'}`}>
                     {channel.is_active ? 'Active' : 'Inactive'}
                   </span>
+                  {/* v11.0: Reverse indicator */}
                   {channel.is_reversed && (
                     <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center gap-1">
                       <RefreshCw className="w-3 h-3" /> Reversed
@@ -1027,11 +833,10 @@ export default function Channels() {
         )}
       </div>
 
-      {/* Edit Modal - passes channels for uniqueness validation */}
+      {/* Edit Modal */}
       {showModal && (
         <ChannelEditorModal
           channel={editingChannel}
-          channels={channels}
           onSave={handleSave}
           onClose={() => setShowModal(false)}
         />
