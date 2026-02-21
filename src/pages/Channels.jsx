@@ -1,11 +1,12 @@
 import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
+
 import React, { useState, useEffect } from 'react'
 import { 
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap, 
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
-  Save, X, Check, RefreshCw
+  Save, X, Check, RefreshCw, Clock
 } from 'lucide-react'
-import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels } from '../lib/supabase'
+import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 
 function Toggle({ checked, onChange, label }) {
@@ -46,6 +47,126 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   )
 }
 
+// ============================================================================
+// GLOBAL SETTINGS PANEL
+// ============================================================================
+function GlobalSettingsPanel() {
+  const [expiryHours, setExpiryHours] = useState(6)
+  const [savedValue, setSavedValue] = useState(6)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState(null)
+
+  useEffect(() => {
+    loadSetting()
+  }, [])
+
+  async function loadSetting() {
+    try {
+      const val = await fetchAppSetting('pending_order_expiry_hours')
+      const hours = val !== null && val !== undefined ? Number(val) : 6
+      setExpiryHours(hours)
+      setSavedValue(hours)
+    } catch (err) {
+      console.error('Failed to load pending expiry setting:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveMessage(null)
+    try {
+      await updateAppSetting('pending_order_expiry_hours', expiryHours)
+      setSavedValue(expiryHours)
+      setSaveMessage({ type: 'success', text: 'Saved!' })
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      console.error('Failed to save setting:', err)
+      setSaveMessage({ type: 'error', text: 'Failed to save: ' + err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const hasChanges = expiryHours !== savedValue
+
+  return (
+    <div className="bg-dark-card border border-dark-border rounded-xl p-5 mb-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 rounded-lg bg-accent-cyan/10">
+          <Settings className="w-5 h-5 text-accent-cyan" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-white">Global Settings</h2>
+          <p className="text-xs text-gray-500">Settings that apply to all channels</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-4">
+        {/* Pending Order Expiry */}
+        <div className="flex-1 min-w-[200px] max-w-[400px]">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
+            <Clock className="w-4 h-4 text-accent-cyan" />
+            Pending Order Expiry
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min="0"
+              max="168"
+              step="0.5"
+              value={loading ? '' : expiryHours}
+              onChange={e => setExpiryHours(parseFloat(e.target.value) || 0)}
+              disabled={loading}
+              className="w-24"
+              placeholder="6"
+            />
+            <span className="text-sm text-gray-400">hours</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Unfilled STOP/LIMIT orders are auto-canceled after this time. Set to 0 to disable.
+          </p>
+        </div>
+
+        {/* Save Button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              hasChanges
+                ? 'bg-accent-blue hover:bg-accent-blue/80 text-white'
+                : 'bg-dark-tertiary text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {saving ? (
+              'Saving...'
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save
+              </>
+            )}
+          </button>
+
+          {saveMessage && (
+            <span className={`text-sm font-medium ${
+              saveMessage.type === 'success' ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {saveMessage.text}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// CHANNEL EDITOR MODAL
+// ============================================================================
 function ChannelEditorModal({ channel, onSave, onClose }) {
   const [activeTab, setActiveTab] = useState('basic')
   const [saving, setSaving] = useState(false)
@@ -748,6 +869,9 @@ export default function Channels() {
           </button>
         </div>
       </div>
+
+      {/* Global Settings Panel - above channels */}
+      <GlobalSettingsPanel />
 
       {/* Channels Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
