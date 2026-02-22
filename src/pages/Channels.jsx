@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { 
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap, 
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
-  Save, X, Check, RefreshCw
+  Save, X, Check, RefreshCw, Shuffle
 } from 'lucide-react'
 import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
@@ -45,14 +45,27 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   )
 }
 
-function ChannelEditorModal({ channel, onSave, onClose }) {
+// Generate a unique 6-digit magic number (100000–999999) not already in use
+function generateUniqueMagicNumber(existingChannels) {
+  const usedMagics = new Set(
+    (existingChannels || []).map(ch => ch.magic_number)
+  )
+  let magic
+  do {
+    magic = Math.floor(100000 + Math.random() * 900000)
+  } while (usedMagics.has(magic))
+  return magic
+}
+
+function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
   const [activeTab, setActiveTab] = useState('basic')
   const [saving, setSaving] = useState(false)
+  const [validationErrors, setValidationErrors] = useState({})
   const [formData, setFormData] = useState({
     channel_key: '',
     risk_per_trade: 0.02,
     risk_tolerance: 0.1,
-    magic_number: 123456,
+    magic_number: channel ? (channel.magic_number || 123456) : generateUniqueMagicNumber(existingChannels),
     max_slippage_points: 20,
     trade_monitor_interval_sec: 0.5,
     is_active: true,
@@ -88,7 +101,49 @@ function ChannelEditorModal({ channel, onSave, onClose }) {
     }
   }, [channel])
 
+  function validateForm() {
+    const errors = {}
+    // Exclude current channel when editing
+    const otherChannels = (existingChannels || []).filter(
+      ch => ch.id !== channel?.id
+    )
+
+    // Channel name validation
+    const name = (formData.channel_key || '').trim()
+    if (!name) {
+      errors.channel_key = 'Channel name is required'
+    } else {
+      const duplicate = otherChannels.find(
+        ch => ch.channel_key.toLowerCase() === name.toLowerCase()
+      )
+      if (duplicate) {
+        errors.channel_key = `Channel name "${name}" is already in use`
+      }
+    }
+
+    // Magic number validation
+    const magic = formData.magic_number
+    if (!magic || isNaN(magic)) {
+      errors.magic_number = 'Magic number is required'
+    } else if (magic < 100000 || magic > 999999) {
+      errors.magic_number = 'Magic number must be 6 digits (100000–999999)'
+    } else {
+      const duplicate = otherChannels.find(ch => ch.magic_number === magic)
+      if (duplicate) {
+        errors.magic_number = `Magic number ${magic} is already used by "${duplicate.channel_key}"`
+      }
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   async function handleSave() {
+    if (!validateForm()) {
+      setActiveTab('basic')  // Switch to basic tab to show errors
+      return
+    }
+
     setSaving(true)
     try {
       await onSave(formData)
@@ -147,9 +202,21 @@ function ChannelEditorModal({ channel, onSave, onClose }) {
                 <input
                   type="text"
                   value={formData.channel_key}
-                  onChange={e => setFormData({ ...formData, channel_key: e.target.value })}
+                  onChange={e => {
+                    setFormData({ ...formData, channel_key: e.target.value })
+                    if (validationErrors.channel_key) {
+                      setValidationErrors(prev => ({ ...prev, channel_key: undefined }))
+                    }
+                  }}
                   placeholder="e.g., FOREX TRADING MASTER™🏙"
+                  className={validationErrors.channel_key ? '!border-red-500' : ''}
                 />
+                {validationErrors.channel_key && (
+                  <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {validationErrors.channel_key}
+                  </p>
+                )}
               </FormField>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Risk Per Trade" hint="e.g., 0.02 = 2%">
@@ -173,12 +240,40 @@ function ChannelEditorModal({ channel, onSave, onClose }) {
                   />
                 </FormField>
               </div>
-              <FormField label="Magic Number">
-                <input
-                  type="number"
-                  value={formData.magic_number}
-                  onChange={e => setFormData({ ...formData, magic_number: parseInt(e.target.value) })}
-                />
+              <FormField label="Magic Number" hint="Unique 6-digit ID (100000–999999)">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="100000"
+                    max="999999"
+                    value={formData.magic_number}
+                    onChange={e => {
+                      setFormData({ ...formData, magic_number: parseInt(e.target.value) })
+                      if (validationErrors.magic_number) {
+                        setValidationErrors(prev => ({ ...prev, magic_number: undefined }))
+                      }
+                    }}
+                    className={`flex-1 ${validationErrors.magic_number ? '!border-red-500' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, magic_number: generateUniqueMagicNumber(existingChannels) })
+                      setValidationErrors(prev => ({ ...prev, magic_number: undefined }))
+                    }}
+                    className="px-3 py-2 bg-dark-tertiary border border-dark-border rounded-lg text-xs text-accent-cyan hover:bg-accent-cyan/10 transition-colors whitespace-nowrap flex items-center gap-1.5"
+                    title="Generate unique magic number"
+                  >
+                    <Shuffle className="w-3.5 h-3.5" />
+                    Generate
+                  </button>
+                </div>
+                {validationErrors.magic_number && (
+                  <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {validationErrors.magic_number}
+                  </p>
+                )}
               </FormField>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Max Slippage (points)">
@@ -894,12 +989,13 @@ export default function Channels() {
         )}
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Modal — now receives existingChannels for validation */}
       {showModal && (
         <ChannelEditorModal
           channel={editingChannel}
           onSave={handleSave}
           onClose={() => setShowModal(false)}
+          existingChannels={channels}
         />
       )}
 
