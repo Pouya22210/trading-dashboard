@@ -82,7 +82,7 @@ const OUTCOME_TYPES = [
 
 { key: 'manual', label: 'Manual', color: COLORS.orange },
 
-{ key: 'canceled', label: 'Canceled', color: COLORS.purple },
+{ key: 'canceled', label: 'Canceled', color: COLORS.cyan },
 
 { key: 'blocked', label: 'Blocked', color: COLORS.pink },
 
@@ -1239,7 +1239,7 @@ return channel?.name || 'Unknown'
 
 
 
-// Filter trades
+// Filter trades (all trades for the table display)
 
 const filteredTrades = useMemo(() => {
     return trades.filter(trade => {
@@ -1267,6 +1267,19 @@ const filteredTrades = useMemo(() => {
 
       }, [trades, selectedChannelIds, filters, showOrphanedChannels])
 
+
+// ==================== ANALYSIS TRADES ====================
+// Excludes manual and expired cancellations — only cancel_policy counts in analysis.
+// This is used for ALL charts, stats, and visualizations.
+const analysisTrades = useMemo(() => {
+  return filteredTrades.filter(trade => {
+    // Keep everything except manual/expired cancellations
+    if (trade.status === 'canceled' && trade.cancel_reason !== 'cancel_policy') {
+      return false
+    }
+    return true
+  })
+}, [filteredTrades])
 
 
 const sortedFilteredTrades = useMemo(() => {
@@ -1356,7 +1369,7 @@ return sessions
 }
 
 
-filteredTrades
+analysisTrades
 
 .filter(t => t.status === 'closed' && t.signal_time)
 
@@ -1409,11 +1422,11 @@ winRate: sessionStats[session.key].total > 0
 
 }))
 
-}, [filteredTrades])
+}, [analysisTrades])
 
 
 
-// Gantt chart data
+// Gantt chart data (uses filteredTrades — shows all activity including non-analysis cancels)
 
 const ganttChartData = useMemo(() => {
 
@@ -1563,13 +1576,13 @@ totalRange: maxDate.getTime() - minDate.getTime()
 
 
 
-// Calculate channel statistics
+// Calculate channel statistics (uses analysisTrades)
 
 const channelStats = useMemo(() => {
 
 const stats = {}
 
-filteredTrades.filter(t => t.status === 'closed').forEach(trade => {
+analysisTrades.filter(t => t.status === 'closed').forEach(trade => {
 
 const channelId = trade.channel_id
 
@@ -1623,15 +1636,15 @@ s.winRate = (s.wins + s.losses) > 0 ? (s.wins / (s.wins + s.losses) * 100) : 0
 
 return stats
 
-}, [filteredTrades])
+}, [analysisTrades])
 
 
 
-// Cumulative P&L over time by channel
+// Cumulative P&L over time by channel (uses analysisTrades)
 
 const cumulativePnLData = useMemo(() => {
 
-const closedTrades = filteredTrades
+const closedTrades = analysisTrades
 
 .filter(t => t.status === 'closed' && t.close_time)
 
@@ -1709,14 +1722,14 @@ dataByDate[date][channelId] = lastValues[channelId]
 
 return Object.values(dataByDate)
 
-}, [filteredTrades])
+}, [analysisTrades])
 
 
 const activeChannelIds = useMemo(() => {
 
 const ids = new Set()
 
-filteredTrades.forEach(trade => {
+analysisTrades.forEach(trade => {
 
 if (trade.channel_id) ids.add(trade.channel_id)
 
@@ -1724,16 +1737,17 @@ if (trade.channel_id) ids.add(trade.channel_id)
 
 return Array.from(ids)
 
-}, [filteredTrades])
+}, [analysisTrades])
 
 
 
+// Outcome by channel (uses analysisTrades — only cancel_policy cancels appear)
 const outcomeByChannelData = useMemo(() => {
 
 const dataByChannel = {}
 
 
-filteredTrades.forEach(trade => {
+analysisTrades.forEach(trade => {
 
 const channelId = trade.channel_id || 'unknown'
 
@@ -1805,7 +1819,7 @@ channel: item.channel.length > 25 ? item.channel.slice(0, 25) + '...' : item.cha
 
 .sort((a, b) => b.sortScore - a.sortScore)
 
-}, [filteredTrades, getChannelName])
+}, [analysisTrades, getChannelName])
 
 
 
@@ -1853,9 +1867,9 @@ const paginatedTrades = sortedFilteredTrades.slice(startIndex, endIndex)
 
 
 
-// Calculate filtered stats
+// Calculate filtered stats (uses analysisTrades)
 
-const closedTrades = filteredTrades.filter(t => t.status === 'closed')
+const closedTrades = analysisTrades.filter(t => t.status === 'closed')
 
 const wins = closedTrades.filter(t => t.outcome === 'profit').length
 
@@ -1867,9 +1881,9 @@ const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100).toFixed(1) 
 
 
 
-// Chart data: Outcome by Side
+// Chart data: Outcome by Side (uses analysisTrades)
 
-const outcomeBySide = filteredTrades.reduce((acc, trade) => {
+const outcomeBySide = analysisTrades.reduce((acc, trade) => {
 
 if (trade.status !== 'closed') return acc
 
@@ -1889,9 +1903,9 @@ const outcomeBySideData = Object.values(outcomeBySide)
 
 
 
-// Hourly performance
+// Hourly performance (uses analysisTrades)
 
-const hourlyData = filteredTrades.reduce((acc, trade) => {
+const hourlyData = analysisTrades.reduce((acc, trade) => {
 
 if (trade.status !== 'closed' || !trade.signal_time) return acc
 
@@ -1911,11 +1925,11 @@ const hourlyChartData = Object.values(hourlyData).sort((a, b) => parseInt(a.hour
 
 
 
-// Day of week performance
+// Day of week performance (uses analysisTrades)
 
 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-const dowData = filteredTrades.reduce((acc, trade) => {
+const dowData = analysisTrades.reduce((acc, trade) => {
 
 if (trade.status !== 'closed' || !trade.signal_time) return acc
 
@@ -1959,7 +1973,7 @@ document.getElementById('trades-table')?.scrollIntoView({ behavior: 'smooth', bl
 
 function exportCSV() {
 
-const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'Time']
+const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'Cancel Reason', 'Time']
 
 const rows = sortedFilteredTrades.map(t => [
 
@@ -1967,7 +1981,7 @@ t.trade_id, t.channel_name, t.symbol, t.direction, t.order_type,
 
 t.executed_entry_price, t.executed_tp_price, t.executed_sl_price,
 
-t.profit_loss, t.status, t.outcome, t.signal_time
+t.profit_loss, t.status, t.outcome, t.cancel_reason || '', t.signal_time
 
 ])
 
@@ -2025,7 +2039,14 @@ if (effectiveStatus === 'active') return 'badge-warning'
 
 if (effectiveStatus === 'pending') return 'badge-warning'
 
-if (effectiveStatus === 'canceled') return 'badge-neutral'
+if (effectiveStatus === 'canceled') {
+
+// Cyan badge for cancel_policy (TP hit before entry), gray for manual/expired
+if (trade.cancel_reason === 'cancel_policy') return 'badge-cancel-policy'
+
+return 'badge-neutral'
+
+}
 
 if (effectiveStatus === 'blocked') return 'badge-neutral'
 
@@ -2049,6 +2070,16 @@ return `${effectiveStatus} (${trade.outcome})`
 if (effectiveStatus === 'pending' && trade.order_type) {
 
 return `pending (${trade.order_type})`
+
+}
+
+if (effectiveStatus === 'canceled') {
+
+if (trade.cancel_reason === 'cancel_policy') return 'canceled (TP)'
+
+if (trade.cancel_reason === 'expired') return 'expired'
+
+return 'canceled'
 
 }
 
@@ -2343,9 +2374,15 @@ className="w-full"
 
 <div className="bg-dark-tertiary/50 rounded-lg p-3">
 
-<div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Filtered Trades</div>
+<div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Analysis Trades</div>
 
-<div className="text-2xl font-bold font-mono text-white">{filteredTrades.length}</div>
+<div className="text-2xl font-bold font-mono text-white">{analysisTrades.length}</div>
+
+<div className="text-xs text-gray-500 mt-1">
+  {filteredTrades.length !== analysisTrades.length && (
+    <span>{filteredTrades.length} total ({filteredTrades.length - analysisTrades.length} non-policy cancels excluded)</span>
+  )}
+</div>
 
 </div>
 
@@ -2542,13 +2579,16 @@ style={{ backgroundColor: getChannelColor(trade.channel_id) }}
 </td>
 
 <td>
-
-<span className={`badge ${getStatusBadgeClass(trade)}`}>
-
-{getStatusDisplay(trade)}
-
-</span>
-
+  {/* Cancel policy gets cyan badge, manual/expired get gray */}
+  {trade.status === 'canceled' && trade.cancel_reason === 'cancel_policy' ? (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+      {getStatusDisplay(trade)}
+    </span>
+  ) : (
+    <span className={`badge ${getStatusBadgeClass(trade)}`}>
+      {getStatusDisplay(trade)}
+    </span>
+  )}
 </td>
 
 <td className="text-gray-500 text-xs sm:text-sm">
