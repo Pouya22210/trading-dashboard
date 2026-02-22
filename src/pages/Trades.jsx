@@ -90,7 +90,15 @@ const OUTCOME_TYPES = [
 
 ]
 
-
+const WEEKDAYS = [
+  { key: 0, label: 'Sun', short: 'S' },
+  { key: 1, label: 'Mon', short: 'M' },
+  { key: 2, label: 'Tue', short: 'T' },
+  { key: 3, label: 'Wed', short: 'W' },
+  { key: 4, label: 'Thu', short: 'T' },
+  { key: 5, label: 'Fri', short: 'F' },
+  { key: 6, label: 'Sat', short: 'S' },
+]
 
 // ==================== MARKET SESSIONS DEFINITION ====================
 
@@ -987,6 +995,8 @@ const [useLogScale, setUseLogScale] = useState(false)
   
   // Show/hide orphaned (deleted) channels
 const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
+// Weekday filter — all days selected by default
+const [selectedWeekdays, setSelectedWeekdays] = useState([0, 1, 2, 3, 4, 5, 6])
 
 const [filters, setFilters] = useState({
 
@@ -1261,11 +1271,17 @@ const filteredTrades = useMemo(() => {
 
       if (filters.endDate && new Date(trade.signal_time) > new Date(filters.endDate)) return false
 
+      // Weekday filter
+      if (selectedWeekdays.length < 7 && trade.signal_time) {
+        const dayOfWeek = new Date(trade.signal_time).getDay()
+        if (!selectedWeekdays.includes(dayOfWeek)) return false
+      }
+
       return true
 
       })
 
-      }, [trades, selectedChannelIds, filters, showOrphanedChannels])
+      }, [trades, selectedChannelIds, filters, showOrphanedChannels, selectedWeekdays])
 
 
 // ==================== ANALYSIS TRADES ====================
@@ -1956,7 +1972,7 @@ setFilters({ orderType: '', side: '', status: '', startDate: '', endDate: '' })
 setSelectedChannelIds([])
 
 setCurrentPage(1)
-
+setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])
 }
 
 
@@ -2357,6 +2373,44 @@ className="w-full"
 
 </div>
 
+  <div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Weekday
+                </label>
+                <div className="flex gap-1">
+                  {WEEKDAYS.map(day => {
+                    const isSelected = selectedWeekdays.includes(day.key)
+                    return (
+                      <button
+                        key={day.key}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedWeekdays(prev => prev.filter(d => d !== day.key))
+                          } else {
+                            setSelectedWeekdays(prev => [...prev, day.key].sort())
+                          }
+                        }}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${
+                          isSelected
+                            ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30'
+                            : 'bg-dark-secondary text-gray-500 border border-dark-border hover:text-gray-300'
+                        }`}
+                        title={day.label}
+                      >
+                        {day.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {selectedWeekdays.length < 7 && (
+                  <button
+                    onClick={() => setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])}
+                    className="text-xs text-accent-cyan hover:underline mt-1"
+                  >
+                    Select all days
+                  </button>
+                )}
+              </div>
 
 <button onClick={clearFilters} className="btn-secondary w-full flex items-center justify-center gap-2 hover:bg-dark-tertiary transition-colors">
 
