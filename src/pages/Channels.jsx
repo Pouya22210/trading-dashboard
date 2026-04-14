@@ -74,7 +74,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
     final_tp_policy: { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
     riskfree_policy: { enabled: true, kind: '%path', percent: 50, pips: 10, tp_index: 1 },
     cancel_policy: { enabled: true, kind: 'final_tp', percent: 50, tp_index: 1, enable_for_now: true, enable_for_limit: true, enable_for_auto: true },
-    commands: { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [] },
+    commands: { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, enable_sl_update: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [], sl_update_phrases: ['\\bstop\\b.*\\bupdat'] },
     circuit_breaker: { enabled: true, max_daily_trades: 20, max_daily_loss_pct: 10 },
     trend_filter: { enabled: false, swing_strength: 2, min_swings_required: 2, ema_period: 50, candles_to_fetch: 100, require_all_three: false, log_details: true },
   })
@@ -94,7 +94,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
         final_tp_policy: channel.final_tp_policy || { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
         riskfree_policy: channel.riskfree_policy || { enabled: false, kind: '%path', percent: 50 },
         cancel_policy: channel.cancel_policy || { enabled: true, kind: 'final_tp', enable_for_now: true, enable_for_limit: true, enable_for_auto: true },
-        commands: channel.commands || { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [] },
+        commands: channel.commands || { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, enable_sl_update: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [], sl_update_phrases: ['\\bstop\\b.*\\bupdat'] },
         circuit_breaker: channel.circuit_breaker || { enabled: true, max_daily_trades: 20, max_daily_loss_pct: 10 },
         trend_filter: channel.trend_filter || { enabled: false, swing_strength: 2, min_swings_required: 2, ema_period: 50, candles_to_fetch: 100, require_all_three: false, log_details: true },
       })
@@ -219,33 +219,27 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                 )}
               </FormField>
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Risk Per Trade" hint="e.g., 0.02 = 2%">
+                <FormField label="Risk Per Trade">
                   <input
                     type="number"
-                    step="0.001"
-                    min="0.001"
-                    max="0.5"
+                    step="0.01"
                     value={formData.risk_per_trade}
                     onChange={e => setFormData({ ...formData, risk_per_trade: parseFloat(e.target.value) })}
                   />
                 </FormField>
-                <FormField label="Risk Tolerance" hint="Allowed % over limit">
+                <FormField label="Risk Tolerance">
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
-                    max="1"
                     value={formData.risk_tolerance}
                     onChange={e => setFormData({ ...formData, risk_tolerance: parseFloat(e.target.value) })}
                   />
                 </FormField>
               </div>
-              <FormField label="Magic Number" hint="Unique 6-digit ID (100000–999999)">
-                <div className="flex gap-2">
+              <FormField label="Magic Number" hint="Unique 6-digit identifier for MT5 orders (100000–999999)">
+                <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    min="100000"
-                    max="999999"
                     value={formData.magic_number}
                     onChange={e => {
                       setFormData({ ...formData, magic_number: parseInt(e.target.value) })
@@ -253,7 +247,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                         setValidationErrors(prev => ({ ...prev, magic_number: undefined }))
                       }
                     }}
-                    className={`flex-1 ${validationErrors.magic_number ? '!border-red-500' : ''}`}
+                    className={validationErrors.magic_number ? '!border-red-500' : ''}
                   />
                   <button
                     type="button"
@@ -309,72 +303,84 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <RefreshCw className={`w-4 h-4 ${formData.is_reversed ? 'text-orange-400' : 'text-gray-500'}`} />
-                    <label className={`text-sm font-medium ${formData.is_reversed ? 'text-orange-400' : 'text-gray-400'}`}>
+                    <label className={`text-sm font-medium ${formData.is_reversed ? 'text-orange-300' : 'text-gray-300'}`}>
                       Reverse Signals
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    BUY→SELL, SELL→BUY, swap TP/SL. Use for poorly performing channels.
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">BUY→SELL, SELL→BUY. Use for poorly performing channels.</p>
                 </div>
-                <input
-                  type="checkbox"
+                <Toggle
                   checked={formData.is_reversed}
-                  onChange={e => setFormData({ ...formData, is_reversed: e.target.checked })}
-                  className="w-5 h-5 rounded border-gray-600 text-orange-500 focus:ring-orange-500"
+                  onChange={checked => setFormData({ ...formData, is_reversed: checked })}
                 />
               </div>
-              
-              {formData.is_reversed && (
-                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
-                  <p className="text-xs text-orange-300">
-                    <strong>⚠️ Reverse Mode Active:</strong> All signals from this channel will be inverted. 
-                    BUY signals become SELL orders, SELL signals become BUY orders, and TP/SL levels are swapped.
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
           {/* Instruments Tab */}
           {activeTab === 'instruments' && (
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-300">Primary Instrument</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <FormField label="Logical Symbol">
-                  <input
-                    type="text"
-                    value={formData.instruments[0]?.logical_symbol || ''}
-                    onChange={e => setFormData({
-                      ...formData,
-                      instruments: [{ ...formData.instruments[0], logical_symbol: e.target.value }]
-                    })}
-                    placeholder="XAUUSD"
-                  />
-                </FormField>
-                <FormField label="Broker Symbol">
-                  <input
-                    type="text"
-                    value={formData.instruments[0]?.broker_symbol || ''}
-                    onChange={e => setFormData({
-                      ...formData,
-                      instruments: [{ ...formData.instruments[0], broker_symbol: e.target.value }]
-                    })}
-                    placeholder="XAUUSD"
-                  />
-                </FormField>
-                <FormField label="Pip Tolerance">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formData.instruments[0]?.pip_tolerance_pips || 1.5}
-                    onChange={e => setFormData({
-                      ...formData,
-                      instruments: [{ ...formData.instruments[0], pip_tolerance_pips: parseFloat(e.target.value) }]
-                    })}
-                  />
-                </FormField>
-              </div>
+              {formData.instruments.map((inst, idx) => (
+                <div key={idx} className="bg-dark-tertiary rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400">Instrument {idx + 1}</span>
+                    {formData.instruments.length > 1 && (
+                      <button
+                        onClick={() => setFormData({
+                          ...formData,
+                          instruments: formData.instruments.filter((_, i) => i !== idx)
+                        })}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <FormField label="Logical Symbol">
+                      <input
+                        value={inst.logical_symbol}
+                        onChange={e => {
+                          const updated = [...formData.instruments]
+                          updated[idx] = { ...updated[idx], logical_symbol: e.target.value }
+                          setFormData({ ...formData, instruments: updated })
+                        }}
+                      />
+                    </FormField>
+                    <FormField label="Broker Symbol">
+                      <input
+                        value={inst.broker_symbol}
+                        onChange={e => {
+                          const updated = [...formData.instruments]
+                          updated[idx] = { ...updated[idx], broker_symbol: e.target.value }
+                          setFormData({ ...formData, instruments: updated })
+                        }}
+                      />
+                    </FormField>
+                    <FormField label="Pip Tolerance">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={inst.pip_tolerance_pips}
+                        onChange={e => {
+                          const updated = [...formData.instruments]
+                          updated[idx] = { ...updated[idx], pip_tolerance_pips: parseFloat(e.target.value) }
+                          setFormData({ ...formData, instruments: updated })
+                        }}
+                      />
+                    </FormField>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => setFormData({
+                  ...formData,
+                  instruments: [...formData.instruments, { logical_symbol: '', broker_symbol: '', pip_tolerance_pips: 1.5 }]
+                })}
+                className="btn-secondary w-full"
+              >
+                <Plus className="w-4 h-4 inline mr-2" /> Add Instrument
+              </button>
             </div>
           )}
 
@@ -441,7 +447,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                   })}
                 >
                   <option value="%path">Percent of Path</option>
-                  <option value="pips">Pips</option>
+                  <option value="pips">Pips from Entry</option>
                   <option value="tp_index">TP Index</option>
                 </select>
               </FormField>
@@ -459,7 +465,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                 <FormField label="Pips">
                   <input
                     type="number"
-                    value={formData.riskfree_policy.pips || 10}
+                    value={formData.riskfree_policy.pips || 0}
                     onChange={e => setFormData({
                       ...formData,
                       riskfree_policy: { ...formData.riskfree_policy, pips: parseFloat(e.target.value) }
@@ -528,34 +534,31 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                   />
                 </FormField>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm text-gray-400">Apply to Order Types:</p>
-                <div className="flex flex-wrap gap-4">
-                  <Toggle
-                    checked={formData.cancel_policy.enable_for_now}
-                    onChange={checked => setFormData({
-                      ...formData,
-                      cancel_policy: { ...formData.cancel_policy, enable_for_now: checked }
-                    })}
-                    label="NOW orders"
-                  />
-                  <Toggle
-                    checked={formData.cancel_policy.enable_for_limit}
-                    onChange={checked => setFormData({
-                      ...formData,
-                      cancel_policy: { ...formData.cancel_policy, enable_for_limit: checked }
-                    })}
-                    label="LIMIT orders"
-                  />
-                  <Toggle
-                    checked={formData.cancel_policy.enable_for_auto}
-                    onChange={checked => setFormData({
-                      ...formData,
-                      cancel_policy: { ...formData.cancel_policy, enable_for_auto: checked }
-                    })}
-                    label="AUTO orders"
-                  />
-                </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Toggle
+                  checked={formData.cancel_policy.enable_for_now ?? true}
+                  onChange={checked => setFormData({
+                    ...formData,
+                    cancel_policy: { ...formData.cancel_policy, enable_for_now: checked }
+                  })}
+                  label="For NOW orders"
+                />
+                <Toggle
+                  checked={formData.cancel_policy.enable_for_limit ?? true}
+                  onChange={checked => setFormData({
+                    ...formData,
+                    cancel_policy: { ...formData.cancel_policy, enable_for_limit: checked }
+                  })}
+                  label="For LIMIT orders"
+                />
+                <Toggle
+                  checked={formData.cancel_policy.enable_for_auto ?? true}
+                  onChange={checked => setFormData({
+                    ...formData,
+                    cancel_policy: { ...formData.cancel_policy, enable_for_auto: checked }
+                  })}
+                  label="For AUTO orders"
+                />
               </div>
             </div>
           )}
@@ -563,12 +566,6 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
           {/* Trend Filter Tab */}
           {activeTab === 'trend' && (
             <div className="space-y-4">
-              <div className="bg-dark-tertiary p-4 rounded-lg mb-4">
-                <p className="text-sm text-gray-300">
-                  <strong>Trend Filter</strong> blocks trades when both M1 and M5 timeframes are against the signal.
-                  Uses 3 methods: Structure (HH/HL), VWAP, and EMA.
-                </p>
-              </div>
               <Toggle
                 checked={formData.trend_filter.enabled}
                 onChange={checked => setFormData({
@@ -578,11 +575,10 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                 label="Enable Trend Filter"
               />
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Swing Strength" hint="Candles on each side">
+                <FormField label="Swing Strength">
                   <input
                     type="number"
                     min="1"
-                    max="10"
                     value={formData.trend_filter.swing_strength}
                     onChange={e => setFormData({
                       ...formData,
@@ -594,7 +590,6 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                   <input
                     type="number"
                     min="1"
-                    max="5"
                     value={formData.trend_filter.min_swings_required}
                     onChange={e => setFormData({
                       ...formData,
@@ -605,8 +600,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                 <FormField label="EMA Period">
                   <input
                     type="number"
-                    min="5"
-                    max="200"
+                    min="1"
                     value={formData.trend_filter.ema_period}
                     onChange={e => setFormData({
                       ...formData,
@@ -617,8 +611,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                 <FormField label="Candles to Fetch">
                   <input
                     type="number"
-                    min="20"
-                    max="500"
+                    min="10"
                     value={formData.trend_filter.candles_to_fetch}
                     onChange={e => setFormData({
                       ...formData,
@@ -709,6 +702,27 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
                       commands: { ...formData.commands, riskfree_phrases: e.target.value.split('\n').filter(Boolean) }
                     })}
                     placeholder="\\brisk\\s*free now\\b"
+                  />
+                </FormField>
+              </div>
+              <div className="space-y-3">
+                <Toggle
+                  checked={formData.commands.enable_sl_update}
+                  onChange={checked => setFormData({
+                    ...formData,
+                    commands: { ...formData.commands, enable_sl_update: checked }
+                  })}
+                  label="Enable SL Update Command"
+                />
+                <FormField label="SL Update Phrases (regex, one per line)" hint="Detects messages like 'STOP POINT UPDATED TO 4700' and modifies the SL of the most recent active trade">
+                  <textarea
+                    rows={3}
+                    value={(formData.commands.sl_update_phrases || []).join('\n')}
+                    onChange={e => setFormData({
+                      ...formData,
+                      commands: { ...formData.commands, sl_update_phrases: e.target.value.split('\n').filter(Boolean) }
+                    })}
+                    placeholder="\\bstop\\b.*\\bupdat"
                   />
                 </FormField>
               </div>
@@ -923,35 +937,27 @@ export default function Channels() {
                   <span className={`badge ${channel.is_active ? 'badge-success' : 'badge-neutral'}`}>
                     {channel.is_active ? 'Active' : 'Inactive'}
                   </span>
-                  {/* v11.0: Reverse indicator */}
                   {channel.is_reversed && (
-                    <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3" /> Reversed
+                    <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                      <RefreshCw className="w-3 h-3 inline mr-1" />Reversed
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mt-1">Magic: {channel.magic_number}</p>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => openEditModal(channel)} className="p-2 text-gray-400 hover:text-accent-blue rounded-lg hover:bg-dark-tertiary">
+              <div className="flex items-center gap-2">
+                <button onClick={() => openEditModal(channel)} className="text-gray-400 hover:text-accent-cyan">
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button onClick={() => setDeleteConfirm(channel.id)} className="p-2 text-gray-400 hover:text-red-400 rounded-lg hover:bg-dark-tertiary">
+                <button onClick={() => setDeleteConfirm(channel.id)} className="text-gray-400 hover:text-red-400">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-3 gap-3 text-sm">
               <div className="bg-dark-tertiary rounded-lg p-3">
-                <div className="text-gray-500 text-xs uppercase mb-1">Risk/Trade</div>
+                <div className="text-gray-500 text-xs uppercase mb-1">Risk</div>
                 <div className="text-white font-mono">{(channel.risk_per_trade * 100).toFixed(1)}%</div>
-              </div>
-              <div className="bg-dark-tertiary rounded-lg p-3">
-                <div className="text-gray-500 text-xs uppercase mb-1">Instruments</div>
-                <div className="text-white font-mono">
-                  {channel.instruments?.map(i => i.logical_symbol).join(', ') || 'XAUUSD'}
-                </div>
               </div>
               <div className="bg-dark-tertiary rounded-lg p-3">
                 <div className="text-gray-500 text-xs uppercase mb-1">Risk-Free</div>
