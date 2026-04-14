@@ -102,9 +102,11 @@ export async function createChannel(channelData) {
     enable_close: channelData.commands?.enable_close ?? true,
     enable_cancel_limit: channelData.commands?.enable_cancel_limit ?? true,
     enable_riskfree: channelData.commands?.enable_riskfree ?? false,
+    enable_sl_update: channelData.commands?.enable_sl_update ?? false,
     close_phrases: channelData.commands?.close_phrases || [],
     cancel_limit_phrases: channelData.commands?.cancel_limit_phrases || [],
-    riskfree_phrases: channelData.commands?.riskfree_phrases || []
+    riskfree_phrases: channelData.commands?.riskfree_phrases || [],
+    sl_update_phrases: channelData.commands?.sl_update_phrases || ['\\bstop\\b.*\\bupdat']
   })
 
   await supabase.from('circuit_breaker_configs').insert({
@@ -188,9 +190,11 @@ export async function updateChannel(id, channelData) {
     enable_close: channelData.commands?.enable_close ?? true,
     enable_cancel_limit: channelData.commands?.enable_cancel_limit ?? true,
     enable_riskfree: channelData.commands?.enable_riskfree ?? false,
+    enable_sl_update: channelData.commands?.enable_sl_update ?? false,
     close_phrases: channelData.commands?.close_phrases || [],
     cancel_limit_phrases: channelData.commands?.cancel_limit_phrases || [],
-    riskfree_phrases: channelData.commands?.riskfree_phrases || []
+    riskfree_phrases: channelData.commands?.riskfree_phrases || [],
+    sl_update_phrases: channelData.commands?.sl_update_phrases || ['\\bstop\\b.*\\bupdat']
   }).eq('channel_id', id)
 
   await supabase.from('circuit_breaker_configs').update({
@@ -309,8 +313,6 @@ export async function fetchDailyStats() {
 // ============================================================================
 // APP SETTINGS
 // ============================================================================
-// Add these two functions to your existing supabase.js file
-// (before the REAL-TIME SUBSCRIPTIONS section)
 
 export async function fetchAppSetting(key) {
   const { data, error } = await supabase
@@ -405,6 +407,3 @@ export function subscribeToChannels(callback) {
 
   return channel
 }
-
-
-
