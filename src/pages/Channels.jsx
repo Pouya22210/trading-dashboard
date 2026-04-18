@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  Plus, Edit2, Trash2, Settings, Shield, Target, Zap, 
+import {
+  Plus, Edit2, Trash2, Settings, Shield, Target, Zap,
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
-  Save, X, Check, RefreshCw, Shuffle
+  Save, X, Check, RefreshCw, Shuffle, Search
 } from 'lucide-react'
 import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
@@ -784,6 +784,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
 
 export default function Channels() {
   const [channels, setChannels] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [editingChannel, setEditingChannel] = useState(null)
   const [showModal, setShowModal] = useState(false)
@@ -919,9 +920,35 @@ export default function Channels() {
         </div>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search channels..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full pl-9 pr-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent-blue/50"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Channels Grid */}
+      {(() => {
+        const q = searchQuery.trim().toLowerCase()
+        const filtered = q ? channels.filter(ch => ch.channel_key.toLowerCase().includes(q)) : channels
+        return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {channels.map(channel => (
+        {filtered.length === 0 ? (
+          <div className="col-span-2 text-center text-gray-500 py-12">No channels match "{searchQuery}"</div>
+        ) : filtered.map(channel => (
           <div 
             key={channel.id} 
             className={`bg-dark-card border rounded-xl p-5 ${
@@ -982,18 +1009,9 @@ export default function Channels() {
             </div>
           </div>
         ))}
-
-        {channels.length === 0 && (
-          <div className="col-span-2 bg-dark-card border border-dark-border rounded-xl p-12 text-center">
-            <Settings className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-white mb-2">No Channels Configured</h3>
-            <p className="text-gray-500 mb-4">Add your first Telegram signal channel to get started.</p>
-            <button onClick={openAddModal} className="btn-primary">
-              <Plus className="w-4 h-4 inline mr-2" /> Add Channel
-            </button>
-          </div>
-        )}
       </div>
+        )
+      })()}
 
       {/* Edit Modal — now receives existingChannels for validation */}
       {showModal && (
