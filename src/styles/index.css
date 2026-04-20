@@ -7,30 +7,30 @@
    ============================================================ */
 
 :root {
-  --bg-primary:    #000000;
-  --bg-secondary:  #0a0a0a;
-  --bg-card:       #111111;
-  --bg-elevated:   #161616;
-  --bg-input:      #1a1a1a;
-  --border:        rgba(255,255,255,0.07);
-  --border-mid:    rgba(255,255,255,0.10);
+  --bg-primary:    #171717;
+  --bg-secondary:  #1e1e1e;
+  --bg-card:       #222222;
+  --bg-elevated:   #2a2a2a;
+  --bg-input:      #2e2e2e;
+  --border:        rgba(255,255,255,0.08);
+  --border-mid:    rgba(255,255,255,0.12);
 
   --text-primary:   #ffffff;
   --text-secondary: rgba(255,255,255,0.55);
   --text-tertiary:  rgba(255,255,255,0.28);
 
-  --green:   #32D74B;
+  --green:   #ADFF2F;
   --blue:    #0A84FF;
-  --red:     #FF453A;
+  --red:     #FF4B4B;
   --orange:  #FF9F0A;
   --purple:  #BF5AF2;
 
-  --accent-green: #32D74B;
+  --accent-green: #ADFF2F;
   --accent-blue:  #0A84FF;
-  --accent-cyan:  #32D74B;
+  --accent-cyan:  #ADFF2F;
 
-  --success: #32D74B;
-  --danger:  #FF453A;
+  --success: #ADFF2F;
+  --danger:  #FF4B4B;
   --warning: #FF9F0A;
 }
 
@@ -44,7 +44,7 @@ html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', sans-serif;
-  background: #000000;
+  background: #171717;
   color: #ffffff;
   min-height: 100vh;
   font-size: 14px;
@@ -64,8 +64,8 @@ body {
    ============================================================ */
 
 .kpi-card {
-  background: #111111;
-  border: 1px solid rgba(255,255,255,0.07);
+  background: #222222;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 14px;
   padding: 20px;
   transition: border-color 0.2s, background 0.2s;
@@ -74,20 +74,20 @@ body {
 }
 
 .kpi-card:hover {
-  background: #161616;
-  border-color: rgba(255,255,255,0.12);
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.13);
 }
 
 .chart-card {
-  background: #111111;
-  border: 1px solid rgba(255,255,255,0.07);
+  background: #222222;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
   overflow: hidden;
   transition: border-color 0.2s;
 }
 
 .chart-card:hover {
-  border-color: rgba(255,255,255,0.11);
+  border-color: rgba(255,255,255,0.13);
 }
 
 /* ============================================================
@@ -95,7 +95,7 @@ body {
    ============================================================ */
 
 .btn-primary {
-  background: #32D74B;
+  background: #ADFF2F;
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -113,12 +113,12 @@ body {
 }
 
 .btn-primary:hover {
-  background: #3AE057;
-  box-shadow: 0 4px 16px rgba(50,215,75,0.30);
+  background: #BEFF47;
+  box-shadow: 0 4px 16px rgba(173,255,47,0.30);
 }
 
 .btn-secondary {
-  background: #1a1a1a;
+  background: #2e2e2e;
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 8px;
   padding: 8px 16px;
@@ -135,7 +135,7 @@ body {
 }
 
 .btn-secondary:hover {
-  background: #222222;
+  background: #383838;
   border-color: rgba(255,255,255,0.18);
   color: #ffffff;
 }
@@ -166,7 +166,7 @@ body {
    ============================================================ */
 
 input, select, textarea {
-  background: #1a1a1a;
+  background: #2e2e2e;
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 8px;
   padding: 9px 13px;
@@ -179,13 +179,13 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: rgba(50,215,75,0.50);
-  background: #1e1e1e;
+  border-color: rgba(173,255,47,0.50);
+  background: #333333;
 }
 
 input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.22); }
 
-select option { background: #1a1a1a; color: #ffffff; }
+select option { background: #2e2e2e; color: #ffffff; }
 
 /* ============================================================
    TOGGLE  (Apple-style)
@@ -202,7 +202,7 @@ select option { background: #1a1a1a; color: #ffffff; }
   flex-shrink: 0;
 }
 
-.toggle-switch.active { background: #32D74B; }
+.toggle-switch.active { background: #ADFF2F; }
 
 .toggle-switch::after {
   content: '';
@@ -225,8 +225,8 @@ select option { background: #1a1a1a; color: #ffffff; }
 
 .tab-nav {
   display: inline-flex;
-  background: #111111;
-  border: 1px solid rgba(255,255,255,0.07);
+  background: #222222;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
   padding: 4px;
   gap: 2px;
@@ -254,7 +254,7 @@ select option { background: #1a1a1a; color: #ffffff; }
 }
 
 .tab-btn.active {
-  background: #32D74B;
+  background: #ADFF2F;
   color: #000000;
   font-weight: 600;
 }
@@ -275,7 +275,7 @@ select option { background: #1a1a1a; color: #ffffff; }
 }
 
 .modal-content {
-  background: #111111;
+  background: #222222;
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 18px;
   max-width: 800px;
@@ -286,9 +286,9 @@ select option { background: #1a1a1a; color: #ffffff; }
 }
 
 .modal-header {
-  background: #161616;
+  background: #2a2a2a;
   padding: 18px 22px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -298,9 +298,9 @@ select option { background: #1a1a1a; color: #ffffff; }
 .modal-body { padding: 22px; }
 
 .modal-footer {
-  background: #0d0d0d;
+  background: #1e1e1e;
   padding: 14px 22px;
-  border-top: 1px solid rgba(255,255,255,0.07);
+  border-top: 1px solid rgba(255,255,255,0.08);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -322,9 +322,9 @@ select option { background: #1a1a1a; color: #ffffff; }
   letter-spacing: 0.04em;
 }
 
-.badge-success { background: rgba(50,215,75,0.12);  color: #32D74B; border: 1px solid rgba(50,215,75,0.18); }
-.badge-danger  { background: rgba(255,69,58,0.12);  color: #FF453A; border: 1px solid rgba(255,69,58,0.18); }
-.badge-warning { background: rgba(255,159,10,0.12); color: #FF9F0A; border: 1px solid rgba(255,159,10,0.18); }
+.badge-success { background: rgba(173,255,47,0.12);  color: #ADFF2F; border: 1px solid rgba(173,255,47,0.20); }
+.badge-danger  { background: rgba(255,75,75,0.12);   color: #FF4B4B; border: 1px solid rgba(255,75,75,0.20); }
+.badge-warning { background: rgba(255,159,10,0.12);  color: #FF9F0A; border: 1px solid rgba(255,159,10,0.18); }
 .badge-neutral { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.40); border: 1px solid rgba(255,255,255,0.09); }
 
 /* ============================================================
@@ -339,7 +339,7 @@ select option { background: #1a1a1a; color: #ffffff; }
 }
 
 .data-table th {
-  background: #161616;
+  background: #2a2a2a;
   padding: 11px 14px;
   text-align: left;
   font-weight: 500;
@@ -347,7 +347,7 @@ select option { background: #1a1a1a; color: #ffffff; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 10.5px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .data-table td {
@@ -382,25 +382,25 @@ select option { background: #1a1a1a; color: #ffffff; }
 .min-h-screen { min-height: 100vh; }
 
 /* Backgrounds */
-.bg-dark-primary   { background-color: #000000; }
-.bg-dark-secondary { background-color: #0a0a0a; }
-.bg-dark-tertiary  { background-color: #1a1a1a; }
-.bg-dark-card      { background-color: #111111; }
+.bg-dark-primary   { background-color: #171717; }
+.bg-dark-secondary { background-color: #1e1e1e; }
+.bg-dark-tertiary  { background-color: #2e2e2e; }
+.bg-dark-card      { background-color: #222222; }
 
 /* Borders */
 .border-dark-border { border-color: rgba(255,255,255,0.07); }
 
 /* Text */
-.text-accent-green  { color: #32D74B; }
+.text-accent-green  { color: #ADFF2F; }
 .text-accent-blue   { color: #0A84FF; }
-.text-accent-cyan   { color: #32D74B; }
+.text-accent-cyan   { color: #ADFF2F; }
 .text-white         { color: #ffffff; }
 .text-gray-300      { color: rgba(255,255,255,0.72); }
 .text-gray-400      { color: rgba(255,255,255,0.52); }
 .text-gray-500      { color: rgba(255,255,255,0.32); }
 .text-gray-600      { color: rgba(255,255,255,0.20); }
-.text-green-400     { color: #32D74B; }
-.text-red-400       { color: #FF453A; }
+.text-green-400     { color: #ADFF2F; }
+.text-red-400       { color: #FF4B4B; }
 .text-orange-400    { color: #FF9F0A; }
 .text-orange-500    { color: #FF9F0A; }
 .text-purple-400    { color: #BF5AF2; }

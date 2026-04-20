@@ -8,16 +8,16 @@ module.exports = {
     extend: {
       colors: {
         dark: {
-          primary:   '#000000',
-          secondary: '#0a0a0a',
-          tertiary:  'rgba(255,255,255,0.05)',
-          card:      'rgba(255,255,255,0.04)',
+          primary:   '#171717',
+          secondary: '#1e1e1e',
+          tertiary:  '#2e2e2e',
+          card:      '#222222',
           border:    'rgba(255,255,255,0.08)',
         },
         accent: {
-          green:  '#30D158',
+          green:  '#ADFF2F',
           blue:   '#0A84FF',
-          cyan:   '#5AC8FA',
+          cyan:   '#ADFF2F',
           purple: '#BF5AF2',
           orange: '#FF9F0A',
         }

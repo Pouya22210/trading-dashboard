@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Zap, Clock, Menu, X } from 'lucide-react'
+import { Sparkles, Clock, Menu, X } from 'lucide-react'
 
 export default function Navbar() {
   const location = useLocation()
@@ -26,10 +26,10 @@ export default function Navbar() {
   return (
     <>
       <nav style={{
-        background: 'rgba(0, 0, 0, 0.72)',
+        background: 'rgba(23, 23, 23, 0.90)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -43,22 +43,33 @@ export default function Navbar() {
                 width: '34px',
                 height: '34px',
                 borderRadius: '10px',
-                background: 'rgba(48, 209, 88, 0.15)',
-                border: '1px solid rgba(48, 209, 88, 0.25)',
+                background: 'rgba(173, 255, 47, 0.15)',
+                border: '1px solid rgba(173, 255, 47, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Zap style={{ width: '16px', height: '16px', color: '#30D158' }} />
+                <Sparkles style={{ width: '16px', height: '16px', color: '#ADFF2F' }} />
               </div>
-              <span style={{
-                fontSize: '15px',
-                fontWeight: '600',
-                color: '#ffffff',
-                letterSpacing: '-0.02em',
-              }}>
-                Trading Analytics
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  color: '#ffffff',
+                  letterSpacing: '-0.02em',
+                  lineHeight: '1.2',
+                }}>
+                  Trading Dashboard
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  color: 'rgba(255,255,255,0.35)',
+                  letterSpacing: '0',
+                  lineHeight: '1.2',
+                }}>
+                  Track your trading performance with real-time insights
+                </span>
+              </div>
             </div>
 
             {/* Desktop Tabs */}
@@ -81,17 +92,17 @@ export default function Navbar() {
               <div className="hidden lg:flex items-center gap-2" style={{
                 padding: '5px 12px',
                 borderRadius: '20px',
-                background: 'rgba(48, 209, 88, 0.08)',
-                border: '1px solid rgba(48, 209, 88, 0.20)',
+                background: 'rgba(173, 255, 47, 0.08)',
+                border: '1px solid rgba(173, 255, 47, 0.20)',
               }}>
                 <span style={{
                   width: '6px', height: '6px',
                   borderRadius: '50%',
-                  background: '#30D158',
+                  background: '#ADFF2F',
                   display: 'inline-block',
                   animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
                 }} />
-                <span style={{ fontSize: '11px', fontWeight: '600', color: '#30D158', letterSpacing: '0.06em' }}>
+                <span style={{ fontSize: '11px', fontWeight: '600', color: '#ADFF2F', letterSpacing: '0.06em' }}>
                   LIVE
                 </span>
               </div>
@@ -141,7 +152,7 @@ export default function Navbar() {
           top: '60px',
           height: 'calc(100vh - 60px)',
           width: '280px',
-          background: 'rgba(10,10,10,0.95)',
+          background: 'rgba(23,23,23,0.97)',
           backdropFilter: 'blur(40px) saturate(180%)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%)',
           borderLeft: '1px solid rgba(255,255,255,0.08)',
@@ -163,7 +174,7 @@ export default function Navbar() {
                 fontSize: '15px',
                 fontWeight: location.pathname === tab.path ? '600' : '400',
                 color: location.pathname === tab.path ? '#000000' : 'rgba(255,255,255,0.7)',
-                background: location.pathname === tab.path ? '#30D158' : 'transparent',
+                background: location.pathname === tab.path ? '#ADFF2F' : 'rgba(255,255,255,0.04)',
                 textDecoration: 'none',
                 transition: 'all 0.2s',
               }}

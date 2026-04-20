@@ -8,7 +8,7 @@ import ActivityLogPanel from '../components/ActivityLogPanel'
 
 // Color palette
 const COLORS = {
-  green: '#3fb950',
+  green: '#ADFF2F',
   red: '#f85149',
   blue: '#58a6ff',
   cyan: '#39d5ff',

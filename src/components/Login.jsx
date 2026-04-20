@@ -30,8 +30,8 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ background: 'rgba(48,209,88,0.10)', border: '1px solid rgba(48,209,88,0.25)' }}>
-            <Shield className="w-8 h-8" style={{ color: '#30D158' }} />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ background: 'rgba(173,255,47,0.10)', border: '1px solid rgba(173,255,47,0.25)' }}>
+            <Shield className="w-8 h-8" style={{ color: '#ADFF2F' }} />
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">{title}</h1>
           <p className="text-gray-400 text-sm">
@@ -45,7 +45,7 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
             {/* Password Field */}
             <div>
               <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                <Lock className="w-3 h-3" style={{ color: '#30D158' }} />
+                <Lock className="w-3 h-3" style={{ color: '#ADFF2F' }} />
                 Password
               </label>
               <div className="relative">
@@ -86,7 +86,7 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
               disabled={!password || isLoading}
               style={!password || isLoading
                 ? { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.25)', cursor: 'not-allowed', borderRadius: '10px', padding: '12px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }
-                : { background: '#30D158', color: '#000000', cursor: 'pointer', borderRadius: '10px', padding: '12px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }
+                : { background: '#ADFF2F', color: '#000000', cursor: 'pointer', borderRadius: '10px', padding: '12px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }
               }
             >
               {isLoading ? (

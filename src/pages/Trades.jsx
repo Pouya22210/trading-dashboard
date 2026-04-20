@@ -24,7 +24,7 @@ const CHANNEL_COLORS = [
 
 '#58a6ff', // blue
 
-'#3fb950', // green
+'#ADFF2F', // green
 
 '#f85149', // red
 
@@ -48,7 +48,7 @@ const CHANNEL_COLORS = [
 
 const COLORS = {
 
-green: '#3fb950',
+green: '#ADFF2F',
 
 red: '#f85149',
 
@@ -148,7 +148,7 @@ startHour: 8,
 
 endHour: 17,
 
-color: '#3fb950', // green
+color: '#ADFF2F', // green
 
 crossesMidnight: false
 
@@ -3137,7 +3137,7 @@ width={120}
 
 <Tooltip
 
-contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
+contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }}
 
 formatter={(value, name, props) => [`$${value.toFixed(2)}`, props.payload.fullName]}
 
@@ -3207,7 +3207,7 @@ width={120}
 
 <Tooltip
 
-contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }}
+contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }}
 
 formatter={(value, name, props) => [
 
@@ -3601,7 +3601,7 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
 
 <YAxis stroke="#6e7681" fontSize={11} />
 
-<Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+<Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
 <Legend wrapperStyle={{ paddingTop: 10 }} />
 
@@ -3633,7 +3633,7 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
 
 <YAxis stroke="#6e7681" fontSize={11} />
 
-<Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+<Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
 
@@ -3671,7 +3671,7 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
 
 <YAxis stroke="#6e7681" fontSize={11} />
 
-<Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+<Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
 
@@ -3721,7 +3721,7 @@ return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toF
 
 <YAxis stroke="#6e7681" fontSize={11} domain={[0, 100]} />
 
-<Tooltip contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: 8 }} />
+<Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
 <Line type="monotone" dataKey="winRate" stroke={COLORS.cyan} strokeWidth={2} dot={false} />
 
