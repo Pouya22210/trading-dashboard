@@ -21,24 +21,44 @@ export default function Navbar() {
     { path: '/backtest', label: 'Back Test' },
   ]
 
-  const handleNavClick = () => {
-    setMobileMenuOpen(false)
-  }
+  const handleNavClick = () => setMobileMenuOpen(false)
 
   return (
     <>
-      <nav className="bg-dark-secondary border-b border-dark-border sticky top-0 z-50 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <nav style={{
+        background: 'rgba(0, 0, 0, 0.72)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+      }}>
+        <div className="max-w-7xl mx-auto px-4" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
+          <div className="flex items-center justify-between" style={{ height: '60px' }}>
 
             {/* Logo */}
             <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-dark-tertiary to-dark-secondary border border-dark-border flex items-center justify-center">
-                <Zap className="w-5 h-5 text-accent-cyan" />
+              <div style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
+                background: 'rgba(48, 209, 88, 0.15)',
+                border: '1px solid rgba(48, 209, 88, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Zap style={{ width: '16px', height: '16px', color: '#30D158' }} />
               </div>
-              <div className="text-sm sm:text-base font-bold text-white tracking-tight">
+              <span style={{
+                fontSize: '15px',
+                fontWeight: '600',
+                color: '#ffffff',
+                letterSpacing: '-0.02em',
+              }}>
                 Trading Analytics
-              </div>
+              </span>
             </div>
 
             {/* Desktop Tabs */}
@@ -55,33 +75,50 @@ export default function Navbar() {
             </div>
 
             {/* Right Side */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-3 flex-shrink-0">
 
-              {/* LIVE badge – desktop only */}
-              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-green-500/10">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                <span className="text-xs font-bold text-green-500 tracking-wider">
+              {/* LIVE badge */}
+              <div className="hidden lg:flex items-center gap-2" style={{
+                padding: '5px 12px',
+                borderRadius: '20px',
+                background: 'rgba(48, 209, 88, 0.08)',
+                border: '1px solid rgba(48, 209, 88, 0.20)',
+              }}>
+                <span style={{
+                  width: '6px', height: '6px',
+                  borderRadius: '50%',
+                  background: '#30D158',
+                  display: 'inline-block',
+                  animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
+                }} />
+                <span style={{ fontSize: '11px', fontWeight: '600', color: '#30D158', letterSpacing: '0.06em' }}>
                   LIVE
                 </span>
               </div>
 
-              {/* Clock – desktop only */}
-              <div className="hidden lg:flex items-center gap-2 text-gray-500">
-                <Clock className="w-4 h-4" />
-                <span className="font-mono text-xs">{currentTime}</span>
+              {/* Clock */}
+              <div className="hidden lg:flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                <Clock style={{ width: '13px', height: '13px' }} />
+                <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
               </div>
 
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 bg-dark-tertiary border border-dark-border rounded-lg"
+                className="lg:hidden"
+                style={{
+                  padding: '8px',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
                 aria-label="Toggle menu"
               >
-                {mobileMenuOpen ? (
-                  <X className="w-5 h-5 text-white" />
-                ) : (
-                  <Menu className="w-5 h-5 text-white" />
-                )}
+                {mobileMenuOpen
+                  ? <X style={{ width: '18px', height: '18px', color: 'white' }} />
+                  : <Menu style={{ width: '18px', height: '18px', color: 'white' }} />
+                }
               </button>
             </div>
           </div>
@@ -91,37 +128,45 @@ export default function Navbar() {
       {/* Mobile Overlay */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/60 z-40"
-          style={{ top: '64px' }}
+          className="lg:hidden fixed inset-0"
+          style={{ top: '60px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 40 }}
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Slide Menu */}
       <div
-        className={`
-          lg:hidden fixed right-0 w-full sm:w-80 bg-dark-secondary
-          border-l border-dark-border shadow-2xl z-50
-          transform transition-transform duration-300 ease-in-out
-          ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}
-        `}
+        className="lg:hidden fixed right-0"
         style={{
-          top: '64px',
-          height: 'calc(100vh - 64px)',
+          top: '60px',
+          height: 'calc(100vh - 60px)',
+          width: '280px',
+          background: 'rgba(10,10,10,0.95)',
+          backdropFilter: 'blur(40px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          zIndex: 50,
+          transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
-        <div className="p-6 space-y-2">
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {tabs.map(tab => (
             <Link
               key={tab.path}
               to={tab.path}
               onClick={handleNavClick}
-              className={`
-                block px-4 py-3.5 rounded-lg text-base font-medium
-                ${location.pathname === tab.path
-                  ? 'bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary'
-                  : 'text-gray-300 hover:bg-dark-tertiary hover:text-white'}
-              `}
+              style={{
+                display: 'block',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: location.pathname === tab.path ? '600' : '400',
+                color: location.pathname === tab.path ? '#000000' : 'rgba(255,255,255,0.7)',
+                background: location.pathname === tab.path ? '#30D158' : 'transparent',
+                textDecoration: 'none',
+                transition: 'all 0.2s',
+              }}
             >
               {tab.label}
             </Link>
