@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Sparkles, Clock, Menu, X } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export default function Navbar() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
+  const [channelCount, setChannelCount] = useState(null)
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -14,10 +16,31 @@ export default function Navbar() {
     return () => clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    async function loadChannelCount() {
+      try {
+        const { count } = await supabase.from('channels').select('*', { count: 'exact', head: true })
+        setChannelCount(count ?? 0)
+      } catch {
+        // silently ignore
+      }
+    }
+    loadChannelCount()
+
+    const subscription = supabase
+      .channel('navbar-channels')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, () => {
+        loadChannelCount()
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(subscription)
+  }, [])
+
   const tabs = [
     { path: '/', label: 'Dashboard' },
     { path: '/trades', label: 'Trades & Analysis' },
-    { path: '/channels', label: 'Channels' },
+    { path: '/channels', label: 'Channels', showCount: true },
     { path: '/backtest', label: 'Back Test' },
   ]
 
@@ -79,8 +102,27 @@ export default function Navbar() {
                   key={tab.path}
                   to={tab.path}
                   className={`tab-btn ${location.pathname === tab.path ? 'active' : ''}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
                   {tab.label}
+                  {tab.showCount && channelCount !== null && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '18px',
+                      height: '18px',
+                      padding: '0 5px',
+                      borderRadius: '9px',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      background: location.pathname === tab.path ? 'rgba(0,0,0,0.25)' : 'rgba(173,255,47,0.15)',
+                      color: location.pathname === tab.path ? 'inherit' : '#ADFF2F',
+                      border: location.pathname === tab.path ? '1px solid rgba(0,0,0,0.2)' : '1px solid rgba(173,255,47,0.3)',
+                    }}>
+                      {channelCount}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>
@@ -168,7 +210,9 @@ export default function Navbar() {
               to={tab.path}
               onClick={handleNavClick}
               style={{
-                display: 'block',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 padding: '12px 16px',
                 borderRadius: '10px',
                 fontSize: '15px',
@@ -180,6 +224,24 @@ export default function Navbar() {
               }}
             >
               {tab.label}
+              {tab.showCount && channelCount !== null && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '20px',
+                  height: '20px',
+                  padding: '0 6px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  background: location.pathname === tab.path ? 'rgba(0,0,0,0.2)' : 'rgba(173,255,47,0.15)',
+                  color: location.pathname === tab.path ? '#000000' : '#ADFF2F',
+                  border: location.pathname === tab.path ? '1px solid rgba(0,0,0,0.15)' : '1px solid rgba(173,255,47,0.3)',
+                }}>
+                  {channelCount}
+                </span>
+              )}
             </Link>
           ))}
         </div>

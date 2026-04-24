@@ -195,8 +195,8 @@ export default function Dashboard() {
       ch.winRate = totalWL > 0 ? (ch.wins / totalWL) * 100 : 0
     })
     
-    // Sort by P&L
-    const sorted = Object.values(channelStats).sort((a, b) => b.pnl - a.pnl)
+    // Sort by wins - losses
+    const sorted = Object.values(channelStats).sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses))
     
     return {
       top5: sorted.slice(0, 5),

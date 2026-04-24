@@ -987,6 +987,12 @@ const [selectedChannelIds, setSelectedChannelIds] = useState([])
 
 const [ganttTimeRange, setGanttTimeRange] = useState('all')
 
+// Gantt chart pagination
+const [ganttPage, setGanttPage] = useState(1)
+
+// Outcome distribution pagination
+const [outcomePage, setOutcomePage] = useState(1)
+
 
 // Logarithmic scale toggle for cumulative P&L
 
@@ -1895,6 +1901,36 @@ const netPnL = closedTrades.reduce((sum, t) => sum + (t.profit_loss || 0), 0)
 
 const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 0
 
+// Drawdown calculation based on channel risk (not P&L)
+const maxDrawdown = useMemo(() => {
+  const channelRiskMap = {}
+  channels.forEach(ch => {
+    channelRiskMap[ch.id] = (ch.risk_per_trade || 0.01) * 100
+  })
+
+  const sortedClosed = analysisTrades
+    .filter(t => t.status === 'closed' && (t.outcome === 'profit' || t.outcome === 'loss') && t.close_time)
+    .sort((a, b) => new Date(a.close_time) - new Date(b.close_time))
+
+  let cumulative = 0
+  let peak = 0
+  let maxDD = 0
+
+  sortedClosed.forEach(trade => {
+    const riskPct = channelRiskMap[trade.channel_id] ?? 1
+    if (trade.outcome === 'profit') {
+      cumulative += riskPct
+    } else {
+      cumulative -= riskPct
+    }
+    if (cumulative > peak) peak = cumulative
+    const dd = peak - cumulative
+    if (dd > maxDD) maxDD = dd
+  })
+
+  return maxDD
+}, [analysisTrades, channels])
+
 
 
 // Chart data: Outcome by Side (uses analysisTrades)
@@ -1973,6 +2009,8 @@ setSelectedChannelIds([])
 
 setCurrentPage(1)
 setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])
+setOutcomePage(1)
+setGanttPage(1)
 }
 
 
@@ -2422,61 +2460,6 @@ className="w-full"
 
 
 
-{/* Stats Summary in Sidebar */}
-
-<div className="space-y-3 mb-6 pt-4 border-t border-dark-border">
-
-<div className="bg-dark-tertiary/50 rounded-lg p-3">
-
-<div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Analysis Trades</div>
-
-<div className="text-2xl font-bold font-mono text-white">{analysisTrades.length}</div>
-
-<div className="text-xs text-gray-500 mt-1">
-  {filteredTrades.length !== analysisTrades.length && (
-    <span>{filteredTrades.length} total ({filteredTrades.length - analysisTrades.length} non-policy cancels excluded)</span>
-  )}
-</div>
-
-</div>
-
-<div className="bg-dark-tertiary/50 rounded-lg p-3">
-
-<div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&L</div>
-
-<div className={`text-2xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-
-{netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
-
-</div>
-
-</div>
-
-<div className="bg-dark-tertiary/50 rounded-lg p-3">
-
-<div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
-
-<div className="text-2xl font-bold font-mono text-white">{winRate}%</div>
-
-</div>
-
-<div className="bg-dark-tertiary/50 rounded-lg p-3">
-
-<div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
-
-<div className="text-xl font-bold font-mono">
-
-<span className="text-green-400">{wins}</span>
-
-<span className="text-gray-600 mx-1">/</span>
-
-<span className="text-red-400">{losses}</span>
-
-</div>
-
-</div>
-
-</div>
 
 
 
@@ -2522,7 +2505,43 @@ className="lg:hidden fixed bottom-6 right-6 z-30 p-4 bg-gradient-to-r from-accen
 
 <div className="p-4 sm:p-6 lg:p-8 max-w-full">
 
-
+{/* Stats Summary */}
+<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Analysis Trades</div>
+    <div className="text-2xl font-bold font-mono text-white">{analysisTrades.length}</div>
+    {filteredTrades.length !== analysisTrades.length && (
+      <div className="text-xs text-gray-500 mt-1">
+        {filteredTrades.length} total ({filteredTrades.length - analysisTrades.length} non-policy cancels excluded)
+      </div>
+    )}
+  </div>
+  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&amp;L</div>
+    <div className={`text-2xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+      {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
+    </div>
+  </div>
+  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
+    <div className="text-2xl font-bold font-mono text-white">{winRate}%</div>
+  </div>
+  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
+    <div className="text-xl font-bold font-mono">
+      <span className="text-green-400">{wins}</span>
+      <span className="text-gray-600 mx-1">/</span>
+      <span className="text-red-400">{losses}</span>
+    </div>
+  </div>
+  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Max Drawdown</div>
+    <div className="text-2xl font-bold font-mono text-red-400">
+      {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
+    </div>
+    <div className="text-xs text-gray-500 mt-1">risk-based</div>
+  </div>
+</div>
 
 {/* Trades Table */}
 
@@ -2899,7 +2918,7 @@ No closed trades with dates to display
 
 key={option.key}
 
-onClick={() => setGanttTimeRange(option.key)}
+onClick={() => { setGanttTimeRange(option.key); setGanttPage(1) }}
 
 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
 
@@ -2932,8 +2951,11 @@ ganttTimeRange === option.key
 
 {/* Gantt Chart */}
 
-{ganttChartData.channels.length > 0 ? (
-
+{ganttChartData.channels.length > 0 ? (() => {
+const GANTT_PER_PAGE = 10
+const ganttTotalPages = Math.ceil(ganttChartData.channels.length / GANTT_PER_PAGE)
+const paginatedGanttChannels = ganttChartData.channels.slice((ganttPage - 1) * GANTT_PER_PAGE, ganttPage * GANTT_PER_PAGE)
+return (
 <div className="relative overflow-x-auto">
 
 {/* Timeline header */}
@@ -2955,7 +2977,7 @@ ganttTimeRange === option.key
 
 <div className="space-y-2 min-w-[600px]">
 
-{ganttChartData.channels.map((channel, idx) => {
+{paginatedGanttChannels.map((channel, idx) => {
 
 const startPercent = ganttChartData.totalRange > 0
 
@@ -3091,9 +3113,43 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 </div>
 
-</div>
+{/* Gantt Pagination */}
+{ganttTotalPages > 1 && (
+  <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-border/50">
+    <span className="text-xs text-gray-500">
+      Showing {(ganttPage - 1) * GANTT_PER_PAGE + 1}–{Math.min(ganttPage * GANTT_PER_PAGE, ganttChartData.channels.length)} of {ganttChartData.channels.length} channels
+    </span>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => setGanttPage(p => Math.max(1, p - 1))}
+        disabled={ganttPage === 1}
+        className="px-3 py-1.5 text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Prev
+      </button>
+      {Array.from({ length: ganttTotalPages }, (_, i) => i + 1).map(page => (
+        <button
+          key={page}
+          onClick={() => setGanttPage(page)}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${ganttPage === page ? 'bg-accent-cyan text-dark-primary font-semibold' : 'bg-dark-tertiary text-gray-400 hover:text-white'}`}
+        >
+          {page}
+        </button>
+      ))}
+      <button
+        onClick={() => setGanttPage(p => Math.min(ganttTotalPages, p + 1))}
+        disabled={ganttPage === ganttTotalPages}
+        className="px-3 py-1.5 text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Next
+      </button>
+    </div>
+  </div>
+)}
 
-) : (
+</div>
+)
+})() : (
 
 <div className="flex items-center justify-center h-64 text-gray-500">
 
@@ -3467,15 +3523,18 @@ onChange={toggleOutcome}
 </div>
 
 
-{outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (
-
+{outcomeByChannelData.length > 0 && selectedOutcomes.length > 0 ? (() => {
+const OUTCOME_PER_PAGE = 15
+const outcomeTotalPages = Math.ceil(outcomeByChannelData.length / OUTCOME_PER_PAGE)
+const paginatedOutcomeData = outcomeByChannelData.slice((outcomePage - 1) * OUTCOME_PER_PAGE, outcomePage * OUTCOME_PER_PAGE)
+return (
 <div className="w-full min-w-[300px]">
 
-<ResponsiveContainer width="100%" height={Math.max(400, outcomeByChannelData.length * 32)}>
+<ResponsiveContainer width="100%" height={Math.max(300, paginatedOutcomeData.length * 34)}>
 
 <BarChart
 
-data={outcomeByChannelData}
+data={paginatedOutcomeData}
 
 layout="vertical"
 
@@ -3561,9 +3620,43 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
 
 </ResponsiveContainer>
 
-</div>
+{/* Outcome Pagination */}
+{outcomeTotalPages > 1 && (
+  <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-border/50">
+    <span className="text-xs text-gray-500">
+      Showing {(outcomePage - 1) * OUTCOME_PER_PAGE + 1}–{Math.min(outcomePage * OUTCOME_PER_PAGE, outcomeByChannelData.length)} of {outcomeByChannelData.length} channels
+    </span>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => setOutcomePage(p => Math.max(1, p - 1))}
+        disabled={outcomePage === 1}
+        className="px-3 py-1.5 text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Prev
+      </button>
+      {Array.from({ length: outcomeTotalPages }, (_, i) => i + 1).map(page => (
+        <button
+          key={page}
+          onClick={() => setOutcomePage(page)}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${outcomePage === page ? 'bg-accent-cyan text-dark-primary font-semibold' : 'bg-dark-tertiary text-gray-400 hover:text-white'}`}
+        >
+          {page}
+        </button>
+      ))}
+      <button
+        onClick={() => setOutcomePage(p => Math.min(outcomeTotalPages, p + 1))}
+        disabled={outcomePage === outcomeTotalPages}
+        className="px-3 py-1.5 text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Next
+      </button>
+    </div>
+  </div>
+)}
 
-) : (
+</div>
+)
+})() : (
 
 <div className="flex items-center justify-center h-64 text-gray-500">
 
