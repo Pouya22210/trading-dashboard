@@ -2719,6 +2719,15 @@ onPageChange={handlePageChange}
 
 {/* Log Scale Toggle */}
 
+{(() => {
+  const allValues = cumulativePnLData.flatMap(point =>
+    Object.entries(point).filter(([k]) => k !== 'date').map(([, v]) => v)
+  ).filter(v => typeof v === 'number')
+  const canUseLogScale = allValues.length > 0 && allValues.every(v => v > 0)
+  const effectiveLogScale = useLogScale && canUseLogScale
+
+  return (
+<>
 <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-dark-border/50">
 
 <div className="text-sm text-gray-400">
@@ -2727,13 +2736,17 @@ Track each channel's cumulative performance over time
 
 </div>
 
+<div className="flex items-center gap-2">
+{useLogScale && !canUseLogScale && (
+  <span className="text-xs text-yellow-400/80">Log scale unavailable (chart contains non-positive values)</span>
+)}
 <button
 
 onClick={() => setUseLogScale(!useLogScale)}
 
 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
 
-useLogScale
+effectiveLogScale
 
 ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30'
 
@@ -2743,9 +2756,10 @@ useLogScale
 
 >
 
-<span>{useLogScale ? '📊 Logarithmic Scale' : '📈 Linear Scale'}</span>
+<span>{effectiveLogScale ? '📊 Logarithmic Scale' : '📈 Linear Scale'}</span>
 
 </button>
+</div>
 
 </div>
 
@@ -2754,7 +2768,7 @@ useLogScale
 
 <div className="w-full min-w-[300px]">
 
-<ResponsiveContainer width="100%" height={800}>
+<ResponsiveContainer key={String(effectiveLogScale)} width="100%" height={800}>
 
 <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 50, bottom: 60 }}>
 
@@ -2784,9 +2798,9 @@ fontSize={11}
 
 tickFormatter={(value) => `$${value.toFixed(0)}`}
 
-scale={useLogScale ? "log" : "linear"}
+scale={effectiveLogScale ? "log" : "linear"}
 
-domain={useLogScale ? ['auto', 'auto'] : ['auto', 'auto']}
+domain={effectiveLogScale ? ['auto', 'auto'] : ['auto', 'auto']}
 
 allowDataOverflow={false}
 
@@ -2883,6 +2897,9 @@ No closed trades with dates to display
 </div>
 
 )}
+</>
+  )
+})()}
 
 </ChartCard>
 
