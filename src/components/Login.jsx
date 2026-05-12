@@ -87,7 +87,15 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
 
             {/* Error Message */}
             {error && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <div
+                className="flex items-center gap-2 px-3 py-2 text-sm"
+                style={{
+                  background: 'var(--neu-bg)',
+                  borderRadius: '12px',
+                  boxShadow: 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(255,92,92,0.22)',
+                  color: 'var(--red)',
+                }}
+              >
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>

@@ -7,83 +7,25 @@ import {
 import { formatDistanceToNow, format } from 'date-fns'
 import { fetchChannelEvents, subscribeToChannelEvents } from '../lib/channelEvents'
 
-// Event type configurations
+// Event type configurations — accent colors kept; backgrounds and
+// borders are handled via neumorphism (raised/pressed surfaces).
 const EVENT_CONFIG = {
-  channel_created: {
-    icon: Plus,
-    color: 'text-green-400',
-    bgColor: 'bg-green-500/10',
-    borderColor: 'border-green-500/30',
-    label: 'Channel Created',
-    badgeColor: 'bg-green-500/20 text-green-400'
-  },
-  channel_updated: {
-    icon: Edit3,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-500/10',
-    borderColor: 'border-blue-500/30',
-    label: 'Settings Updated',
-    badgeColor: 'bg-blue-500/20 text-blue-400'
-  },
-  channel_deleted: {
-    icon: Trash2,
-    color: 'text-red-400',
-    bgColor: 'bg-red-500/10',
-    borderColor: 'border-red-500/30',
-    label: 'Channel Deleted',
-    badgeColor: 'bg-red-500/20 text-red-400'
-  },
-  channel_enabled: {
-    icon: ToggleRight,
-    color: 'text-green-400',
-    bgColor: 'bg-green-500/10',
-    borderColor: 'border-green-500/30',
-    label: 'Channel Enabled',
-    badgeColor: 'bg-green-500/20 text-green-400'
-  },
-  channel_disabled: {
-    icon: ToggleLeft,
-    color: 'text-orange-400',
-    bgColor: 'bg-orange-500/10',
-    borderColor: 'border-orange-500/30',
-    label: 'Channel Disabled',
-    badgeColor: 'bg-orange-500/20 text-orange-400'
-  },
-  telegram_name_changed: {
-    icon: RefreshCw,
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/10',
-    borderColor: 'border-purple-500/30',
-    label: 'Name Changed',
-    badgeColor: 'bg-purple-500/20 text-purple-400'
-  },
-  policy_updated: {
-    icon: Settings,
-    color: 'text-cyan-400',
-    bgColor: 'bg-cyan-500/10',
-    borderColor: 'border-cyan-500/30',
-    label: 'Policy Updated',
-    badgeColor: 'bg-cyan-500/20 text-cyan-400'
-  },
-  settings_updated: {
-    icon: Settings,
-    color: 'text-gray-400',
-    bgColor: 'bg-gray-500/10',
-    borderColor: 'border-gray-500/30',
-    label: 'Settings Updated',
-    badgeColor: 'bg-gray-500/20 text-gray-400'
-  }
+  channel_created:       { icon: Plus,       color: '#ADFF2F',          label: 'Channel Created' },
+  channel_updated:       { icon: Edit3,      color: 'var(--blue)',      label: 'Settings Updated' },
+  channel_deleted:       { icon: Trash2,     color: 'var(--red)',       label: 'Channel Deleted' },
+  channel_enabled:       { icon: ToggleRight, color: '#ADFF2F',         label: 'Channel Enabled' },
+  channel_disabled:      { icon: ToggleLeft, color: 'var(--orange)',    label: 'Channel Disabled' },
+  telegram_name_changed: { icon: RefreshCw,  color: 'var(--purple)',    label: 'Name Changed' },
+  policy_updated:        { icon: Settings,   color: '#ADFF2F',          label: 'Policy Updated' },
+  settings_updated:      { icon: Settings,   color: 'rgba(232,234,239,0.58)', label: 'Settings Updated' },
 }
 
 // Get config with fallback
 function getEventConfig(eventType) {
   return EVENT_CONFIG[eventType] || {
     icon: Clock,
-    color: 'text-gray-400',
-    bgColor: 'bg-gray-500/10',
-    borderColor: 'border-gray-500/30',
+    color: 'rgba(232,234,239,0.58)',
     label: eventType,
-    badgeColor: 'bg-gray-500/20 text-gray-400'
   }
 }
 
@@ -115,16 +57,31 @@ function ChangeRow({ field, oldValue, newValue }) {
   const formattedNew = formatValue(newValue)
   
   return (
-    <div className="flex items-center gap-2 py-2 px-3 bg-dark-tertiary/30 rounded-lg text-sm">
+    <div
+      className="flex items-center gap-2 py-2 px-3 text-sm"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '12px',
+        boxShadow: 'var(--neu-pressed-sm)',
+      }}
+    >
       <span className="text-gray-400 min-w-[100px] text-xs font-medium">
         {formattedField}
       </span>
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="text-red-400/80 line-through truncate max-w-[80px]" title={formattedOld}>
+        <span
+          className="line-through truncate max-w-[80px]"
+          style={{ color: 'rgba(255,92,92,0.75)' }}
+          title={formattedOld}
+        >
           {formattedOld}
         </span>
         <ArrowRight className="w-3 h-3 text-gray-500 flex-shrink-0" />
-        <span className="text-green-400 font-medium truncate max-w-[80px]" title={formattedNew}>
+        <span
+          className="font-medium truncate max-w-[80px]"
+          style={{ color: '#ADFF2F' }}
+          title={formattedNew}
+        >
           {formattedNew}
         </span>
       </div>
@@ -210,40 +167,64 @@ function EventCard({ event, isExpanded, onToggle }) {
   const policyName = eventData.policy ? formatFieldName(eventData.policy) : null
   
   return (
-    <div className={`rounded-xl border transition-all ${config.borderColor} ${config.bgColor} overflow-hidden`}>
+    <div
+      className="transition-all overflow-hidden"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '18px',
+        boxShadow: 'var(--neu-raised-sm)',
+      }}
+    >
       {/* Header - always visible */}
-      <div 
-        className={`p-4 ${hasChanges ? 'cursor-pointer hover:bg-white/5' : ''}`}
+      <div
+        className={`p-4 ${hasChanges ? 'cursor-pointer' : ''}`}
         onClick={() => hasChanges && onToggle(event.id)}
       >
         <div className="flex items-start gap-3">
           {/* Icon */}
-          <div className={`p-2 rounded-lg ${config.bgColor} border ${config.borderColor} flex-shrink-0`}>
-            <Icon className={`w-4 h-4 ${config.color}`} />
+          <div
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-pressed-sm)',
+            }}
+          >
+            <Icon className="w-4 h-4" style={{ color: config.color }} />
           </div>
-          
+
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${config.badgeColor}`}>
+              <span
+                className="text-xs font-semibold px-2.5 py-1"
+                style={{
+                  color: config.color,
+                  background: 'var(--neu-bg)',
+                  borderRadius: '9999px',
+                  boxShadow: 'var(--neu-pressed-sm)',
+                }}
+              >
                 {config.label}
               </span>
               <span className="text-xs text-gray-500">
                 {formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}
               </span>
             </div>
-            
+
             <p className="text-sm text-white font-medium truncate" title={channelName}>
               {channelName}
             </p>
-            
+
             {/* Show policy name for policy updates */}
             {policyName && (
               <p className="text-xs text-gray-400 mt-0.5">
                 {policyName}
               </p>
             )}
-            
+
             {/* Quick preview of changes count */}
             {hasChanges && !isExpanded && (
               <p className="text-xs text-gray-500 mt-1">
@@ -251,10 +232,22 @@ function EventCard({ event, isExpanded, onToggle }) {
               </p>
             )}
           </div>
-          
+
           {/* Expand button */}
           {hasChanges && (
-            <button className={`p-1 rounded ${config.color} opacity-60 hover:opacity-100 transition-opacity`}>
+            <button
+              className="flex items-center justify-center transition-opacity"
+              style={{
+                width: '28px',
+                height: '28px',
+                color: config.color,
+                background: 'var(--neu-bg)',
+                border: 'none',
+                borderRadius: '9px',
+                boxShadow: 'var(--neu-raised-sm)',
+                cursor: 'pointer',
+              }}
+            >
               {isExpanded ? (
                 <ChevronUp className="w-4 h-4" />
               ) : (
@@ -264,13 +257,16 @@ function EventCard({ event, isExpanded, onToggle }) {
           )}
         </div>
       </div>
-      
+
       {/* Expanded changes section */}
       {isExpanded && hasChanges && (
-        <div className="px-4 pb-4 space-y-2 border-t border-white/5 pt-3">
+        <div
+          className="px-4 pb-4 space-y-2 pt-3"
+          style={{ boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.25)' }}
+        >
           <div className="text-xs text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
             <span>Changes</span>
-            <div className="flex-1 h-px bg-dark-border" />
+            <div className="flex-1" style={{ height: '1px', background: 'rgba(0,0,0,0.3)' }} />
           </div>
           {changes.map((change, idx) => (
             <ChangeRow 
@@ -354,26 +350,47 @@ export default function ActivityLogPanel({ className = '' }) {
     : events.filter(e => e.event_type === filter)
 
   return (
-    <div className={`chart-card backdrop-blur-sm ${className}`}>
+    <div className={`chart-card ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+      <div
+        className="flex items-center justify-between gap-3 px-5 py-4"
+        style={{
+          background: 'var(--neu-bg)',
+          boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35), inset 0 -2px 0 rgba(255,255,255,0.02)',
+        }}
+      >
         <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-md bg-purple-500/10">
-            <History className="w-4 h-4 text-purple-400" />
+          <div
+            className="flex items-center justify-center"
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '10px',
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-pressed-sm)',
+            }}
+          >
+            <History className="w-4 h-4" style={{ color: 'var(--purple)' }} />
           </div>
           <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
             Activity Log
           </span>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-1.5 rounded-lg transition-colors ${
-              showFilters || filter !== 'all'
-                ? 'bg-purple-500/20 text-purple-400' 
-                : 'text-gray-500 hover:text-white hover:bg-dark-tertiary'
-            }`}
+            className="flex items-center justify-center transition-all"
+            style={{
+              width: '30px',
+              height: '30px',
+              background: 'var(--neu-bg)',
+              border: 'none',
+              borderRadius: '10px',
+              boxShadow: (showFilters || filter !== 'all') ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+              color: (showFilters || filter !== 'all') ? 'var(--purple)' : 'rgba(232,234,239,0.45)',
+              cursor: 'pointer',
+            }}
             title="Filter events"
           >
             <Filter className="w-4 h-4" />
@@ -381,7 +398,18 @@ export default function ActivityLogPanel({ className = '' }) {
           <button
             onClick={loadEvents}
             disabled={loading}
-            className="p-1.5 text-gray-500 hover:text-white hover:bg-dark-tertiary rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center justify-center transition-all"
+            style={{
+              width: '30px',
+              height: '30px',
+              background: 'var(--neu-bg)',
+              border: 'none',
+              borderRadius: '10px',
+              boxShadow: 'var(--neu-raised-sm)',
+              color: 'rgba(232,234,239,0.45)',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1,
+            }}
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -391,16 +419,23 @@ export default function ActivityLogPanel({ className = '' }) {
 
       {/* Filter chips */}
       {showFilters && (
-        <div className="px-5 py-3 border-b border-dark-border/50 flex flex-wrap gap-2">
+        <div
+          className="px-5 py-3 flex flex-wrap gap-2"
+          style={{ boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.25)' }}
+        >
           {FILTER_OPTIONS.map(opt => (
             <button
               key={opt.key}
               onClick={() => setFilter(opt.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
-                filter === opt.key
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-dark-tertiary text-gray-400 hover:text-white'
-              }`}
+              className="px-3 py-1.5 text-xs font-medium transition-all"
+              style={{
+                background: 'var(--neu-bg)',
+                border: 'none',
+                borderRadius: '9999px',
+                boxShadow: filter === opt.key ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+                color: filter === opt.key ? 'var(--purple)' : 'rgba(232,234,239,0.58)',
+                cursor: 'pointer',
+              }}
             >
               {opt.label}
             </button>
@@ -448,7 +483,10 @@ export default function ActivityLogPanel({ className = '' }) {
 
       {/* Footer */}
       {events.length > 0 && (
-        <div className="px-5 py-3 border-t border-dark-border/50 text-xs text-gray-500 text-center">
+        <div
+          className="px-5 py-3 text-xs text-gray-500 text-center"
+          style={{ boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.25)' }}
+        >
           Showing {filteredEvents.length} of {events.length} events
         </div>
       )}

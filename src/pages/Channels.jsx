@@ -295,11 +295,16 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
               />
               
               {/* v11.0: Reverse Signals Toggle */}
-              <div className={`flex items-center justify-between p-4 rounded-lg border ${
-                formData.is_reversed 
-                  ? 'bg-orange-500/10 border-orange-500/50' 
-                  : 'bg-dark-tertiary border-dark-border'
-              }`}>
+              <div
+                className="flex items-center justify-between p-4"
+                style={{
+                  background: 'var(--neu-bg)',
+                  borderRadius: '14px',
+                  boxShadow: formData.is_reversed
+                    ? 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(255,179,92,0.30)'
+                    : 'var(--neu-pressed-sm)',
+                }}
+              >
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <RefreshCw className={`w-4 h-4 ${formData.is_reversed ? 'text-orange-400' : 'text-gray-500'}`} />
@@ -949,13 +954,16 @@ export default function Channels() {
         {filtered.length === 0 ? (
           <div className="col-span-2 text-center text-gray-500 py-12">No channels match "{searchQuery}"</div>
         ) : filtered.map(channel => (
-          <div 
-            key={channel.id} 
-            className={`bg-dark-card border rounded-xl p-5 ${
-              channel.is_reversed 
-                ? 'border-orange-500/50' 
-                : 'border-dark-border'
-            }`}
+          <div
+            key={channel.id}
+            className="p-5"
+            style={{
+              background: 'var(--neu-bg)',
+              borderRadius: '20px',
+              boxShadow: channel.is_reversed
+                ? 'var(--neu-raised-md), inset 0 0 0 2px rgba(255,179,92,0.30)'
+                : 'var(--neu-raised-md)',
+            }}
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
@@ -965,7 +973,7 @@ export default function Channels() {
                     {channel.is_active ? 'Active' : 'Inactive'}
                   </span>
                   {channel.is_reversed && (
-                    <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    <span className="badge" style={{ color: 'var(--orange)' }}>
                       <RefreshCw className="w-3 h-3 inline mr-1" />Reversed
                     </span>
                   )}

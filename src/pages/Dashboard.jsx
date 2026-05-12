@@ -31,16 +31,13 @@ const TIME_RANGES = [
 // Reusable Components
 function TimeRangeSelector({ value, onChange, className = '' }) {
   return (
-    <div className={`flex bg-dark-tertiary rounded-lg p-1 ${className}`}>
+    <div className={`tab-nav ${className}`} style={{ padding: '4px', gap: '2px' }}>
       {TIME_RANGES.map(option => (
         <button
           key={option.key}
           onClick={() => onChange(option.key)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-            value === option.key
-              ? 'bg-accent-cyan text-dark-primary'
-              : 'text-gray-400 hover:text-white'
-          }`}
+          className={`tab-btn ${value === option.key ? 'active' : ''}`}
+          style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '9px' }}
         >
           {option.label}
         </button>
@@ -51,10 +48,23 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
 
 function ChartCard({ title, icon: Icon, children, headerRight, className = '' }) {
   return (
-    <div className={`chart-card backdrop-blur-sm ${className}`}>
-      <div className="flex items-center justify-between gap-3 px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+    <div className={`chart-card ${className}`}>
+      <div
+        className="flex items-center justify-between gap-3 px-5 py-4"
+        style={{
+          background: 'var(--neu-bg)',
+          boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35), inset 0 -2px 0 rgba(255,255,255,0.02)',
+        }}
+      >
         <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-md bg-accent-cyan/10">
+          <div
+            className="p-2"
+            style={{
+              borderRadius: '10px',
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-pressed-sm)',
+            }}
+          >
             <Icon className="w-4 h-4 text-accent-cyan" />
           </div>
           <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">{title}</span>
@@ -79,13 +89,25 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, tr
   }
 
   return (
-    <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all hover:scale-[1.02] ${
-      isTop 
-        ? 'bg-gradient-to-r from-green-500/5 to-transparent border-green-500/20'
-        : 'bg-gradient-to-r from-red-500/5 to-transparent border-red-500/20'
-    }`}>
+    <div
+      className="flex items-center gap-4 p-4 transition-all"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '18px',
+        boxShadow: 'var(--neu-raised-sm)',
+      }}
+    >
       {/* Rank */}
-      <div className="flex-shrink-0">
+      <div
+        className="flex-shrink-0 flex items-center justify-center"
+        style={{
+          width: '38px',
+          height: '38px',
+          borderRadius: '12px',
+          background: 'var(--neu-bg)',
+          boxShadow: isTop ? 'var(--neu-pressed-sm)' : 'var(--neu-pressed-sm)',
+        }}
+      >
         {getRankIcon(rank, isTop)}
       </div>
       
@@ -312,19 +334,31 @@ export default function Dashboard() {
           {hotChannels.length > 0 && (
             <div className="mb-8">
               <ChartCard 
-                title="Hot Channels (Last 24h)" 
+                title="Hot Channels (Last 24h)"
                 icon={Zap}
                 headerRight={
-                  <span className="text-xs text-gray-500 bg-dark-tertiary/50 px-3 py-1 rounded-full">
+                  <span
+                    className="text-xs text-gray-500 px-3 py-1"
+                    style={{
+                      background: 'var(--neu-bg)',
+                      borderRadius: '9999px',
+                      boxShadow: 'var(--neu-pressed-sm)',
+                    }}
+                  >
                     Most active channels
                   </span>
                 }
               >
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   {hotChannels.map((channel, idx) => (
-                    <div 
+                    <div
                       key={channel.name}
-                      className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30"
+                      className="p-4"
+                      style={{
+                        background: 'var(--neu-bg)',
+                        borderRadius: '18px',
+                        boxShadow: 'var(--neu-raised-sm)',
+                      }}
                     >
                       <div className="flex items-center gap-2 mb-3">
                         <Zap className={`w-4 h-4 ${idx === 0 ? 'text-yellow-400' : 'text-gray-500'}`} />
@@ -376,16 +410,23 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {channelPerformance.all.slice(0, 15).map((channel, idx) => (
-                    <tr 
+                    <tr
                       key={channel.channelId}
-                      className="border-b border-dark-border/30 hover:bg-dark-tertiary/30 transition-colors"
+                      className="transition-colors"
+                      style={{ borderBottom: '1px solid rgba(0,0,0,0.25)' }}
                     >
                       <td className="py-3 pr-4">
-                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                          idx < 3 ? 'bg-green-500/20 text-green-400' : 
-                          idx >= channelPerformance.all.length - 3 ? 'bg-red-500/20 text-red-400' :
-                          'bg-dark-tertiary text-gray-400'
-                        }`}>
+                        <span
+                          className="inline-flex items-center justify-center w-7 h-7 text-xs font-semibold"
+                          style={{
+                            background: 'var(--neu-bg)',
+                            borderRadius: '9999px',
+                            boxShadow: 'var(--neu-raised-sm)',
+                            color: idx < 3 ? '#ADFF2F'
+                                 : idx >= channelPerformance.all.length - 3 ? 'var(--red)'
+                                 : 'rgba(232,234,239,0.58)',
+                          }}
+                        >
                           {idx + 1}
                         </span>
                       </td>

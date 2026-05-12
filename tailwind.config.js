@@ -7,19 +7,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // All dark.* tones collapse onto the single neumorphism surface
+        // so any leftover `bg-dark-*` / `from-dark-*` / `to-dark-*`
+        // utilities render as a flat neumorphism background.
         dark: {
-          primary:   '#171717',
-          secondary: '#1e1e1e',
-          tertiary:  '#2e2e2e',
-          card:      '#222222',
-          border:    'rgba(255,255,255,0.08)',
+          primary:   '#252830',
+          secondary: '#252830',
+          tertiary:  '#252830',
+          card:      '#252830',
+          border:    'rgba(255,255,255,0.025)',
         },
         accent: {
           green:  '#ADFF2F',
-          blue:   '#0A84FF',
+          blue:   '#4DA8FF',
           cyan:   '#ADFF2F',
-          purple: '#BF5AF2',
-          orange: '#FF9F0A',
+          purple: '#C589F2',
+          orange: '#FFB35C',
         }
       },
       fontFamily: {

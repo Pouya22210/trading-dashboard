@@ -187,15 +187,15 @@ const isConnected = status === 'SUBSCRIBED'
 
 return (
 
-<div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-
-isConnected
-
-? 'bg-green-500/10 text-green-400 border border-green-500/20'
-
-: 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-
-}`}>
+<div
+className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium"
+style={{
+  background: 'var(--neu-bg)',
+  borderRadius: '9999px',
+  boxShadow: 'var(--neu-raised-sm)',
+  color: isConnected ? '#ADFF2F' : 'var(--orange)',
+}}
+>
 
 {isConnected ? (
 
@@ -233,11 +233,26 @@ function ChartCard({ title, icon: Icon, children, className = '' }) {
 
 return (
 
-<div className={`chart-card backdrop-blur-sm overflow-hidden ${className}`} style={{ willChange: 'transform' }}>
+<div className={`chart-card overflow-hidden ${className}`} style={{ willChange: 'transform' }}>
 
-<div className="flex items-center gap-3 px-3 sm:px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+<div
+  className="flex items-center gap-3 px-3 sm:px-5 py-4"
+  style={{
+    background: 'var(--neu-bg)',
+    boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35), inset 0 -2px 0 rgba(255,255,255,0.02)',
+  }}
+>
 
-<div className="p-1.5 rounded-md bg-accent-cyan/10 flex-shrink-0">
+<div
+  className="flex-shrink-0 flex items-center justify-center"
+  style={{
+    width: '32px',
+    height: '32px',
+    borderRadius: '10px',
+    background: 'var(--neu-bg)',
+    boxShadow: 'var(--neu-pressed-sm)',
+  }}
+>
 
 <Icon className="w-4 h-4 text-accent-cyan" />
 
@@ -380,15 +395,15 @@ key={page}
 
 onClick={() => onPageChange(page)}
 
-className={`min-w-[36px] sm:min-w-[40px] h-9 sm:h-10 rounded-lg text-sm font-semibold transition-all ${
-
-currentPage === page
-
-? 'bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary'
-
-: 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
-
-}`}
+className="min-w-[36px] sm:min-w-[40px] h-9 sm:h-10 text-sm font-semibold transition-all"
+style={{
+  background: 'var(--neu-bg)',
+  border: 'none',
+  borderRadius: '12px',
+  boxShadow: currentPage === page ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+  color: currentPage === page ? '#ADFF2F' : 'rgba(232,234,239,0.58)',
+  cursor: 'pointer',
+}}
 
 >
 
@@ -450,24 +465,23 @@ return () => clearTimeout(timer)
 
 
 
-const bgColor = type === 'insert' ? 'bg-green-500/20 border-green-500/30' :
-
-type === 'update' ? 'bg-blue-500/20 border-blue-500/30' :
-
-'bg-red-500/20 border-red-500/30'
-
-
-const textColor = type === 'insert' ? 'text-green-400' :
-
-type === 'update' ? 'text-blue-400' :
-
-'text-red-400'
+const textColor = type === 'insert' ? '#ADFF2F' :
+type === 'update' ? 'var(--blue)' :
+'var(--red)'
 
 
 
 return (
 
-<div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg border ${bgColor} ${textColor} text-sm font-medium shadow-lg z-50`}>
+<div
+  className="fixed bottom-4 right-4 px-4 py-3 text-sm font-medium z-50"
+  style={{
+    background: 'var(--neu-bg)',
+    borderRadius: '14px',
+    boxShadow: 'var(--neu-raised-md)',
+    color: textColor,
+  }}
+>
 
 {message}
 
@@ -2493,7 +2507,15 @@ scrollBehavior: 'smooth'
 
 onClick={() => setSidebarOpen(!sidebarOpen)}
 
-className="lg:hidden fixed bottom-6 right-6 z-30 p-4 bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary rounded-full shadow-xl hover:shadow-2xl transition-all"
+className="lg:hidden fixed bottom-6 right-6 z-30 p-4 transition-all"
+style={{
+  background: 'var(--neu-bg)',
+  border: 'none',
+  borderRadius: '9999px',
+  boxShadow: 'var(--neu-raised-lg)',
+  color: '#ADFF2F',
+  cursor: 'pointer',
+}}
 
 >
 
@@ -2547,9 +2569,24 @@ className="lg:hidden fixed bottom-6 right-6 z-30 p-4 bg-gradient-to-r from-accen
 
 <div id="trades-table" className="chart-card mb-8 overflow-hidden">
 
-<div className="flex items-center gap-3 px-3 sm:px-5 py-4 bg-gradient-to-r from-dark-tertiary/80 to-dark-secondary/60 border-b border-dark-border/50">
+<div
+className="flex items-center gap-3 px-3 sm:px-5 py-4"
+style={{
+  background: 'var(--neu-bg)',
+  boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35), inset 0 -2px 0 rgba(255,255,255,0.02)',
+}}
+>
 
-<div className="p-1.5 rounded-md bg-accent-cyan/10">
+<div
+className="flex items-center justify-center"
+style={{
+  width: '32px',
+  height: '32px',
+  borderRadius: '10px',
+  background: 'var(--neu-bg)',
+  boxShadow: 'var(--neu-pressed-sm)',
+}}
+>
 
 <BarChart3 className="w-4 h-4 text-accent-cyan" />
 
@@ -2557,7 +2594,14 @@ className="lg:hidden fixed bottom-6 right-6 z-30 p-4 bg-gradient-to-r from-accen
 
 <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Trade History</span>
 
-<span className="ml-auto text-xs text-gray-500 bg-dark-tertiary/50 px-2 sm:px-3 py-1 rounded-full">
+<span
+className="ml-auto text-xs text-gray-500 px-2 sm:px-3 py-1"
+style={{
+  background: 'var(--neu-bg)',
+  borderRadius: '9999px',
+  boxShadow: 'var(--neu-pressed-sm)',
+}}
+>
 
 <span className="hidden sm:inline">Showing </span>{startIndex + 1}-{Math.min(endIndex, sortedFilteredTrades.length)} of {sortedFilteredTrades.length}
 
@@ -2654,7 +2698,15 @@ style={{ backgroundColor: getChannelColor(trade.channel_id) }}
 <td>
   {/* Cancel policy gets cyan badge, manual/expired get gray */}
   {trade.status === 'canceled' && trade.cancel_reason === 'cancel_policy' ? (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '9999px',
+        boxShadow: 'var(--neu-raised-sm)',
+        color: '#ADFF2F',
+      }}
+    >
       {getStatusDisplay(trade)}
     </span>
   ) : (
@@ -3411,9 +3463,13 @@ return (
 
 key={session.session}
 
-className="bg-gradient-to-br from-dark-tertiary/70 to-dark-secondary/50 rounded-xl p-4 border border-dark-border/30 hover:border-dark-border/60 transition-all"
+className="p-4 transition-all"
 
-style={{ borderLeftColor: sessionColor, borderLeftWidth: '3px' }}
+style={{
+  background: 'var(--neu-bg)',
+  borderRadius: '18px',
+  boxShadow: 'var(--neu-raised-sm), inset 3px 0 0 0 ' + sessionColor,
+}}
 
 >
 

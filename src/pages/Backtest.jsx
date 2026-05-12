@@ -143,8 +143,15 @@ export default function Backtest() {
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center">
-            <FlaskConical className="w-5 h-5 text-purple-400" />
+          <div
+            className="w-10 h-10 flex items-center justify-center"
+            style={{
+              background: 'var(--neu-bg)',
+              borderRadius: '14px',
+              boxShadow: 'var(--neu-raised-sm)',
+            }}
+          >
+            <FlaskConical className="w-5 h-5" style={{ color: 'var(--purple)' }} />
           </div>
           <h1 className="text-2xl font-bold text-white">Strategy Backtest</h1>
         </div>
@@ -394,13 +401,15 @@ export default function Backtest() {
           <button
             onClick={runBacktest}
             disabled={loading || !selectedChannel}
-            className={`
-              flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all
-              ${loading || !selectedChannel
-                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-accent-blue to-accent-cyan text-dark-primary hover:shadow-lg hover:shadow-accent-cyan/20'
-              }
-            `}
+            className="flex items-center gap-2 px-6 py-3 font-semibold text-sm transition-all"
+            style={{
+              background: 'var(--neu-bg)',
+              border: 'none',
+              borderRadius: '14px',
+              boxShadow: loading || !selectedChannel ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-md)',
+              color: loading || !selectedChannel ? 'rgba(232,234,239,0.30)' : '#ADFF2F',
+              cursor: loading || !selectedChannel ? 'not-allowed' : 'pointer',
+            }}
           >
             {loading ? (
               <>
@@ -419,9 +428,16 @@ export default function Backtest() {
 
       {/* Error Display */}
       {error && (
-        <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl mb-6">
-          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-          <p className="text-red-400 text-sm">{error}</p>
+        <div
+          className="flex items-center gap-3 p-4 mb-6"
+          style={{
+            background: 'var(--neu-bg)',
+            borderRadius: '14px',
+            boxShadow: 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(255,92,92,0.25)',
+          }}
+        >
+          <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--red)' }} />
+          <p className="text-sm" style={{ color: 'var(--red)' }}>{error}</p>
         </div>
       )}
 
@@ -496,13 +512,16 @@ export default function Backtest() {
           </div>
 
           {/* Comparison Banner */}
-          <div className={`
-            flex items-center gap-3 p-4 rounded-xl mb-6 border
-            ${results.pips_difference >= 0 
-              ? 'bg-green-500/10 border-green-500/30' 
-              : 'bg-red-500/10 border-red-500/30'
-            }
-          `}>
+          <div
+            className="flex items-center gap-3 p-4 mb-6"
+            style={{
+              background: 'var(--neu-bg)',
+              borderRadius: '16px',
+              boxShadow: results.pips_difference >= 0
+                ? 'var(--neu-raised-sm), inset 0 0 0 2px rgba(173,255,47,0.22)'
+                : 'var(--neu-raised-sm), inset 0 0 0 2px rgba(255,92,92,0.22)',
+            }}
+          >
             {results.pips_difference >= 0 ? (
               <ArrowUpRight className="w-6 h-6 text-green-400" />
             ) : (
@@ -544,13 +563,15 @@ export default function Backtest() {
                         </td>
                         <td className="px-4 py-3 text-white font-medium">{trade.symbol}</td>
                         <td className="px-4 py-3">
-                          <span className={`
-                            px-2 py-1 rounded text-xs font-semibold
-                            ${trade.direction === 'buy' 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : 'bg-red-500/20 text-red-400'
-                            }
-                          `}>
+                          <span
+                            className="px-2 py-1 text-xs font-semibold"
+                            style={{
+                              background: 'var(--neu-bg)',
+                              borderRadius: '7px',
+                              boxShadow: 'var(--neu-raised-sm)',
+                              color: trade.direction === 'buy' ? '#ADFF2F' : 'var(--red)',
+                            }}
+                          >
                             {trade.direction.toUpperCase()}
                           </span>
                         </td>
@@ -587,7 +608,14 @@ export default function Backtest() {
 
 function SummaryCard({ title, value, icon, iconColor, subtitle, valueColor }) {
   return (
-    <div className="bg-dark-tertiary border border-dark-border rounded-lg p-4">
+    <div
+      className="p-4"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '16px',
+        boxShadow: 'var(--neu-raised-sm)',
+      }}
+    >
       <div className="flex items-center gap-2 mb-2">
         <span className={iconColor}>{icon}</span>
         <span className="text-xs font-medium text-gray-400">{title}</span>
@@ -602,20 +630,24 @@ function SummaryCard({ title, value, icon, iconColor, subtitle, valueColor }) {
 
 function OutcomeBadge({ outcome, small }) {
   const config = {
-    profit: { bg: 'bg-green-500/20', color: 'text-green-400', text: 'WIN' },
-    loss: { bg: 'bg-red-500/20', color: 'text-red-400', text: 'LOSS' },
-    breakeven: { bg: 'bg-yellow-500/20', color: 'text-yellow-400', text: 'BE' },
-    canceled: { bg: 'bg-gray-500/20', color: 'text-gray-400', text: 'CANCEL' }
+    profit:    { color: '#ADFF2F',                       text: 'WIN' },
+    loss:      { color: 'var(--red)',                    text: 'LOSS' },
+    breakeven: { color: 'var(--orange)',                 text: 'BE' },
+    canceled:  { color: 'rgba(232,234,239,0.45)',        text: 'CANCEL' }
   }
-  
+
   const c = config[outcome] || config.canceled
-  
+
   return (
-    <span className={`
-      inline-block px-2 py-1 rounded font-semibold
-      ${c.bg} ${c.color}
-      ${small ? 'text-[10px]' : 'text-xs'}
-    `}>
+    <span
+      className={`inline-block px-2 py-1 font-semibold ${small ? 'text-[10px]' : 'text-xs'}`}
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '7px',
+        boxShadow: 'var(--neu-raised-sm)',
+        color: c.color,
+      }}
+    >
       {c.text}
     </span>
   )
