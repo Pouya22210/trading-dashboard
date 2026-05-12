@@ -30,7 +30,13 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ background: 'rgba(173,255,47,0.10)', border: '1px solid rgba(173,255,47,0.25)' }}>
+          <div
+            className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4"
+            style={{
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-raised-md)',
+            }}
+          >
             <Shield className="w-8 h-8" style={{ color: '#ADFF2F' }} />
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">{title}</h1>
@@ -40,7 +46,14 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
         </div>
 
         {/* Login Card */}
-        <div className="rounded-xl p-6" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+        <div
+          className="p-6"
+          style={{
+            background: 'var(--neu-bg)',
+            borderRadius: '24px',
+            boxShadow: 'var(--neu-raised-lg)',
+          }}
+        >
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Password Field */}
             <div>
@@ -85,8 +98,8 @@ export default function Login({ onLogin, title = "Admin Access Required" }) {
               type="submit"
               disabled={!password || isLoading}
               style={!password || isLoading
-                ? { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.25)', cursor: 'not-allowed', borderRadius: '10px', padding: '12px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }
-                : { background: '#ADFF2F', color: '#000000', cursor: 'pointer', borderRadius: '10px', padding: '12px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }
+                ? { background: 'var(--neu-bg)', color: 'rgba(232,234,239,0.30)', cursor: 'not-allowed', borderRadius: '14px', padding: '14px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: 'var(--neu-pressed-sm)' }
+                : { background: 'var(--neu-bg)', color: '#ADFF2F', cursor: 'pointer', borderRadius: '14px', padding: '14px 16px', fontWeight: '600', fontSize: '14px', border: 'none', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: 'var(--neu-raised-md)', transition: 'all 0.2s' }
               }
             >
               {isLoading ? (

@@ -3,35 +3,68 @@
 @tailwind utilities;
 
 /* ============================================================
-   APPLE DARK MODE — Clean solid dark, SF Pro feel
+   DARK NEUMORPHISM — Soft UI, raised/pressed surfaces
+   Single base tone (#252830) with dual shadows (dark/light)
+   for depth instead of borders.
    ============================================================ */
 
 :root {
-  --bg-primary:    #171717;
-  --bg-secondary:  #1e1e1e;
-  --bg-card:       #222222;
-  --bg-elevated:   #2a2a2a;
-  --bg-input:      #2e2e2e;
-  --border:        rgba(255,255,255,0.08);
-  --border-mid:    rgba(255,255,255,0.12);
+  /* Base palette: everything sits on the same surface so shadows
+     do the work. Variants are kept only as tiny tonal shifts. */
+  --neu-bg:            #252830;
+  --neu-bg-soft:       #272a32;
+  --neu-bg-deep:       #20232a;
 
-  --text-primary:   #ffffff;
-  --text-secondary: rgba(255,255,255,0.55);
-  --text-tertiary:  rgba(255,255,255,0.28);
+  /* Shadow tokens — light from top-left, dark to bottom-right.
+     These three pairs cover most depth levels. */
+  --neu-shadow-dark-lg:   rgba(0,0,0,0.55);
+  --neu-shadow-light-lg:  rgba(255,255,255,0.045);
+  --neu-shadow-dark-md:   rgba(0,0,0,0.50);
+  --neu-shadow-light-md:  rgba(255,255,255,0.04);
+  --neu-shadow-dark-sm:   rgba(0,0,0,0.45);
+  --neu-shadow-light-sm:  rgba(255,255,255,0.035);
+
+  /* Reusable composite shadows */
+  --neu-raised-lg: 8px 8px 18px var(--neu-shadow-dark-lg),
+                  -8px -8px 18px var(--neu-shadow-light-lg);
+  --neu-raised-md: 5px 5px 12px var(--neu-shadow-dark-md),
+                  -5px -5px 12px var(--neu-shadow-light-md);
+  --neu-raised-sm: 3px 3px 7px var(--neu-shadow-dark-sm),
+                  -3px -3px 7px var(--neu-shadow-light-sm);
+
+  --neu-pressed-lg: inset 6px 6px 12px var(--neu-shadow-dark-lg),
+                    inset -6px -6px 12px var(--neu-shadow-light-lg);
+  --neu-pressed-md: inset 4px 4px 8px var(--neu-shadow-dark-md),
+                    inset -4px -4px 8px var(--neu-shadow-light-md);
+  --neu-pressed-sm: inset 2px 2px 5px var(--neu-shadow-dark-sm),
+                    inset -2px -2px 5px var(--neu-shadow-light-sm);
+
+  /* Legacy aliases used across pages — repoint to neumorphism */
+  --bg-primary:    var(--neu-bg);
+  --bg-secondary:  var(--neu-bg);
+  --bg-card:       var(--neu-bg);
+  --bg-elevated:   var(--neu-bg);
+  --bg-input:      var(--neu-bg-deep);
+  --border:        rgba(255,255,255,0.02);
+  --border-mid:    rgba(255,255,255,0.04);
+
+  --text-primary:   #e8eaef;
+  --text-secondary: rgba(232,234,239,0.60);
+  --text-tertiary:  rgba(232,234,239,0.32);
 
   --green:   #ADFF2F;
-  --blue:    #0A84FF;
-  --red:     #FF4B4B;
-  --orange:  #FF9F0A;
-  --purple:  #BF5AF2;
+  --blue:    #4DA8FF;
+  --red:     #FF5C5C;
+  --orange:  #FFB35C;
+  --purple:  #C589F2;
 
   --accent-green: #ADFF2F;
-  --accent-blue:  #0A84FF;
+  --accent-blue:  #4DA8FF;
   --accent-cyan:  #ADFF2F;
 
   --success: #ADFF2F;
-  --danger:  #FF4B4B;
-  --warning: #FF9F0A;
+  --danger:  #FF5C5C;
+  --warning: #FFB35C;
 }
 
 /* ============================================================
@@ -44,67 +77,79 @@ html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', sans-serif;
-  background: #171717;
-  color: #ffffff;
+  background: var(--neu-bg);
+  color: var(--text-primary);
   min-height: 100vh;
   font-size: 14px;
 }
 
 /* ============================================================
-   SCROLLBAR
+   SCROLLBAR — recessed channel
    ============================================================ */
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-pressed-sm);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  border-radius: 10px;
+  border: 2px solid var(--neu-bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--neu-bg-soft); }
 
 /* ============================================================
-   CARDS
+   CARDS — raised neumorphic surfaces
    ============================================================ */
 
 .kpi-card {
-  background: #222222;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 20px;
   padding: 20px;
-  transition: border-color 0.2s, background 0.2s;
+  box-shadow: var(--neu-raised-md);
+  transition: box-shadow 0.22s ease, transform 0.22s ease;
   position: relative;
   overflow: hidden;
 }
 
 .kpi-card:hover {
-  background: #2a2a2a;
-  border-color: rgba(255,255,255,0.13);
+  box-shadow: var(--neu-raised-lg);
+  transform: translateY(-1px);
 }
 
 .chart-card {
-  background: #222222;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 22px;
   overflow: hidden;
-  transition: border-color 0.2s;
+  box-shadow: var(--neu-raised-md);
+  transition: box-shadow 0.22s ease;
 }
 
 .chart-card:hover {
-  border-color: rgba(255,255,255,0.13);
+  box-shadow: var(--neu-raised-lg);
 }
 
 /* ============================================================
-   BUTTONS
+   BUTTONS — raised pill / chip
    ============================================================ */
 
 .btn-primary {
-  background: #ADFF2F;
+  background: var(--neu-bg);
   border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
+  border-radius: 14px;
+  padding: 10px 18px;
   font-weight: 600;
   font-size: 13px;
   letter-spacing: -0.01em;
-  color: #000000;
+  color: #ADFF2F;
   cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: var(--neu-raised-sm);
+  transition: box-shadow 0.16s ease, color 0.16s ease, transform 0.08s ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -113,20 +158,26 @@ body {
 }
 
 .btn-primary:hover {
-  background: #BEFF47;
-  box-shadow: 0 4px 16px rgba(173,255,47,0.30);
+  box-shadow: var(--neu-raised-md);
+  color: #BEFF47;
+}
+
+.btn-primary:active {
+  box-shadow: var(--neu-pressed-sm);
+  transform: translateY(1px);
 }
 
 .btn-secondary {
-  background: #2e2e2e;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 8px;
-  padding: 8px 16px;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 14px;
+  padding: 10px 18px;
   font-weight: 500;
   font-size: 13px;
-  color: rgba(255,255,255,0.65);
+  color: rgba(232,234,239,0.70);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  box-shadow: var(--neu-raised-sm);
+  transition: box-shadow 0.16s ease, color 0.16s ease, transform 0.08s ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -135,138 +186,158 @@ body {
 }
 
 .btn-secondary:hover {
-  background: #383838;
-  border-color: rgba(255,255,255,0.18);
+  box-shadow: var(--neu-raised-md);
   color: #ffffff;
 }
 
+.btn-secondary:active {
+  box-shadow: var(--neu-pressed-sm);
+  transform: translateY(1px);
+}
+
 .btn-danger {
-  background: rgba(255,69,58,0.08);
-  border: 1px solid rgba(255,69,58,0.22);
-  border-radius: 8px;
-  padding: 8px 16px;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 14px;
+  padding: 10px 18px;
   font-weight: 500;
   font-size: 13px;
-  color: #FF453A;
+  color: var(--red);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  box-shadow: var(--neu-raised-sm);
+  transition: box-shadow 0.16s ease, transform 0.08s ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-family: inherit;
 }
 
-.btn-danger:hover {
-  background: rgba(255,69,58,0.14);
-  border-color: rgba(255,69,58,0.38);
+.btn-danger:hover  { box-shadow: var(--neu-raised-md); }
+.btn-danger:active { box-shadow: var(--neu-pressed-sm); transform: translateY(1px); }
+
+/* Buttons rendered via Tailwind on raw <button> tags should also
+   look neumorphic by default unless overridden by .btn-* class. */
+button {
+  font-family: inherit;
 }
 
 /* ============================================================
-   INPUTS
+   INPUTS — pressed channels
    ============================================================ */
 
 input, select, textarea {
-  background: #2e2e2e;
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 8px;
-  padding: 9px 13px;
-  color: #ffffff;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 12px;
+  padding: 11px 15px;
+  color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.15s, background 0.15s;
+  box-shadow: var(--neu-pressed-sm);
+  transition: box-shadow 0.18s ease;
   width: 100%;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: rgba(173,255,47,0.50);
-  background: #333333;
+  box-shadow: var(--neu-pressed-md),
+              0 0 0 2px rgba(173,255,47,0.18);
 }
 
-input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.22); }
+input::placeholder, textarea::placeholder { color: rgba(232,234,239,0.28); }
 
-select option { background: #2e2e2e; color: #ffffff; }
+select option { background: var(--neu-bg); color: var(--text-primary); }
 
 /* ============================================================
-   TOGGLE  (Apple-style)
+   TOGGLE  (Neumorphic pill)
    ============================================================ */
 
 .toggle-switch {
   position: relative;
-  width: 51px;
-  height: 31px;
-  background: rgba(255,255,255,0.14);
+  width: 54px;
+  height: 30px;
+  background: var(--neu-bg);
   border-radius: 16px;
   cursor: pointer;
-  transition: background 0.22s;
+  box-shadow: var(--neu-pressed-sm);
+  transition: box-shadow 0.22s;
   flex-shrink: 0;
 }
 
-.toggle-switch.active { background: #ADFF2F; }
+.toggle-switch.active {
+  box-shadow: var(--neu-pressed-sm),
+              inset 0 0 0 2px rgba(173,255,47,0.30);
+}
 
 .toggle-switch::after {
   content: '';
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 25px;
-  height: 25px;
-  background: #ffffff;
+  width: 24px;
+  height: 24px;
+  background: var(--neu-bg);
   border-radius: 50%;
-  transition: transform 0.22s;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: var(--neu-raised-sm);
+  transition: transform 0.22s, background 0.22s;
 }
 
-.toggle-switch.active::after { transform: translateX(20px); }
+.toggle-switch.active::after {
+  transform: translateX(24px);
+  background: #ADFF2F;
+}
 
 /* ============================================================
-   TAB NAV  (Navbar)
+   TAB NAV — recessed groove + raised active pill
    ============================================================ */
 
 .tab-nav {
   display: inline-flex;
-  background: #222222;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
-  padding: 4px;
-  gap: 2px;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 16px;
+  padding: 6px;
+  gap: 4px;
+  box-shadow: var(--neu-pressed-sm);
 }
 
 .tab-btn {
-  padding: 7px 16px;
+  padding: 8px 18px;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.45);
+  color: rgba(232,234,239,0.50);
   font-weight: 500;
   font-size: 13px;
   letter-spacing: -0.01em;
-  border-radius: 7px;
+  border-radius: 11px;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, box-shadow 0.18s, background 0.15s;
   white-space: nowrap;
   text-decoration: none;
   font-family: inherit;
 }
 
 .tab-btn:hover {
-  color: rgba(255,255,255,0.80);
-  background: rgba(255,255,255,0.06);
+  color: rgba(232,234,239,0.85);
 }
 
 .tab-btn.active {
-  background: #ADFF2F;
-  color: #000000;
+  background: var(--neu-bg);
+  color: #ADFF2F;
   font-weight: 600;
+  box-shadow: var(--neu-raised-sm);
 }
 
 /* ============================================================
-   MODAL
+   MODAL — large raised surface, deep shadow over scrim
    ============================================================ */
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.80);
+  background: rgba(15,17,21,0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -275,89 +346,97 @@ select option { background: #2e2e2e; color: #ffffff; }
 }
 
 .modal-content {
-  background: #222222;
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 18px;
+  background: var(--neu-bg);
+  border: none;
+  border-radius: 24px;
   max-width: 800px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.8);
+  box-shadow: var(--neu-raised-lg),
+              0 24px 80px rgba(0,0,0,0.55);
 }
 
 .modal-header {
-  background: #2a2a2a;
-  padding: 18px 22px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: var(--neu-bg);
+  padding: 20px 24px;
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-radius: 18px 18px 0 0;
+  border-radius: 24px 24px 0 0;
 }
 
-.modal-body { padding: 22px; }
+.modal-body { padding: 24px; }
 
 .modal-footer {
-  background: #1e1e1e;
-  padding: 14px 22px;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  background: var(--neu-bg);
+  padding: 16px 24px;
+  border-top: none;
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  border-radius: 0 0 18px 18px;
+  gap: 12px;
+  border-radius: 0 0 24px 24px;
+  box-shadow: var(--neu-pressed-sm);
 }
 
 /* ============================================================
-   BADGES
+   BADGES — soft tinted pills with subtle raise
    ============================================================ */
 
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
+  padding: 4px 11px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  background: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  border: none;
 }
 
-.badge-success { background: rgba(173,255,47,0.12);  color: #ADFF2F; border: 1px solid rgba(173,255,47,0.20); }
-.badge-danger  { background: rgba(255,75,75,0.12);   color: #FF4B4B; border: 1px solid rgba(255,75,75,0.20); }
-.badge-warning { background: rgba(255,159,10,0.12);  color: #FF9F0A; border: 1px solid rgba(255,159,10,0.18); }
-.badge-neutral { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.40); border: 1px solid rgba(255,255,255,0.09); }
+.badge-success { color: #ADFF2F; }
+.badge-danger  { color: var(--red); }
+.badge-warning { color: var(--orange); }
+.badge-neutral { color: rgba(232,234,239,0.45); }
 
 /* ============================================================
-   DATA TABLE
+   DATA TABLE — flat-on-card, recessed header
    ============================================================ */
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12px;
 }
 
 .data-table th {
-  background: #2a2a2a;
-  padding: 11px 14px;
+  background: var(--neu-bg);
+  padding: 13px 16px;
   text-align: left;
   font-weight: 500;
-  color: rgba(255,255,255,0.30);
+  color: rgba(232,234,239,0.34);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 10.5px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid rgba(0,0,0,0.35);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.025);
 }
 
 .data-table td {
-  padding: 11px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.82);
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.20);
+  color: rgba(232,234,239,0.82);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.015);
 }
 
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(255,255,255,0.025); }
+.data-table tr:last-child td { border-bottom: none; box-shadow: none; }
+.data-table tr:hover td { background: rgba(255,255,255,0.018); }
 
 /* ============================================================
    ANIMATIONS
@@ -376,34 +455,47 @@ select option { background: #2e2e2e; color: #ffffff; }
 .animate-spin  { animation: spin 0.8s linear infinite; }
 
 /* ============================================================
-   TAILWIND UTILITY FALLBACKS  (keep all existing class names)
+   NEUMORPHISM UTILITY CLASSES
+   Apply these directly in JSX for one-off raised/pressed surfaces.
+   ============================================================ */
+
+.neu-raised      { background: var(--neu-bg); box-shadow: var(--neu-raised-md);  border-radius: 18px; }
+.neu-raised-sm   { background: var(--neu-bg); box-shadow: var(--neu-raised-sm);  border-radius: 12px; }
+.neu-raised-lg   { background: var(--neu-bg); box-shadow: var(--neu-raised-lg);  border-radius: 22px; }
+.neu-pressed     { background: var(--neu-bg); box-shadow: var(--neu-pressed-md); border-radius: 16px; }
+.neu-pressed-sm  { background: var(--neu-bg); box-shadow: var(--neu-pressed-sm); border-radius: 12px; }
+.neu-pressed-lg  { background: var(--neu-bg); box-shadow: var(--neu-pressed-lg); border-radius: 22px; }
+
+/* ============================================================
+   TAILWIND UTILITY FALLBACKS — repointed to neumorphism palette
+   Class names preserved so existing JSX renders unchanged.
    ============================================================ */
 
 .min-h-screen { min-height: 100vh; }
 
-/* Backgrounds */
-.bg-dark-primary   { background-color: #171717; }
-.bg-dark-secondary { background-color: #1e1e1e; }
-.bg-dark-tertiary  { background-color: #2e2e2e; }
-.bg-dark-card      { background-color: #222222; }
+/* Backgrounds — all collapse to the single neumorphism surface */
+.bg-dark-primary   { background-color: var(--neu-bg); }
+.bg-dark-secondary { background-color: var(--neu-bg); }
+.bg-dark-tertiary  { background-color: var(--neu-bg); }
+.bg-dark-card      { background-color: var(--neu-bg); }
 
-/* Borders */
-.border-dark-border { border-color: rgba(255,255,255,0.07); }
+/* Borders — neumorphism uses shadows, so utility borders become near-invisible */
+.border-dark-border { border-color: rgba(255,255,255,0.025); }
 
 /* Text */
 .text-accent-green  { color: #ADFF2F; }
-.text-accent-blue   { color: #0A84FF; }
+.text-accent-blue   { color: var(--blue); }
 .text-accent-cyan   { color: #ADFF2F; }
-.text-white         { color: #ffffff; }
-.text-gray-300      { color: rgba(255,255,255,0.72); }
-.text-gray-400      { color: rgba(255,255,255,0.52); }
-.text-gray-500      { color: rgba(255,255,255,0.32); }
-.text-gray-600      { color: rgba(255,255,255,0.20); }
+.text-white         { color: var(--text-primary); }
+.text-gray-300      { color: rgba(232,234,239,0.78); }
+.text-gray-400      { color: rgba(232,234,239,0.58); }
+.text-gray-500      { color: rgba(232,234,239,0.36); }
+.text-gray-600      { color: rgba(232,234,239,0.22); }
 .text-green-400     { color: #ADFF2F; }
-.text-red-400       { color: #FF4B4B; }
-.text-orange-400    { color: #FF9F0A; }
-.text-orange-500    { color: #FF9F0A; }
-.text-purple-400    { color: #BF5AF2; }
+.text-red-400       { color: var(--red); }
+.text-orange-400    { color: var(--orange); }
+.text-orange-500    { color: var(--orange); }
+.text-purple-400    { color: var(--purple); }
 
 /* Font */
 .font-mono     { font-family: 'JetBrains Mono', ui-monospace, monospace; }
@@ -411,12 +503,12 @@ select option { background: #2e2e2e; color: #ffffff; }
 .font-semibold { font-weight: 600; }
 .font-medium   { font-weight: 500; }
 
-/* Radius */
-.rounded-2xl  { border-radius: 20px; }
-.rounded-xl   { border-radius: 14px; }
-.rounded-lg   { border-radius: 10px; }
-.rounded-md   { border-radius: 7px; }
-.rounded      { border-radius: 5px; }
+/* Radius — bumped up for soft neumorphism feel */
+.rounded-2xl  { border-radius: 24px; }
+.rounded-xl   { border-radius: 18px; }
+.rounded-lg   { border-radius: 14px; }
+.rounded-md   { border-radius: 10px; }
+.rounded      { border-radius: 7px; }
 .rounded-full { border-radius: 9999px; }
 
 /* Borders */
@@ -603,10 +695,11 @@ select option { background: #2e2e2e; color: #ffffff; }
   .tab-nav { display: none; }
 }
 
-/* Shadows */
-.shadow-lg  { box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-.shadow-xl  { box-shadow: 0 16px 48px rgba(0,0,0,0.6); }
-.shadow-2xl { box-shadow: 0 24px 64px rgba(0,0,0,0.7); }
+/* Shadows — repointed to neumorphism raise levels so utility shadows
+   still feel coherent with the rest of the system. */
+.shadow-lg  { box-shadow: var(--neu-raised-md); }
+.shadow-xl  { box-shadow: var(--neu-raised-lg); }
+.shadow-2xl { box-shadow: var(--neu-raised-lg), 0 24px 64px rgba(0,0,0,0.55); }
 
 /* Misc */
 .cursor-pointer      { cursor: pointer; }
@@ -622,5 +715,5 @@ select option { background: #2e2e2e; color: #ffffff; }
 .opacity-0           { opacity: 0; }
 
 /* Hover utils */
-.hover\:text-white:hover       { color: #ffffff; }
-.hover\:bg-dark-tertiary:hover { background: #1a1a1a; }
+.hover\:text-white:hover       { color: var(--text-primary); }
+.hover\:bg-dark-tertiary:hover { background: var(--neu-bg-soft); }
