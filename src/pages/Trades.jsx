@@ -190,10 +190,10 @@ return (
 <div
 className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium"
 style={{
-  background: 'var(--neu-bg)',
+  background: 'transparent',
   borderRadius: '9999px',
-  boxShadow: 'var(--neu-raised-sm)',
-  color: isConnected ? '#ADFF2F' : 'var(--orange)',
+  boxShadow: 'none',
+  color: isConnected ? 'var(--accent-green)' : 'var(--orange)',
 }}
 >
 
@@ -354,36 +354,14 @@ return (
 <div className="flex items-center justify-center gap-2 py-4 border-t border-dark-border">
 
 <button
-
-onClick={() => onPageChange(currentPage - 1)}
-
-disabled={currentPage === 1}
-
-className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-
-currentPage === 1
-
-? 'text-gray-600 cursor-not-allowed'
-
-: 'text-gray-400 hover:text-white'
-
-}`}
-style={{
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.08)',
-}}
-
+  onClick={() => onPageChange(currentPage - 1)}
+  disabled={currentPage === 1}
+  className="timeline-page-btn"
 >
-
-<ChevronLeft className="w-4 h-4" />
-
-<span className="hidden sm:inline">Prev</span>
-
+  Prev
 </button>
 
-
-
-<div className="flex items-center gap-1">
+<div className="flex items-center gap-2">
 
 {getPageNumbers().map((page, index) => (
 
@@ -394,23 +372,11 @@ page === '...' ? (
 ) : (
 
 <button
-
-key={page}
-
-onClick={() => onPageChange(page)}
-
-className="min-w-[36px] sm:min-w-[40px] h-9 sm:h-10 text-sm font-semibold rounded-xl transition-all"
-style={{
-  background: currentPage === page ? '#ADFF2F' : 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  color: currentPage === page ? 'var(--text-primary)' : 'rgba(232,234,239,0.58)',
-  cursor: 'pointer',
-}}
-
+  key={page}
+  onClick={() => onPageChange(page)}
+  className={`timeline-page-btn ${currentPage === page ? 'active' : ''}`}
 >
-
-{page}
-
+  {page}
 </button>
 
 )
@@ -419,34 +385,12 @@ style={{
 
 </div>
 
-
-
 <button
-
-onClick={() => onPageChange(currentPage + 1)}
-
-disabled={currentPage === totalPages}
-
-className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-
-currentPage === totalPages
-
-? 'text-gray-600 cursor-not-allowed'
-
-: 'text-gray-400 hover:text-white'
-
-}`}
-style={{
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.08)',
-}}
-
+  onClick={() => onPageChange(currentPage + 1)}
+  disabled={currentPage === totalPages}
+  className="timeline-page-btn"
 >
-
-<span className="hidden sm:inline">Next</span>
-
-<ChevronRight className="w-4 h-4" />
-
+  Next
 </button>
 
 </div>
@@ -838,31 +782,24 @@ setSearchQuery('')
 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
 
 <input
-
-type="text"
-
-placeholder="Search channels..."
-
-value={searchQuery}
-
-onChange={(e) => setSearchQuery(e.target.value)}
-
+  type="text"
+  placeholder="Search channels..."
+  value={searchQuery}
+  onChange={(e) => setSearchQuery(e.target.value)}
   className="w-full flat-input pl-8 pr-8 py-1.5 border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent-cyan/50"
+/>
 
-e.stopPropagation()
-
-setSearchQuery('')
-
-}}
-
-className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
-
->
-
-<X className="w-3.5 h-3.5" />
-
-</button>
-
+{searchQuery && (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation()
+      setSearchQuery('')
+    }}
+    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+  >
+    <X className="w-3.5 h-3.5" />
+  </button>
 )}
 
 </div>
@@ -1726,6 +1663,7 @@ dataByDate[date] = { date }
 
 
 dataByDate[date][channelId] = runningTotals[channelId]
+dataByDate[date].all = runningTotals.all
 
 })
 
@@ -1847,36 +1785,6 @@ channel: item.channel.length > 25 ? item.channel.slice(0, 25) + '...' : item.cha
 }, [analysisTrades, getChannelName])
 
 
-
-// Channel comparison bar chart data
-
-const channelComparisonData = useMemo(() => {
-
-return Object.entries(channelStats).map(([channelId, stats]) => ({
-
-channelId,
-
-channel: stats.channelName.length > 15 ? stats.channelName.slice(0, 15) + '...' : stats.channelName,
-
-fullName: stats.channelName,
-
-totalPnL: stats.totalPnL,
-
-winRate: stats.winRate,
-
-avgPnL: stats.avgPnL,
-
-trades: stats.totalTrades,
-
-wins: stats.wins,
-
-losses: stats.losses,
-
-color: getChannelColor(channelId)
-
-})).sort((a, b) => b.totalPnL - a.totalPnL)
-
-}, [channelStats, getChannelColor])
 
 
 
@@ -2572,10 +2480,10 @@ style={{
 <span
 className="ml-auto text-xs text-gray-500 px-2 sm:px-3 py-1"
 style={{
-  background: 'rgba(255,255,255,0.05)',
-  borderRadius: '9999px',
+  background: 'transparent',
+  borderRadius: '0',
   boxShadow: 'none',
-  border: '1px solid rgba(255,255,255,0.08)',
+  border: 'none',
 }}
 >
 

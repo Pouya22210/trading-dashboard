@@ -45,12 +45,15 @@ export default function Navbar({ theme, toggleTheme }) {
   ]
 
   const handleNavClick = () => setMobileMenuOpen(false)
+  const isLight = theme === 'light'
 
   return (
     <>
       <nav style={{
         background: 'var(--neu-bg)',
-        boxShadow: '0 6px 18px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.025)',
+        boxShadow: isLight
+          ? '0 6px 18px rgba(145,160,191,0.18)'
+          : '0 6px 18px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.025)',
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -70,7 +73,7 @@ export default function Navbar({ theme, toggleTheme }) {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Sparkles style={{ width: '17px', height: '17px', color: '#ADFF2F' }} />
+                <Sparkles style={{ width: '17px', height: '17px', color: 'var(--accent-green)' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{
@@ -84,7 +87,7 @@ export default function Navbar({ theme, toggleTheme }) {
                 </span>
                 <span style={{
                   fontSize: '11px',
-                  color: 'rgba(232,234,239,0.40)',
+                  color: 'var(--text-tertiary)',
                   letterSpacing: '0',
                   lineHeight: '1.2',
                 }}>
@@ -95,36 +98,39 @@ export default function Navbar({ theme, toggleTheme }) {
 
             {/* Desktop Tabs */}
             <div className="hidden lg:flex" style={{ gap: '10px', alignItems: 'center' }}>
-              {tabs.map(tab => (
-                <Link
-                  key={tab.path}
-                  to={tab.path}
-                  className={`tab-btn ${location.pathname === tab.path ? 'active' : ''}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  {tab.label}
-                  {tab.showCount && channelCount !== null && (
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      minWidth: '20px',
-                      height: '20px',
-                      padding: '0 6px',
-                      borderRadius: '10px',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      background: 'var(--neu-bg)',
-                      color: '#ADFF2F',
-                      boxShadow: location.pathname === tab.path
-                        ? 'var(--neu-pressed-sm)'
-                        : 'var(--neu-raised-sm)',
-                    }}>
-                      {channelCount}
-                    </span>
-                  )}
-                </Link>
-              ))}
+              {tabs.map(tab => {
+                const isActive = location.pathname === tab.path
+                return (
+                  <Link
+                    key={tab.path}
+                    to={tab.path}
+                    className={`tab-btn ${isActive ? 'active' : ''}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {tab.label}
+                    {tab.showCount && channelCount !== null && (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '20px',
+                        height: '20px',
+                        padding: '0 6px',
+                        borderRadius: '10px',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        background: 'var(--neu-bg)',
+                        color: 'var(--accent-green)',
+                        boxShadow: isActive
+                          ? 'var(--neu-pressed-sm)'
+                          : 'var(--neu-raised-sm)',
+                      }}>
+                        {channelCount}
+                      </span>
+                    )}
+                  </Link>
+                )
+              })}
             </div>
 
             {/* Right Side */}
@@ -133,29 +139,39 @@ export default function Navbar({ theme, toggleTheme }) {
               <button
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
+                title={isLight ? 'Switch to dark theme' : 'Switch to light theme'}
                 style={{
-                  padding: '10px',
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   borderRadius: '12px',
-                  background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: 'var(--text-primary)',
+                  background: 'var(--neu-bg)',
+                  border: 'none',
+                  boxShadow: 'var(--neu-raised-sm)',
+                  color: isLight ? '#f59e0b' : 'var(--accent-green)',
                   cursor: 'pointer',
+                  transition: 'box-shadow 0.18s ease, color 0.18s ease',
                 }}
               >
-                {theme === 'light' ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
+                {isLight
+                  ? <Sun style={{ width: '18px', height: '18px' }} />
+                  : <Moon style={{ width: '18px', height: '18px' }} />}
               </button>
 
-              {/* LIVE badge */}
+              {/* LIVE badge - flat */}
               <div className="hidden lg:flex items-center gap-2" style={{
                 padding: '6px 12px',
-                borderRadius: '9999px',
-                background: 'rgba(173,255,47,0.08)',
-                color: '#ADFF2F',
+                color: 'var(--accent-green)',
+                background: 'transparent',
+                boxShadow: 'none',
+                border: 'none',
               }}>
                 <span style={{
                   width: '6px', height: '6px',
                   borderRadius: '50%',
-                  background: '#ADFF2F',
+                  background: 'var(--accent-green)',
                   display: 'inline-block',
                 }} />
                 <span style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.06em' }}>
@@ -163,18 +179,20 @@ export default function Navbar({ theme, toggleTheme }) {
                 </span>
               </div>
 
-              {/* Clock */}
+              {/* Clock - flat */}
               <div className="hidden lg:flex items-center gap-2" style={{
-                color: 'rgba(232,234,239,0.80)',
+                color: 'var(--text-secondary)',
                 padding: '6px 12px',
-                borderRadius: '14px',
-                background: 'rgba(255,255,255,0.03)',
+                background: 'transparent',
+                boxShadow: 'none',
+                border: 'none',
               }}>
                 <Clock style={{ width: '13px', height: '13px' }} />
                 <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
               </div>
 
               {/* Mobile Menu Button */}
+              <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden"
                 style={{
@@ -201,7 +219,12 @@ export default function Navbar({ theme, toggleTheme }) {
       {mobileMenuOpen && (
         <div
           className="lg:hidden fixed inset-0"
-          style={{ top: '68px', background: 'rgba(15,17,21,0.7)', backdropFilter: 'blur(6px)', zIndex: 40 }}
+          style={{
+            top: '68px',
+            background: isLight ? 'rgba(120,135,160,0.35)' : 'rgba(15,17,21,0.7)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 40,
+          }}
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
@@ -214,56 +237,59 @@ export default function Navbar({ theme, toggleTheme }) {
           height: 'calc(100vh - 68px)',
           width: '280px',
           background: 'var(--neu-bg)',
-          boxShadow: '-8px 0 18px rgba(0,0,0,0.5)',
+          boxShadow: isLight
+            ? '-8px 0 18px rgba(145,160,191,0.25)'
+            : '-8px 0 18px rgba(0,0,0,0.5)',
           zIndex: 50,
           transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {tabs.map(tab => (
-            <Link
-              key={tab.path}
-              to={tab.path}
-              onClick={handleNavClick}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '14px 18px',
-                borderRadius: '14px',
-                fontSize: '15px',
-                fontWeight: location.pathname === tab.path ? '600' : '400',
-                color: location.pathname === tab.path ? '#ADFF2F' : 'rgba(232,234,239,0.72)',
-                background: 'var(--neu-bg)',
-                boxShadow: location.pathname === tab.path
-                  ? 'var(--neu-raised-sm)'
-                  : 'var(--neu-pressed-sm)',
-                textDecoration: 'none',
-                transition: 'all 0.2s',
-              }}
-            >
-              {tab.label}
-              {tab.showCount && channelCount !== null && (
-                <span style={{
-                  display: 'inline-flex',
+          {tabs.map(tab => {
+            const isActive = location.pathname === tab.path
+            return (
+              <Link
+                key={tab.path}
+                to={tab.path}
+                onClick={handleNavClick}
+                style={{
+                  display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: '22px',
-                  height: '22px',
-                  padding: '0 7px',
-                  borderRadius: '11px',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  background: 'var(--neu-bg)',
-                  color: '#ADFF2F',
-                  boxShadow: 'var(--neu-pressed-sm)',
-                }}>
-                  {channelCount}
-                </span>
-              )}
-            </Link>
-          ))}
+                  gap: '8px',
+                  padding: '14px 18px',
+                  borderRadius: '14px',
+                  fontSize: '15px',
+                  fontWeight: isActive ? '600' : '400',
+                  color: isActive ? 'var(--accent-green)' : 'var(--text-secondary)',
+                  background: isActive ? 'var(--neu-bg)' : 'transparent',
+                  boxShadow: isActive ? 'var(--neu-raised-sm)' : 'none',
+                  textDecoration: 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {tab.label}
+                {tab.showCount && channelCount !== null && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: '22px',
+                    height: '22px',
+                    padding: '0 7px',
+                    borderRadius: '11px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    background: 'var(--neu-bg)',
+                    color: 'var(--accent-green)',
+                    boxShadow: isActive ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+                  }}>
+                    {channelCount}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </>
