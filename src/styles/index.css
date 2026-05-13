@@ -124,8 +124,22 @@
 .light-theme .text-gray-600  { color: rgba(43, 53, 86, 0.32); }
 .light-theme .text-green-400 { color: var(--accent-green); }
 .light-theme .text-red-400   { color: var(--red); }
+.light-theme .text-orange-400 { color: var(--orange); }
+.light-theme .text-orange-500 { color: var(--orange); }
+.light-theme .text-orange-300 { color: var(--orange); }
+.light-theme .text-purple-400 { color: var(--purple); }
 .light-theme .text-accent-cyan { color: var(--accent-cyan); }
 .light-theme .text-accent-green { color: var(--accent-green); }
+
+/* Yellow is harsh on a light background — repoint to the deeper orange
+   accent so trophy/zap/shield icons stay warm but legible. */
+.light-theme .text-yellow-400    { color: var(--orange); }
+.light-theme .text-yellow-500    { color: var(--orange); }
+.light-theme .text-yellow-400\/80 { color: var(--orange); }
+
+/* Input placeholders need a dark muted tone in light mode, not white. */
+.light-theme input::placeholder,
+.light-theme textarea::placeholder { color: rgba(43, 53, 86, 0.40); }
 
 .light-theme .bg-dark-secondary { background-color: var(--neu-bg); }
 .light-theme .bg-dark-tertiary  { background-color: var(--neu-bg); }

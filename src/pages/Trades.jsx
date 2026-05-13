@@ -943,9 +943,6 @@ const [outcomePage, setOutcomePage] = useState(1)
 
 // Logarithmic scale toggle for cumulative P&L
 
-// Logarithmic scale toggle for cumulative P&L
-const [useLogScale, setUseLogScale] = useState(false)
-  
   // Show/hide orphaned (deleted) channels
 const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
 // Weekday filter — all days selected by default
@@ -2412,7 +2409,7 @@ style={{
 
 {/* Stats Summary */}
 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Analysis Trades</div>
     <div className="text-2xl font-bold font-mono text-white">{analysisTrades.length}</div>
     {filteredTrades.length !== analysisTrades.length && (
@@ -2421,17 +2418,17 @@ style={{
       </div>
     )}
   </div>
-  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&amp;L</div>
     <div className={`text-2xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
       {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
     </div>
   </div>
-  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
     <div className="text-2xl font-bold font-mono text-white">{winRate}%</div>
   </div>
-  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
     <div className="text-xl font-bold font-mono">
       <span className="text-green-400">{wins}</span>
@@ -2439,7 +2436,7 @@ style={{
       <span className="text-red-400">{losses}</span>
     </div>
   </div>
-  <div className="bg-dark-tertiary/50 rounded-xl p-4 border border-dark-border/30">
+  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Max Drawdown</div>
     <div className="text-2xl font-bold font-mono text-red-400">
       {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
@@ -2557,7 +2554,7 @@ style={{ backgroundColor: getChannelColor(trade.channel_id) }}
 
 <td>
 
-<span className={`badge ${trade.direction === 'buy' ? 'badge-success' : 'badge-danger'}`}>
+<span className={`font-semibold ${trade.direction === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
 
 {trade.direction?.toUpperCase() || '-'}
 
@@ -2580,24 +2577,21 @@ style={{ backgroundColor: getChannelColor(trade.channel_id) }}
 </td>
 
 <td>
-  {/* Cancel policy gets cyan badge, manual/expired get gray */}
-  {trade.status === 'canceled' && trade.cancel_reason === 'cancel_policy' ? (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium"
-      style={{
-        background: 'var(--neu-bg)',
-        borderRadius: '9999px',
-        boxShadow: 'var(--neu-raised-sm)',
-        color: '#ADFF2F',
-      }}
-    >
-      {getStatusDisplay(trade)}
-    </span>
-  ) : (
-    <span className={`badge ${getStatusBadgeClass(trade)}`}>
-      {getStatusDisplay(trade)}
-    </span>
-  )}
+  {(() => {
+    const badgeClass = trade.status === 'canceled' && trade.cancel_reason === 'cancel_policy'
+      ? 'badge-success'
+      : getStatusBadgeClass(trade)
+    const textColorClass =
+      badgeClass === 'badge-success' ? 'text-green-400' :
+      badgeClass === 'badge-danger'  ? 'text-red-400' :
+      badgeClass === 'badge-warning' ? 'text-orange-400' :
+      'text-gray-400'
+    return (
+      <span className={`font-medium uppercase ${textColorClass}`} style={{ fontSize: '11px', letterSpacing: '0.04em' }}>
+        {getStatusDisplay(trade)}
+      </span>
+    )
+  })()}
 </td>
 
 <td className="text-gray-500 text-xs sm:text-sm">
@@ -2653,58 +2647,11 @@ onPageChange={handlePageChange}
 
 <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
 
-{/* Log Scale Toggle */}
-
-{(() => {
-  const allValues = cumulativePnLData.flatMap(point =>
-    Object.entries(point).filter(([k]) => k !== 'date').map(([, v]) => v)
-  ).filter(v => typeof v === 'number')
-  const canUseLogScale = allValues.length > 0 && allValues.every(v => v > 0)
-  const effectiveLogScale = useLogScale && canUseLogScale
-
-  return (
-<>
-<div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-dark-border/50">
-
-<div className="text-sm text-gray-400">
-
-Track each channel's cumulative performance over time
-
-</div>
-
-<div className="flex items-center gap-2">
-{useLogScale && !canUseLogScale && (
-  <span className="text-xs text-yellow-400/80">Log scale unavailable (chart contains non-positive values)</span>
-)}
-<button
-
-onClick={() => setUseLogScale(!useLogScale)}
-
-className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-
-effectiveLogScale
-
-? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30'
-
-: 'bg-dark-tertiary text-gray-400 border border-dark-border hover:border-accent-cyan/50'
-
-}`}
-
->
-
-<span>{effectiveLogScale ? '📊 Logarithmic Scale' : '📈 Linear Scale'}</span>
-
-</button>
-</div>
-
-</div>
-
-
 {cumulativePnLData.length > 0 ? (
 
 <div className="w-full min-w-[300px]">
 
-<ResponsiveContainer key={String(effectiveLogScale)} width="100%" height={800}>
+<ResponsiveContainer width="100%" height={800}>
 
 <LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 50, bottom: 60 }}>
 
@@ -2734,9 +2681,9 @@ fontSize={11}
 
 tickFormatter={(value) => `$${value.toFixed(0)}`}
 
-scale={effectiveLogScale ? "log" : "linear"}
+scale="linear"
 
-domain={effectiveLogScale ? ['auto', 'auto'] : ['auto', 'auto']}
+domain={['auto', 'auto']}
 
 allowDataOverflow={false}
 
@@ -2832,9 +2779,6 @@ No closed trades with dates to display
 </div>
 
 )}
-</>
-  )
-})()}
 
 </ChartCard>
 

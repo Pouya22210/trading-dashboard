@@ -337,14 +337,7 @@ export default function Dashboard() {
                 title="Hot Channels (Last 24h)"
                 icon={Zap}
                 headerRight={
-                  <span
-                    className="text-xs text-gray-500 px-3 py-1"
-                    style={{
-                      background: 'var(--neu-bg)',
-                      borderRadius: '9999px',
-                      boxShadow: 'var(--neu-pressed-sm)',
-                    }}
-                  >
+                  <span className="text-xs text-gray-500">
                     Most active channels
                   </span>
                 }
