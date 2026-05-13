@@ -359,15 +359,19 @@ onClick={() => onPageChange(currentPage - 1)}
 
 disabled={currentPage === 1}
 
-className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
 
 currentPage === 1
 
 ? 'text-gray-600 cursor-not-allowed'
 
-: 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
+: 'text-gray-400 hover:text-white'
 
 }`}
+style={{
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.08)',
+}}
 
 >
 
@@ -395,13 +399,11 @@ key={page}
 
 onClick={() => onPageChange(page)}
 
-className="min-w-[36px] sm:min-w-[40px] h-9 sm:h-10 text-sm font-semibold transition-all"
+className="min-w-[36px] sm:min-w-[40px] h-9 sm:h-10 text-sm font-semibold rounded-xl transition-all"
 style={{
-  background: 'var(--neu-bg)',
-  border: 'none',
-  borderRadius: '12px',
-  boxShadow: currentPage === page ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
-  color: currentPage === page ? '#ADFF2F' : 'rgba(232,234,239,0.58)',
+  background: currentPage === page ? '#ADFF2F' : 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  color: currentPage === page ? 'var(--text-primary)' : 'rgba(232,234,239,0.58)',
   cursor: 'pointer',
 }}
 
@@ -425,15 +427,19 @@ onClick={() => onPageChange(currentPage + 1)}
 
 disabled={currentPage === totalPages}
 
-className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
 
 currentPage === totalPages
 
 ? 'text-gray-600 cursor-not-allowed'
 
-: 'text-gray-400 hover:text-white hover:bg-dark-tertiary'
+: 'text-gray-400 hover:text-white'
 
 }`}
+style={{
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.08)',
+}}
 
 >
 
@@ -841,17 +847,7 @@ value={searchQuery}
 
 onChange={(e) => setSearchQuery(e.target.value)}
 
-className="w-full pl-8 pr-8 py-1.5 bg-dark-tertiary border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent-cyan/50"
-
-onClick={(e) => e.stopPropagation()}
-
-/>
-
-{searchQuery && (
-
-<button
-
-onClick={(e) => {
+  className="w-full flat-input pl-8 pr-8 py-1.5 border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent-cyan/50"
 
 e.stopPropagation()
 
@@ -1693,7 +1689,8 @@ if (closedTrades.length === 0) return []
 
 const dataByDate = {}
 
-const runningTotals = {}
+const runningTotals = { all: 0 }
+const channelIds = new Set(['all'])
 
 
 closedTrades.forEach(trade => {
@@ -1708,6 +1705,8 @@ day: 'numeric'
 
 const channelId = trade.channel_id || 'unknown'
 
+channelIds.add(channelId)
+
 
 if (!runningTotals[channelId]) {
 
@@ -1716,6 +1715,7 @@ runningTotals[channelId] = 0
 }
 
 runningTotals[channelId] += trade.profit_loss || 0
+runningTotals.all += trade.profit_loss || 0
 
 
 if (!dataByDate[date]) {
@@ -1731,15 +1731,14 @@ dataByDate[date][channelId] = runningTotals[channelId]
 
 
 const dates = Object.keys(dataByDate)
-
-const allChannelIds = Object.keys(runningTotals)
+const allKeys = Array.from(channelIds)
 
 
 let lastValues = {}
 
 dates.forEach(date => {
 
-allChannelIds.forEach(channelId => {
+allKeys.forEach(channelId => {
 
 if (dataByDate[date][channelId] !== undefined) {
 
@@ -1760,20 +1759,10 @@ return Object.values(dataByDate)
 
 }, [analysisTrades])
 
+const chartChannelIds = useMemo(() => {
+  return selectedChannelIds.length > 0 ? selectedChannelIds : ['all']
+}, [selectedChannelIds])
 
-const activeChannelIds = useMemo(() => {
-
-const ids = new Set()
-
-analysisTrades.forEach(trade => {
-
-if (trade.channel_id) ids.add(trade.channel_id)
-
-})
-
-return Array.from(ids)
-
-}, [analysisTrades])
 
 
 
@@ -2281,15 +2270,10 @@ className="lg:hidden p-1 hover:bg-dark-tertiary rounded"
 </label>
 
 <input
-
-type="date"
-
-value={filters.startDate}
-
-onChange={e => setFilters({ ...filters, startDate: e.target.value })}
-
-className="w-full"
-
+  type="date"
+  value={filters.startDate}
+  onChange={e => setFilters({ ...filters, startDate: e.target.value })}
+  className="w-full flat-input"
 />
 
 </div>
@@ -2303,15 +2287,10 @@ className="w-full"
 </label>
 
 <input
-
-type="date"
-
-value={filters.endDate}
-
-onChange={e => setFilters({ ...filters, endDate: e.target.value })}
-
-className="w-full"
-
+  type="date"
+  value={filters.endDate}
+  onChange={e => setFilters({ ...filters, endDate: e.target.value })}
+  className="w-full flat-input"
 />
 
 </div>
@@ -2325,13 +2304,13 @@ className="w-full"
 </label>
 
 <ChannelMultiSelect
-                channelList={channelList}
-                selectedChannelIds={selectedChannelIds}
-                onChange={setSelectedChannelIds}
-                channelColorMap={channelColorMap}
-                showOrphaned={showOrphanedChannels}
-                onToggleOrphaned={() => setShowOrphanedChannels(!showOrphanedChannels)}
-              />
+  channelList={channelList}
+  selectedChannelIds={selectedChannelIds}
+  onChange={setSelectedChannelIds}
+  channelColorMap={channelColorMap}
+  showOrphaned={showOrphanedChannels}
+  onToggleOrphaned={() => setShowOrphanedChannels(!showOrphanedChannels)}
+/>
 
 </div>
 
@@ -2344,13 +2323,9 @@ Order Type
 </label>
 
 <select
-
-value={filters.orderType}
-
-onChange={e => setFilters({ ...filters, orderType: e.target.value })}
-
-className="w-full"
-
+  value={filters.orderType}
+  onChange={e => setFilters({ ...filters, orderType: e.target.value })}
+  className="w-full flat-select"
 >
 
 <option value="">All Types</option>
@@ -2379,7 +2354,7 @@ value={filters.side}
 
 onChange={e => setFilters({ ...filters, side: e.target.value })}
 
-className="w-full"
+className="w-full flat-select"
 
 >
 
@@ -2407,7 +2382,7 @@ value={filters.status}
 
 onChange={e => setFilters({ ...filters, status: e.target.value })}
 
-className="w-full"
+className="w-full flat-select"
 
 >
 
@@ -2567,7 +2542,7 @@ style={{
 
 {/* Trades Table */}
 
-<div id="trades-table" className="chart-card mb-8 overflow-hidden">
+<div id="trades-table" className="chart-card flat-card mb-8 overflow-hidden">
 
 <div
 className="flex items-center gap-3 px-3 sm:px-5 py-4"
@@ -2584,7 +2559,7 @@ style={{
   height: '32px',
   borderRadius: '10px',
   background: 'var(--neu-bg)',
-  boxShadow: 'var(--neu-pressed-sm)',
+  boxShadow: 'none',
 }}
 >
 
@@ -2597,9 +2572,10 @@ style={{
 <span
 className="ml-auto text-xs text-gray-500 px-2 sm:px-3 py-1"
 style={{
-  background: 'var(--neu-bg)',
+  background: 'rgba(255,255,255,0.05)',
   borderRadius: '9999px',
-  boxShadow: 'var(--neu-pressed-sm)',
+  boxShadow: 'none',
+  border: '1px solid rgba(255,255,255,0.08)',
 }}
 >
 
@@ -2870,8 +2846,7 @@ if (!hoveredItem) return null
 
 
 const channelId = hoveredItem.dataKey
-
-const displayName = getChannelName(channelId)
+const displayName = channelId === 'all' ? 'All Channels' : getChannelName(channelId)
 
 
 return (
@@ -2908,7 +2883,7 @@ ${hoveredItem.value?.toFixed(2)}
 
 />
 
-{activeChannelIds.map((channelId) => (
+{chartChannelIds.map((channelId) => (
 
 <Line
 
@@ -2918,9 +2893,9 @@ type="monotone"
 
 dataKey={channelId}
 
-name={channelId}
+name={channelId === 'all' ? 'All Channels' : getChannelName(channelId)}
 
-stroke={getChannelColor(channelId)}
+stroke={channelId === 'all' ? '#ADFF2F' : getChannelColor(channelId)}
 
 strokeWidth={2.5}
 
@@ -3229,148 +3204,6 @@ No trades in selected time range
 )}
 
 </ChartCard>
-
-
-
-{/* Channel Stats Grid */}
-
-<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-<ChartCard title="Total P&L by Channel" icon={BarChart3}>
-
-<div className="w-full min-w-[280px]">
-
-<ResponsiveContainer width="100%" height={280}>
-
-<BarChart data={channelComparisonData} layout="vertical" margin={{ left: 10, right: 10 }} barSize={18}>
-
-<XAxis type="number" stroke="#6e7681" fontSize={11} tickFormatter={(v) => `$${v}`} />
-
-<YAxis
-
-type="category"
-
-dataKey="channel"
-
-stroke="#6e7681"
-
-fontSize={11}
-
-width={120}
-
-/>
-
-<Tooltip
-
-contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }}
-
-formatter={(value, name, props) => [`$${value.toFixed(2)}`, props.payload.fullName]}
-
-/>
-
-<Bar dataKey="totalPnL" radius={[0, 4, 4, 0]}>
-
-{channelComparisonData.map((entry, index) => (
-
-<Cell
-
-key={index}
-
-fill={entry.totalPnL >= 0 ? COLORS.green : COLORS.red}
-
-/>
-
-))}
-
-</Bar>
-
-</BarChart>
-
-</ResponsiveContainer>
-
-</div>
-
-</ChartCard>
-
-
-
-<ChartCard title="Win Rate by Channel" icon={Target}>
-
-<div className="w-full min-w-[280px]">
-
-<ResponsiveContainer width="100%" height={280}>
-
-<BarChart data={channelComparisonData} layout="vertical" margin={{ left: 10, right: 10 }} barSize={18}>
-
-<XAxis
-
-type="number"
-
-stroke="#6e7681"
-
-fontSize={11}
-
-domain={[0, 100]}
-
-tickFormatter={(v) => `${v}%`}
-
-/>
-
-<YAxis
-
-type="category"
-
-dataKey="channel"
-
-stroke="#6e7681"
-
-fontSize={11}
-
-width={120}
-
-/>
-
-<Tooltip
-
-contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }}
-
-formatter={(value, name, props) => [
-
-`${value.toFixed(1)}% (${props.payload.wins}W / ${props.payload.losses}L)`,
-
-props.payload.fullName
-
-]}
-
-/>
-
-<Bar dataKey="winRate" radius={[0, 4, 4, 0]}>
-
-{channelComparisonData.map((entry, index) => (
-
-<Cell
-
-key={index}
-
-fill={entry.color}
-
-/>
-
-))}
-
-</Bar>
-
-</BarChart>
-
-</ResponsiveContainer>
-
-</div>
-
-</ChartCard>
-
-</div>
-
-
 
 {/* Market Sessions Chart */}
 

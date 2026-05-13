@@ -31,7 +31,7 @@ const TIME_RANGES = [
 // Reusable Components
 function TimeRangeSelector({ value, onChange, className = '' }) {
   return (
-    <div className={`tab-nav ${className}`} style={{ padding: '4px', gap: '2px' }}>
+    <div className={`tab-nav ${className}`} style={{ padding: '4px', gap: '2px', flexWrap: 'wrap' }}>
       {TIME_RANGES.map(option => (
         <button
           key={option.key}
@@ -394,69 +394,6 @@ export default function Dashboard() {
           )}
 
           {/* Channel Performance Summary Table */}
-          <ChartCard title="All Channels Performance Summary" icon={BarChart3}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 text-xs uppercase tracking-wider border-b border-dark-border">
-                    <th className="pb-3 pr-4">Rank</th>
-                    <th className="pb-3 pr-4">Channel</th>
-                    <th className="pb-3 pr-4 text-right">P&L</th>
-                    <th className="pb-3 pr-4 text-right">Win Rate</th>
-                    <th className="pb-3 pr-4 text-right">Trades</th>
-                    <th className="pb-3 pr-4 text-right">Wins</th>
-                    <th className="pb-3 text-right">Losses</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {channelPerformance.all.slice(0, 15).map((channel, idx) => (
-                    <tr
-                      key={channel.channelId}
-                      className="transition-colors"
-                      style={{ borderBottom: '1px solid rgba(0,0,0,0.25)' }}
-                    >
-                      <td className="py-3 pr-4">
-                        <span
-                          className="inline-flex items-center justify-center w-7 h-7 text-xs font-semibold"
-                          style={{
-                            background: 'var(--neu-bg)',
-                            borderRadius: '9999px',
-                            boxShadow: 'var(--neu-raised-sm)',
-                            color: idx < 3 ? '#ADFF2F'
-                                 : idx >= channelPerformance.all.length - 3 ? 'var(--red)'
-                                 : 'rgba(232,234,239,0.58)',
-                          }}
-                        >
-                          {idx + 1}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className="text-white font-medium truncate block max-w-[200px]" title={channel.channelName}>
-                          {channel.channelName}
-                        </span>
-                      </td>
-                      <td className={`py-3 pr-4 text-right font-mono font-semibold ${channel.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {channel.pnl >= 0 ? '+' : ''}${channel.pnl.toFixed(2)}
-                      </td>
-                      <td className={`py-3 pr-4 text-right font-mono ${channel.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
-                        {channel.winRate.toFixed(1)}%
-                      </td>
-                      <td className="py-3 pr-4 text-right text-gray-400 font-mono">
-                        {channel.trades}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-green-400 font-mono">
-                        {channel.wins}
-                      </td>
-                      <td className="py-3 text-right text-red-400 font-mono">
-                        {channel.losses}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </ChartCard>
-          
           {/* Bottom spacing */}
           <div className="pb-8" />
         </div>

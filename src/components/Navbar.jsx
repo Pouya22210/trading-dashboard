@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sparkles, Clock, Menu, X } from 'lucide-react'
+import { Sparkles, Clock, Menu, X, Moon, Sun } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-export default function Navbar() {
+export default function Navbar({ theme, toggleTheme }) {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
@@ -94,7 +94,7 @@ export default function Navbar() {
             </div>
 
             {/* Desktop Tabs */}
-            <div className="hidden lg:flex tab-nav">
+            <div className="hidden lg:flex" style={{ gap: '10px', alignItems: 'center' }}>
               {tabs.map(tab => (
                 <Link
                   key={tab.path}
@@ -128,42 +128,53 @@ export default function Navbar() {
             </div>
 
             {/* Right Side */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+                style={{
+                  padding: '10px',
+                  borderRadius: '12px',
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                {theme === 'light' ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
+              </button>
 
               {/* LIVE badge */}
               <div className="hidden lg:flex items-center gap-2" style={{
-                padding: '6px 14px',
-                borderRadius: '20px',
-                background: 'var(--neu-bg)',
-                boxShadow: 'var(--neu-raised-sm)',
+                padding: '6px 12px',
+                borderRadius: '9999px',
+                background: 'rgba(173,255,47,0.08)',
+                color: '#ADFF2F',
               }}>
                 <span style={{
                   width: '6px', height: '6px',
                   borderRadius: '50%',
                   background: '#ADFF2F',
                   display: 'inline-block',
-                  boxShadow: '0 0 8px rgba(173,255,47,0.6)',
-                  animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
                 }} />
-                <span style={{ fontSize: '11px', fontWeight: '600', color: '#ADFF2F', letterSpacing: '0.06em' }}>
+                <span style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.06em' }}>
                   LIVE
                 </span>
               </div>
 
               {/* Clock */}
               <div className="hidden lg:flex items-center gap-2" style={{
-                color: 'rgba(232,234,239,0.50)',
+                color: 'rgba(232,234,239,0.80)',
                 padding: '6px 12px',
                 borderRadius: '14px',
-                background: 'var(--neu-bg)',
-                boxShadow: 'var(--neu-pressed-sm)',
+                background: 'rgba(255,255,255,0.03)',
               }}>
                 <Clock style={{ width: '13px', height: '13px' }} />
                 <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
               </div>
 
               {/* Mobile Menu Button */}
-              <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden"
                 style={{
