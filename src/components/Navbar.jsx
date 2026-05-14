@@ -110,22 +110,12 @@ export default function Navbar({ theme, toggleTheme }) {
                     {tab.label}
                     {tab.showCount && channelCount !== null && (
                       <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '20px',
-                        height: '20px',
-                        padding: '0 6px',
-                        borderRadius: '10px',
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        background: 'var(--neu-bg)',
+                        fontSize: '11px',
+                        fontWeight: '600',
                         color: 'var(--accent-green)',
-                        boxShadow: isActive
-                          ? 'var(--neu-pressed-sm)'
-                          : 'var(--neu-raised-sm)',
+                        opacity: 0.85,
                       }}>
-                        {channelCount}
+                        ({channelCount})
                       </span>
                     )}
                   </Link>
@@ -271,20 +261,12 @@ export default function Navbar({ theme, toggleTheme }) {
                 {tab.label}
                 {tab.showCount && channelCount !== null && (
                   <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: '22px',
-                    height: '22px',
-                    padding: '0 7px',
-                    borderRadius: '11px',
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    background: 'var(--neu-bg)',
+                    fontSize: '12px',
+                    fontWeight: '600',
                     color: 'var(--accent-green)',
-                    boxShadow: isActive ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+                    opacity: 0.85,
                   }}>
-                    {channelCount}
+                    ({channelCount})
                   </span>
                 )}
               </Link>

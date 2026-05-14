@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 
 import {
-  Calendar, Filter, Download, Plus, Trash2, Search, X, Wifi, WifiOff,
+  Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
   BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff
 } from 'lucide-react'
@@ -178,11 +178,41 @@ const TRADES_PER_PAGE = 10
 
 
 
-// Connection status indicator component
+// Returns the dominant active forex trading session by UTC time.
+// Sessions overlap, so when two are open we pick the higher-liquidity one
+// (NY > London > Tokyo > Sydney).
+function getCurrentTradingSession() {
+  const now = new Date()
+  const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes()
 
+  // New York: 13:00 - 22:00 UTC
+  if (utcMins >= 13 * 60 && utcMins < 22 * 60) {
+    return { name: 'New York', flag: '\u{1F1FA}\u{1F1F8}', short: 'NY' }
+  }
+  // London: 08:00 - 17:00 UTC
+  if (utcMins >= 8 * 60 && utcMins < 17 * 60) {
+    return { name: 'London', flag: '\u{1F1EC}\u{1F1E7}', short: 'LDN' }
+  }
+  // Tokyo: 00:00 - 09:00 UTC
+  if (utcMins < 9 * 60) {
+    return { name: 'Tokyo', flag: '\u{1F1EF}\u{1F1F5}', short: 'TYO' }
+  }
+  // Sydney: 22:00 - 07:00 UTC (the leftover 22:00-23:59 + 09:00-13:00 fallback)
+  return { name: 'Sydney', flag: '\u{1F1E6}\u{1F1FA}', short: 'SYD' }
+}
+
+// Sidebar session indicator — replaces the old "Live" connection chip.
+// Re-renders every minute so the session label stays accurate.
 function ConnectionStatus({ status }) {
 
 const isConnected = status === 'SUBSCRIBED'
+const [session, setSession] = useState(getCurrentTradingSession())
+
+useEffect(() => {
+  const tick = () => setSession(getCurrentTradingSession())
+  const timer = setInterval(tick, 60 * 1000)
+  return () => clearInterval(timer)
+}, [])
 
 
 return (
@@ -195,15 +225,16 @@ style={{
   boxShadow: 'none',
   color: isConnected ? 'var(--accent-green)' : 'var(--orange)',
 }}
+title={isConnected ? `Active session: ${session.name}` : (status || 'Connecting...')}
 >
 
 {isConnected ? (
 
 <>
 
-<Wifi className="w-3 h-3" />
+<span style={{ fontSize: '14px', lineHeight: 1 }} aria-hidden="true">{session.flag}</span>
 
-<span>Live</span>
+<span style={{ letterSpacing: '0.02em' }}>{session.name}</span>
 
 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
 
@@ -2578,13 +2609,12 @@ style={{ backgroundColor: getChannelColor(trade.channel_id) }}
 
 <td>
   {(() => {
-    const badgeClass = trade.status === 'canceled' && trade.cancel_reason === 'cancel_policy'
-      ? 'badge-success'
-      : getStatusBadgeClass(trade)
+    const badgeClass = getStatusBadgeClass(trade)
     const textColorClass =
-      badgeClass === 'badge-success' ? 'text-green-400' :
-      badgeClass === 'badge-danger'  ? 'text-red-400' :
-      badgeClass === 'badge-warning' ? 'text-orange-400' :
+      badgeClass === 'badge-success'       ? 'text-green-400' :
+      badgeClass === 'badge-danger'        ? 'text-red-400' :
+      badgeClass === 'badge-warning'       ? 'text-orange-400' :
+      badgeClass === 'badge-cancel-policy' ? 'badge-cancel-policy' :
       'text-gray-400'
     return (
       <span className={`font-medium uppercase ${textColorClass}`} style={{ fontSize: '11px', letterSpacing: '0.04em' }}>

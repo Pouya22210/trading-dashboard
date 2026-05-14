@@ -104,12 +104,12 @@
   --green:   #4aa84a;
   --blue:    #2b6cff;
   --red:     #e34a4a;
-  --orange:  #e08a2c;
-  --purple:  #8b5cf6;
+  --orange:  #b86412;
+  --purple:  #7c3aed;
 
   --success: #4aa84a;
   --danger:  #e34a4a;
-  --warning: #e08a2c;
+  --warning: #b86412;
 }
 
 .light-theme body {
@@ -157,6 +157,15 @@
 .light-theme .btn-primary { color: var(--accent-green); }
 .light-theme .btn-primary:hover { color: #3d8e3d; }
 .light-theme .tab-btn.active { color: var(--accent-green); }
+
+/* Unselected nav tabs default to a near-white color built for dark
+   surfaces — invisible on light. Repoint to a muted dark text. */
+.light-theme .tab-btn { color: rgba(43, 53, 86, 0.60); }
+.light-theme .tab-btn:hover { color: rgba(43, 53, 86, 0.92); }
+
+/* Mobile slide-menu inactive items use --text-secondary which is fine,
+   but the hover state should match. The mobile menu in Navbar reads
+   var(--text-secondary) directly so no extra override needed. */
 
 /* ============================================================
    BASE
@@ -552,6 +561,10 @@ select option { background: var(--neu-bg); color: var(--text-primary); }
 .badge-danger  { color: var(--red); }
 .badge-warning { color: var(--orange); }
 .badge-neutral { color: rgba(232,234,239,0.45); }
+/* Canceled (TP) — TP was hit before entry filled. Distinct from
+   profit-close green so the two outcomes don't look identical. */
+.badge-cancel-policy { color: #4DA8FF; }
+.light-theme .badge-cancel-policy { color: #2b6cff; }
 
 /* ============================================================
    DATA TABLE — flat-on-card, recessed header
