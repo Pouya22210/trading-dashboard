@@ -371,9 +371,11 @@ export default function Dashboard() {
                     justifyContent: 'space-between',
                     gap: '12px',
                     marginBottom: '16px',
+                    flexWrap: 'wrap',
+                    rowGap: '12px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                     <div
                       style={{
                         width: '32px',
@@ -384,6 +386,7 @@ export default function Dashboard() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       <Trophy style={{ width: '16px', height: '16px', color: '#FFC857' }} />
@@ -394,6 +397,7 @@ export default function Dashboard() {
                         fontWeight: 700,
                         color: 'var(--text-primary)',
                         letterSpacing: '-0.01em',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       Top 5 Performers

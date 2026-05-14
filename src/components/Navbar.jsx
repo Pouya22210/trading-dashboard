@@ -62,7 +62,7 @@ export default function Navbar({ theme, toggleTheme }) {
           <div className="flex items-center justify-between" style={{ height: '68px' }}>
 
             {/* Logo */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <div style={{
                 width: '40px',
                 height: '40px',
@@ -72,25 +72,35 @@ export default function Navbar({ theme, toggleTheme }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
               }}>
                 <Sparkles style={{ width: '17px', height: '17px', color: 'var(--accent-green)' }} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                 <span style={{
                   fontSize: '15px',
                   fontWeight: '600',
                   color: 'var(--text-primary)',
                   letterSpacing: '-0.02em',
                   lineHeight: '1.2',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}>
                   Trading Dashboard
                 </span>
-                <span style={{
-                  fontSize: '11px',
-                  color: 'var(--text-tertiary)',
-                  letterSpacing: '0',
-                  lineHeight: '1.2',
-                }}>
+                <span
+                  className="hidden sm:block"
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-tertiary)',
+                    letterSpacing: '0',
+                    lineHeight: '1.2',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
                   Track your trading performance with real-time insights
                 </span>
               </div>
