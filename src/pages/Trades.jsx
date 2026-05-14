@@ -260,6 +260,150 @@ title={isConnected ? `Active session: ${session.name}` : (status || 'Connecting.
 
 
 
+// Full-circle win-rate gauge. The TOP half is a segmented arc showing the
+// win / breakeven / loss breakdown (with count pills). The BOTTOM half is a
+// speedometer gradient (red → yellow → green) with a needle that points to
+// the current win-rate %. Both halves share the same center, so they read
+// as a single circle.
+function WinRateGauge({ wins, breakevens, losses, winRate }) {
+  const total = wins + breakevens + losses
+  const rate = parseFloat(winRate) || 0
+
+  const W = 280, H = 240
+  const cx = W / 2, cy = H / 2
+  const r = 92, sw = 16
+
+  const C = {
+    win:   '#22c55e',
+    be:    '#3b82f6',
+    loss:  '#ef4444',
+    track: 'rgba(148,163,184,0.18)',
+  }
+
+  const polar = (deg, radius = r) => {
+    const rad = deg * Math.PI / 180
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) }
+  }
+
+  const arcPath = (s, e, sweep, radius = r) => {
+    const a = polar(s, radius), b = polar(e, radius)
+    const large = Math.abs(e - s) > 180 ? 1 : 0
+    return `M ${a.x} ${a.y} A ${radius} ${radius} 0 ${large} ${sweep} ${b.x} ${b.y}`
+  }
+
+  // Build top-half segments (180° = left → 360° = right, clockwise through 270° = top)
+  const segs = []
+  if (total === 0) {
+    segs.push({ start: 180, end: 360, color: C.track, count: null })
+  } else {
+    let cur = 180
+    const items = [
+      { count: wins,       color: C.win },
+      { count: breakevens, color: C.be  },
+      { count: losses,     color: C.loss },
+    ].filter(i => i.count > 0)
+    items.forEach(it => {
+      const span = (it.count / total) * 180
+      segs.push({
+        start: cur,
+        end: cur + span,
+        midDeg: cur + span / 2,
+        color: it.color,
+        count: it.count,
+      })
+      cur += span
+    })
+  }
+
+  // Needle on the bottom arc: 0% → 180° (left), 100% → 0° (right), via 90° (bottom)
+  const needleDeg = 180 - (Math.max(0, Math.min(100, rate)) / 100) * 180
+  const needleEnd = polar(needleDeg, r - sw / 2 - 6)
+
+  return (
+    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ maxWidth: '320px' }}>
+        <defs>
+          <linearGradient id="winrate-speedo-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#ef4444" />
+            <stop offset="50%"  stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#22c55e" />
+          </linearGradient>
+        </defs>
+
+        {/* Top-half track (under the segments, fills any gap if total === 0) */}
+        <path d={arcPath(180, 360, 1)} stroke={C.track} strokeWidth={sw} fill="none" strokeLinecap="round" />
+
+        {/* Top-half segments */}
+        {segs.filter(s => s.count != null).map((s, i) => (
+          <path
+            key={`seg-${i}`}
+            d={arcPath(s.start, s.end, 1)}
+            stroke={s.color}
+            strokeWidth={sw}
+            fill="none"
+            strokeLinecap="butt"
+          />
+        ))}
+
+        {/* Bottom-half: speedometer gradient arc (180° going clockwise back to 360°/0° via 90°) */}
+        <path
+          d={arcPath(0, 180, 1)}
+          stroke="url(#winrate-speedo-grad)"
+          strokeWidth={sw}
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+
+        {/* Count pills nested inside the top arc, at each segment midpoint */}
+        {segs.filter(s => s.count != null).map((s, i) => {
+          const pos = polar(s.midDeg, r - sw - 16)
+          return (
+            <g key={`pill-${i}`}>
+              <rect
+                x={pos.x - 17} y={pos.y - 10}
+                width={34} height={20}
+                rx={10}
+                fill={s.color}
+                opacity={0.22}
+              />
+              <text
+                x={pos.x} y={pos.y + 4}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="700"
+                fill={s.color}
+              >{s.count}</text>
+            </g>
+          )
+        })}
+
+        {/* Big winrate % in the center */}
+        <text
+          x={cx} y={cy - 6}
+          textAnchor="middle"
+          fontSize="26"
+          fontWeight="700"
+          fill="var(--text-primary)"
+          fontFamily="JetBrains Mono, ui-monospace, monospace"
+        >{rate.toFixed(1)}%</text>
+
+        {/* Needle pivoting from the geometric center, pointing to the bottom arc */}
+        <line
+          x1={cx} y1={cy}
+          x2={needleEnd.x} y2={needleEnd.y}
+          stroke="var(--text-primary)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.85"
+        />
+        <circle cx={cx} cy={cy} r="6" fill="var(--neu-bg)" stroke="var(--text-primary)" strokeWidth="2" />
+      </svg>
+    </div>
+  )
+}
+
+
 function ChartCard({ title, icon: Icon, children, className = '' }) {
 
 return (
@@ -1834,6 +1978,8 @@ const closedTrades = analysisTrades.filter(t => t.status === 'closed')
 
 const wins = closedTrades.filter(t => t.outcome === 'profit').length
 
+const breakevens = closedTrades.filter(t => t.outcome === 'breakeven').length
+
 const losses = closedTrades.filter(t => t.outcome === 'loss').length
 
 const netPnL = closedTrades.reduce((sum, t) => sum + (t.profit_loss || 0), 0)
@@ -2439,7 +2585,7 @@ style={{
 <div className="p-4 sm:p-6 lg:p-8 max-w-full">
 
 {/* Stats Summary */}
-<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
   <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Analysis Trades</div>
     <div className="text-2xl font-bold font-mono text-white">{analysisTrades.length}</div>
@@ -2455,9 +2601,21 @@ style={{
       {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
     </div>
   </div>
-  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
+  <div
+    className="p-4 lg:col-span-2"
+    style={{
+      background: 'var(--neu-bg)',
+      borderRadius: '18px',
+      boxShadow: 'var(--neu-raised-sm)',
+    }}
+  >
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
-    <div className="text-2xl font-bold font-mono text-white">{winRate}%</div>
+    <WinRateGauge
+      wins={wins}
+      breakevens={breakevens}
+      losses={losses}
+      winRate={winRate}
+    />
   </div>
   <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
