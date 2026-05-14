@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 
 import {
   Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
-  BarChart3, Clock, TrendingUp, Target, ChevronLeft, ChevronRight,
-  CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff
+  BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
+  CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
+  Hash, DollarSign, Percent, AlertTriangle
 } from 'lucide-react'
 
 import {
@@ -178,211 +179,105 @@ const TRADES_PER_PAGE = 10
 
 
 
-// Returns the dominant active forex trading session by UTC time.
-// Sessions overlap, so when two are open we pick the higher-liquidity one
-// (NY > London > Tokyo > Sydney).
-function getCurrentTradingSession() {
+// Returns all currently active forex trading sessions, ordered by liquidity
+// (NY > London > Tokyo > Sydney). Sessions overlap, so multiple can be
+// returned at once.
+function getActiveTradingSessions() {
   const now = new Date()
   const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes()
 
-  // New York: 13:00 - 22:00 UTC
-  if (utcMins >= 13 * 60 && utcMins < 22 * 60) {
-    return { name: 'New York', flag: '\u{1F1FA}\u{1F1F8}', short: 'NY' }
+  const within = (start, end) => {
+    if (start <= end) return utcMins >= start && utcMins < end
+    return utcMins >= start || utcMins < end // wraps midnight
   }
-  // London: 08:00 - 17:00 UTC
-  if (utcMins >= 8 * 60 && utcMins < 17 * 60) {
-    return { name: 'London', flag: '\u{1F1EC}\u{1F1E7}', short: 'LDN' }
-  }
-  // Tokyo: 00:00 - 09:00 UTC
-  if (utcMins < 9 * 60) {
-    return { name: 'Tokyo', flag: '\u{1F1EF}\u{1F1F5}', short: 'TYO' }
-  }
-  // Sydney: 22:00 - 07:00 UTC (the leftover 22:00-23:59 + 09:00-13:00 fallback)
-  return { name: 'Sydney', flag: '\u{1F1E6}\u{1F1FA}', short: 'SYD' }
+
+  const active = []
+  // Order matters: highest liquidity first.
+  if (within(13 * 60, 22 * 60)) active.push({ name: 'New York', country: 'us' })
+  if (within(8 * 60, 17 * 60))  active.push({ name: 'London',   country: 'gb' })
+  if (within(0,        9 * 60)) active.push({ name: 'Tokyo',    country: 'jp' })
+  if (within(22 * 60,  7 * 60)) active.push({ name: 'Sydney',   country: 'au' })
+
+  return active
+}
+
+// Small circular country flag rendered from flagcdn (works on all platforms,
+// unlike Unicode regional-indicator emojis which fall back to letter pairs on
+// Windows).
+function CountryFlagCircle({ country, size = 16, title }) {
+  const px = `${size}px`
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      style={{
+        display: 'inline-block',
+        width: px,
+        height: px,
+        borderRadius: '9999px',
+        overflow: 'hidden',
+        flexShrink: 0,
+        boxShadow: '0 0 0 1px rgba(255,255,255,0.18), inset 0 0 0 1px rgba(0,0,0,0.25)',
+        backgroundImage: `url(https://flagcdn.com/w40/${country}.png)`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    />
+  )
 }
 
 // Sidebar session indicator — replaces the old "Live" connection chip.
-// Re-renders every minute so the session label stays accurate.
+// Re-renders every minute so the session label stays accurate. When two
+// sessions overlap, both are shown side by side.
 function ConnectionStatus({ status }) {
 
 const isConnected = status === 'SUBSCRIBED'
-const [session, setSession] = useState(getCurrentTradingSession())
+const [sessions, setSessions] = useState(getActiveTradingSessions())
 
 useEffect(() => {
-  const tick = () => setSession(getCurrentTradingSession())
+  const tick = () => setSessions(getActiveTradingSessions())
   const timer = setInterval(tick, 60 * 1000)
   return () => clearInterval(timer)
 }, [])
 
+const titleText = isConnected
+  ? `Active session${sessions.length > 1 ? 's' : ''}: ${sessions.map(s => s.name).join(' + ')}`
+  : (status || 'Connecting...')
 
 return (
-
-<div
-className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium"
-style={{
-  background: 'transparent',
-  borderRadius: '9999px',
-  boxShadow: 'none',
-  color: isConnected ? 'var(--accent-green)' : 'var(--orange)',
-}}
-title={isConnected ? `Active session: ${session.name}` : (status || 'Connecting...')}
->
-
-{isConnected ? (
-
-<>
-
-<span style={{ fontSize: '14px', lineHeight: 1 }} aria-hidden="true">{session.flag}</span>
-
-<span style={{ letterSpacing: '0.02em' }}>{session.name}</span>
-
-<span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-
-</>
-
-) : (
-
-<>
-
-<WifiOff className="w-3 h-3" />
-
-<span>{status || 'Connecting...'}</span>
-
-</>
-
-)}
-
-</div>
-
-)
-
-}
-
-
-
-// Win-rate gauge: a half-circle built from two touching nested arcs.
-// Outer = W / BE / L segments. Inner = red → yellow → green speedometer
-// with a needle pointing to the current win-rate %, which is displayed
-// in the middle.
-function WinRateGauge({ wins, breakevens, losses, winRate }) {
-  const total = wins + breakevens + losses
-  const rate = parseFloat(winRate) || 0
-
-  // Compact half-circle so the card stays the same size as KPI siblings.
-  // Radii chosen so the outer and inner stroke edges touch (no gap):
-  // outer inner-edge = rOuter - swOuter/2 = 66; inner outer-edge = rInner + swInner/2 = 66.
-  const W = 170, H = 96
-  const cx = W / 2
-  const cy = 84
-  const rOuter = 70
-  const rInner = 62
-  const swOuter = 8
-  const swInner = 8
-
-  const C = {
-    win:   '#22c55e',
-    be:    '#3b82f6',
-    loss:  '#ef4444',
-    track: 'rgba(148,163,184,0.22)',
-  }
-
-  const polar = (deg, radius) => {
-    const rad = deg * Math.PI / 180
-    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) }
-  }
-
-  const arcPath = (s, e, sweep, radius) => {
-    const a = polar(s, radius), b = polar(e, radius)
-    const large = Math.abs(e - s) > 180 ? 1 : 0
-    return `M ${a.x} ${a.y} A ${radius} ${radius} 0 ${large} ${sweep} ${b.x} ${b.y}`
-  }
-
-  // Top half-circle covers angles 180° (left) → 360° (right) clockwise via 270° (top).
-  const segs = []
-  if (total === 0) {
-    segs.push({ start: 180, end: 360, color: C.track, count: null })
-  } else {
-    let cur = 180
-    const items = [
-      { count: wins,       color: C.win },
-      { count: breakevens, color: C.be  },
-      { count: losses,     color: C.loss },
-    ].filter(i => i.count > 0)
-    items.forEach(it => {
-      const span = (it.count / total) * 180
-      segs.push({
-        start: cur,
-        end: cur + span,
-        midDeg: cur + span / 2,
-        color: it.color,
-        count: it.count,
-      })
-      cur += span
-    })
-  }
-
-  // Needle on the inner arc: 0% → 180° (left end), 100% → 360° (right end), via 270° (top).
-  const needleDeg = 180 + (Math.max(0, Math.min(100, rate)) / 100) * 180
-  const needleEnd = polar(needleDeg, rInner - swInner / 2 - 2)
-
-  return (
-    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ maxWidth: '180px', display: 'block' }}>
-        <defs>
-          <linearGradient id="winrate-speedo-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"   stopColor="#ef4444" />
-            <stop offset="50%"  stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#22c55e" />
-          </linearGradient>
-        </defs>
-
-        {/* Outer arc — segmented W / BE / L (track shows if there are no trades) */}
-        <path d={arcPath(180, 360, 1, rOuter)} stroke={C.track} strokeWidth={swOuter} fill="none" strokeLinecap="round" />
-        {segs.filter(s => s.count != null).map((s, i) => (
-          <path
-            key={`seg-${i}`}
-            d={arcPath(s.start, s.end, 1, rOuter)}
-            stroke={s.color}
-            strokeWidth={swOuter}
-            fill="none"
-            strokeLinecap="butt"
-          />
+  <div
+    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium flex-wrap"
+    style={{
+      background: 'transparent',
+      borderRadius: '9999px',
+      boxShadow: 'none',
+      color: isConnected ? 'var(--accent-green)' : 'var(--orange)',
+    }}
+    title={titleText}
+  >
+    {isConnected ? (
+      <>
+        {sessions.map((s, i) => (
+          <React.Fragment key={s.name}>
+            {i > 0 && <span className="text-gray-600">+</span>}
+            <span className="inline-flex items-center gap-1.5">
+              <CountryFlagCircle country={s.country} size={14} title={s.name} />
+              <span style={{ letterSpacing: '0.02em' }}>{s.name}</span>
+            </span>
+          </React.Fragment>
         ))}
-
-        {/* Inner arc — red → yellow → green speedometer */}
-        <path
-          d={arcPath(180, 360, 1, rInner)}
-          stroke="url(#winrate-speedo-grad)"
-          strokeWidth={swInner}
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.95"
-        />
-
-        {/* Needle */}
-        <line
-          x1={cx} y1={cy}
-          x2={needleEnd.x} y2={needleEnd.y}
-          stroke="var(--text-primary)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.75"
-        />
-        <circle cx={cx} cy={cy} r="3" fill="var(--text-primary)" opacity="0.75" />
-
-        {/* Winrate % inside the half-circle */}
-        <text
-          x={cx} y={cy - 10}
-          textAnchor="middle"
-          fontSize="16"
-          fontWeight="700"
-          fill="var(--text-primary)"
-          fontFamily="JetBrains Mono, ui-monospace, monospace"
-        >{rate.toFixed(1)}%</text>
-      </svg>
-    </div>
-  )
+        <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+      </>
+    ) : (
+      <>
+        <WifiOff className="w-3 h-3" />
+        <span>{status || 'Connecting...'}</span>
+      </>
+    )}
+  </div>
+)
 }
+
 
 
 function ChartCard({ title, icon: Icon, children, className = '' }) {
@@ -2566,47 +2461,176 @@ style={{
 <div className="p-4 sm:p-6 lg:p-8 max-w-full">
 
 {/* Stats Summary */}
-<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
-    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Analysis Trades</div>
-    <div className="text-2xl font-bold font-mono text-white">{analysisTrades.length}</div>
-    {filteredTrades.length !== analysisTrades.length && (
-      <div className="text-xs text-gray-500 mt-1">
-        {filteredTrades.length} total ({filteredTrades.length - analysisTrades.length} non-policy cancels excluded)
+{(() => {
+  const totalWL = wins + losses
+  const winsPct = totalWL > 0 ? (wins / totalWL) * 100 : 50
+  const lossesPct = totalWL > 0 ? (losses / totalWL) * 100 : 50
+  const sumProfit = closedTrades.filter(t => t.outcome === 'profit').reduce((s, t) => s + (t.profit_loss || 0), 0)
+  const sumLoss = Math.abs(closedTrades.filter(t => t.outcome === 'loss').reduce((s, t) => s + (t.profit_loss || 0), 0))
+  const profitFactor = sumLoss > 0 ? sumProfit / sumLoss : (sumProfit > 0 ? Infinity : 0)
+  const pnlDeltaPct = isFinite(profitFactor) && profitFactor > 0
+    ? ((profitFactor - 1) * 100)
+    : (sumProfit > 0 ? 100 : 0)
+  const excluded = filteredTrades.length - analysisTrades.length
+
+  const cardStyle = {
+    background: 'var(--neu-bg)',
+    borderRadius: '20px',
+    boxShadow: 'var(--neu-raised-sm)',
+  }
+  const iconBoxStyle = {
+    width: '26px',
+    height: '26px',
+    borderRadius: '8px',
+    background: 'var(--neu-bg)',
+    boxShadow: 'var(--neu-pressed-sm)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  }
+  const labelClass = 'text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-[0.12em]'
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+      {/* Analysis */}
+      <div className="p-4 sm:p-5" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <div style={iconBoxStyle}><Hash className="w-3.5 h-3.5 text-gray-400" /></div>
+          <span className={labelClass}>Analysis</span>
+        </div>
+        <div className="text-2xl sm:text-3xl font-bold font-mono text-white leading-none">
+          {analysisTrades.length.toLocaleString()}
+        </div>
+        {filteredTrades.length !== analysisTrades.length && (
+          <div className="text-[11px] text-gray-500 mt-2">
+            of {filteredTrades.length.toLocaleString()} · {excluded.toLocaleString()} excluded
+          </div>
+        )}
       </div>
-    )}
-  </div>
-  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
-    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net P&amp;L</div>
-    <div className={`text-2xl font-bold font-mono ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-      {netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}
+
+      {/* Net P&L */}
+      <div className="p-4 sm:p-5" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <div style={iconBoxStyle}><DollarSign className="w-3.5 h-3.5 text-gray-400" /></div>
+          <span className={labelClass}>Net P&amp;L</span>
+        </div>
+        <div className={`text-2xl sm:text-3xl font-bold font-mono leading-none ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          {netPnL >= 0 ? '+' : '-'}${Math.abs(netPnL).toFixed(2)}
+        </div>
+        {totalWL > 0 && (
+          <div
+            className="inline-flex items-center gap-1 mt-2.5 px-2 py-0.5 text-[11px] font-semibold font-mono"
+            style={{
+              background: netPnL >= 0 ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+              color: netPnL >= 0 ? '#22c55e' : '#ef4444',
+              borderRadius: '9999px',
+            }}
+          >
+            {netPnL >= 0
+              ? <TrendingUp className="w-3 h-3" />
+              : <TrendingDown className="w-3 h-3" />}
+            {netPnL >= 0 ? '+' : '-'}{Math.abs(pnlDeltaPct).toFixed(1)}%
+          </div>
+        )}
+      </div>
+
+      {/* Win Rate */}
+      <div className="p-4 sm:p-5" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <div style={iconBoxStyle}><Percent className="w-3.5 h-3.5 text-gray-400" /></div>
+          <span className={labelClass}>Win Rate</span>
+        </div>
+        <div className="text-2xl sm:text-3xl font-bold font-mono text-white leading-none">
+          {parseFloat(winRate).toFixed(1)}%
+        </div>
+        <div
+          className="mt-3 h-1.5 w-full overflow-hidden"
+          style={{
+            borderRadius: '9999px',
+            background: 'rgba(148,163,184,0.18)',
+          }}
+        >
+          <div
+            style={{
+              width: `${Math.max(0, Math.min(100, parseFloat(winRate) || 0))}%`,
+              height: '100%',
+              borderRadius: '9999px',
+              background: 'linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #22c55e 100%)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Wins · Losses */}
+      <div className="p-4 sm:p-5" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <div style={iconBoxStyle}><BarChart3 className="w-3.5 h-3.5 text-gray-400" /></div>
+          <span className={labelClass}>Wins · Losses</span>
+        </div>
+        <div className="text-xl sm:text-2xl font-bold font-mono leading-none">
+          <span className="text-green-400">{wins.toLocaleString()}</span>
+          <span className="text-gray-600 mx-1.5">/</span>
+          <span className="text-red-400">{losses.toLocaleString()}</span>
+        </div>
+        <div className="flex gap-1 mt-3 h-1.5">
+          <div
+            style={{
+              width: `${winsPct}%`,
+              height: '100%',
+              borderRadius: '9999px',
+              background: '#22c55e',
+              transition: 'width 0.3s ease',
+            }}
+          />
+          <div
+            style={{
+              width: `${lossesPct}%`,
+              height: '100%',
+              borderRadius: '9999px',
+              background: '#ef4444',
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Max Drawdown — spans full row on mobile, single column on desktop */}
+      <div
+        className="p-4 sm:p-5 col-span-2 lg:col-span-4"
+        style={cardStyle}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1.5">
+              <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
+              <span className={labelClass}>Max Drawdown</span>
+            </div>
+            <div className="text-[11px] text-gray-500 ml-[34px]">
+              risk-based · peak to trough
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                borderRadius: '9999px',
+              }}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Risk
+            </span>
+            <div className="text-2xl sm:text-3xl font-bold font-mono text-red-400 leading-none">
+              {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
-    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Rate</div>
-    <WinRateGauge
-      wins={wins}
-      breakevens={breakevens}
-      losses={losses}
-      winRate={winRate}
-    />
-  </div>
-  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
-    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">W / L</div>
-    <div className="text-xl font-bold font-mono">
-      <span className="text-green-400">{wins}</span>
-      <span className="text-gray-600 mx-1">/</span>
-      <span className="text-red-400">{losses}</span>
-    </div>
-  </div>
-  <div className="p-4" style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-sm)' }}>
-    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Max Drawdown</div>
-    <div className="text-2xl font-bold font-mono text-red-400">
-      {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
-    </div>
-    <div className="text-xs text-gray-500 mt-1">risk-based</div>
-  </div>
-</div>
+  )
+})()}
 
 {/* Trades Table */}
 
