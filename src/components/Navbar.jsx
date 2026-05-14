@@ -266,7 +266,7 @@ export default function Navbar({ theme, toggleTheme }) {
                     color: 'var(--accent-green)',
                     opacity: 0.85,
                   }}>
-                    {channelCount}
+                    ({channelCount})
                   </span>
                 )}
               </Link>
