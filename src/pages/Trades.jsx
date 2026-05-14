@@ -260,22 +260,24 @@ title={isConnected ? `Active session: ${session.name}` : (status || 'Connecting.
 
 
 
-// Win-rate gauge: count chips sit ABOVE a half-circle gauge. The half-circle
-// is two nested arcs sharing the same chord — outer = W/BE/L segments,
-// inner = red → yellow → green speedometer with a needle pointing to the
-// current win-rate %. Styled neumorphically (raised pills, pressed gauge well).
+// Win-rate gauge: a half-circle built from two touching nested arcs.
+// Outer = W / BE / L segments. Inner = red → yellow → green speedometer
+// with a needle pointing to the current win-rate %, which is displayed
+// in the middle.
 function WinRateGauge({ wins, breakevens, losses, winRate }) {
   const total = wins + breakevens + losses
   const rate = parseFloat(winRate) || 0
 
   // Compact half-circle so the card stays the same size as KPI siblings.
+  // Radii chosen so the outer and inner stroke edges touch (no gap):
+  // outer inner-edge = rOuter - swOuter/2 = 66; inner outer-edge = rInner + swInner/2 = 66.
   const W = 170, H = 96
   const cx = W / 2
   const cy = 84
-  const rOuter = 74
-  const rInner = 50
-  const swOuter = 7
-  const swInner = 6
+  const rOuter = 70
+  const rInner = 62
+  const swOuter = 8
+  const swInner = 8
 
   const C = {
     win:   '#22c55e',
@@ -323,121 +325,61 @@ function WinRateGauge({ wins, breakevens, losses, winRate }) {
   const needleDeg = 180 + (Math.max(0, Math.min(100, rate)) / 100) * 180
   const needleEnd = polar(needleDeg, rInner - swInner / 2 - 2)
 
-  const pillItems = [
-    { count: wins,       color: C.win,  label: 'W'  },
-    { count: breakevens, color: C.be,   label: 'BE' },
-    { count: losses,     color: C.loss, label: 'L'  },
-  ]
-
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-      {/* Counts above the gauge — neumorphic raised chips */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
-        {pillItems.map((p, i) => (
-          <div
-            key={i}
-            title={p.label}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              borderRadius: '12px',
-              background: 'var(--neu-bg)',
-              boxShadow: 'var(--neu-raised-sm)',
-              fontSize: '10.5px',
-              fontWeight: '700',
-              color: p.color,
-              fontFamily: 'JetBrains Mono, ui-monospace, monospace',
-              lineHeight: 1,
-            }}
-          >
-            <span style={{
-              width: '6px', height: '6px', borderRadius: '50%',
-              background: p.color, display: 'inline-block',
-            }} />
-            {p.count}
-          </div>
-        ))}
-      </div>
+    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ maxWidth: '180px', display: 'block' }}>
+        <defs>
+          <linearGradient id="winrate-speedo-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#ef4444" />
+            <stop offset="50%"  stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#22c55e" />
+          </linearGradient>
+        </defs>
 
-      {/* Pressed neumorphic well that the gauge sits in */}
-      <div style={{
-        width: '100%',
-        display: 'flex',
-        justifyContent: 'center',
-        padding: '10px 12px 6px',
-        borderRadius: '16px',
-        background: 'var(--neu-bg)',
-        boxShadow: 'var(--neu-pressed-sm)',
-      }}>
-        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ maxWidth: '180px', display: 'block' }}>
-          <defs>
-            <linearGradient id="winrate-speedo-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#ef4444" />
-              <stop offset="50%"  stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#22c55e" />
-            </linearGradient>
-            <filter id="winrate-arc-raise" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0.6" dy="0.7" stdDeviation="0.7" floodColor="rgba(0,0,0,0.35)" />
-            </filter>
-          </defs>
-
-          {/* Outer arc track */}
-          <path d={arcPath(180, 360, 1, rOuter)} stroke={C.track} strokeWidth={swOuter + 2} fill="none" strokeLinecap="round" />
-
-          {/* Outer segments */}
-          {segs.filter(s => s.count != null).map((s, i) => (
-            <path
-              key={`seg-${i}`}
-              d={arcPath(s.start, s.end, 1, rOuter)}
-              stroke={s.color}
-              strokeWidth={swOuter}
-              fill="none"
-              strokeLinecap="butt"
-              filter="url(#winrate-arc-raise)"
-            />
-          ))}
-
-          {/* Inner arc track */}
-          <path d={arcPath(180, 360, 1, rInner)} stroke={C.track} strokeWidth={swInner + 2} fill="none" strokeLinecap="round" />
-
-          {/* Inner speedometer gradient */}
+        {/* Outer arc — segmented W / BE / L (track shows if there are no trades) */}
+        <path d={arcPath(180, 360, 1, rOuter)} stroke={C.track} strokeWidth={swOuter} fill="none" strokeLinecap="round" />
+        {segs.filter(s => s.count != null).map((s, i) => (
           <path
-            d={arcPath(180, 360, 1, rInner)}
-            stroke="url(#winrate-speedo-grad)"
-            strokeWidth={swInner}
+            key={`seg-${i}`}
+            d={arcPath(s.start, s.end, 1, rOuter)}
+            stroke={s.color}
+            strokeWidth={swOuter}
             fill="none"
-            strokeLinecap="round"
-            opacity="0.95"
-            filter="url(#winrate-arc-raise)"
+            strokeLinecap="butt"
           />
+        ))}
 
-          {/* Needle */}
-          <line
-            x1={cx} y1={cy}
-            x2={needleEnd.x} y2={needleEnd.y}
-            stroke="var(--text-primary)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            opacity="0.7"
-          />
+        {/* Inner arc — red → yellow → green speedometer */}
+        <path
+          d={arcPath(180, 360, 1, rInner)}
+          stroke="url(#winrate-speedo-grad)"
+          strokeWidth={swInner}
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.95"
+        />
 
-          {/* Raised neumorphic pivot */}
-          <circle cx={cx} cy={cy} r="4.5" fill="var(--neu-bg)" filter="url(#winrate-arc-raise)" />
-          <circle cx={cx} cy={cy} r="1.6" fill="var(--text-primary)" opacity="0.55" />
+        {/* Needle */}
+        <line
+          x1={cx} y1={cy}
+          x2={needleEnd.x} y2={needleEnd.y}
+          stroke="var(--text-primary)"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          opacity="0.75"
+        />
+        <circle cx={cx} cy={cy} r="3" fill="var(--text-primary)" opacity="0.75" />
 
-          {/* Big winrate % inside the inner arc */}
-          <text
-            x={cx} y={cy - 10}
-            textAnchor="middle"
-            fontSize="15"
-            fontWeight="700"
-            fill="var(--text-primary)"
-            fontFamily="JetBrains Mono, ui-monospace, monospace"
-          >{rate.toFixed(1)}%</text>
-        </svg>
-      </div>
+        {/* Winrate % inside the half-circle */}
+        <text
+          x={cx} y={cy - 10}
+          textAnchor="middle"
+          fontSize="16"
+          fontWeight="700"
+          fill="var(--text-primary)"
+          fontFamily="JetBrains Mono, ui-monospace, monospace"
+        >{rate.toFixed(1)}%</text>
+      </svg>
     </div>
   )
 }
