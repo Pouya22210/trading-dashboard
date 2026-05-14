@@ -106,7 +106,7 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
   const isProfit = pnl >= 0
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
   const barColor = isTop ? 'var(--accent-green)' : 'var(--red)'
-  // Highlight rank #1 in top performers with a warm/yellow tone, otherwise neutral.
+  // Highlight rank #1 in top  with a warm/yellow tone, otherwise neutral.
   const rankColor = (isTop && rank === 1) ? '#FFC857' : 'var(--text-secondary)'
   const clampedWinRate = Math.max(0, Math.min(100, winRate || 0))
 
@@ -400,7 +400,7 @@ export default function Dashboard() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      Top 5 Performers
+                      Top 5
                     </h3>
                   </div>
                   <TimeRangeSelector
@@ -460,7 +460,7 @@ export default function Dashboard() {
                       letterSpacing: '-0.01em',
                     }}
                   >
-                    Bottom 5 Performers
+                    Bottom 5
                   </h3>
                 </div>
                 <div className="space-y-3">
