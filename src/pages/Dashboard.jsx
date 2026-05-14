@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { 
-  TrendingUp, TrendingDown, Crown, Skull,
-  BarChart3, Zap, Star, AlertTriangle, Trophy, Medal
+import {
+  Zap, AlertTriangle, Trophy
 } from 'lucide-react'
 import { fetchTrades, subscribeToTrades } from '../lib/supabase'
 import ActivityLogPanel from '../components/ActivityLogPanel'
@@ -31,17 +30,44 @@ const TIME_RANGES = [
 // Reusable Components
 function TimeRangeSelector({ value, onChange, className = '' }) {
   return (
-    <div className={`tab-nav ${className}`} style={{ padding: '4px', gap: '2px', flexWrap: 'wrap' }}>
-      {TIME_RANGES.map(option => (
-        <button
-          key={option.key}
-          onClick={() => onChange(option.key)}
-          className={`tab-btn ${value === option.key ? 'active' : ''}`}
-          style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '9px' }}
-        >
-          {option.label}
-        </button>
-      ))}
+    <div
+      className={className}
+      style={{
+        display: 'inline-flex',
+        background: 'var(--neu-bg)',
+        boxShadow: 'var(--neu-pressed-sm)',
+        borderRadius: '999px',
+        padding: '4px',
+        gap: '2px',
+      }}
+    >
+      {TIME_RANGES.map(option => {
+        const isActive = value === option.key
+        return (
+          <button
+            key={option.key}
+            onClick={() => onChange(option.key)}
+            style={{
+              padding: '6px 14px',
+              fontSize: '11px',
+              fontWeight: isActive ? 700 : 500,
+              borderRadius: '999px',
+              border: 'none',
+              cursor: 'pointer',
+              background: isActive ? 'var(--accent-green)' : 'transparent',
+              color: isActive ? '#0d1117' : 'var(--text-secondary)',
+              boxShadow: isActive
+                ? '0 0 12px rgba(173,255,47,0.45), 0 2px 6px rgba(0,0,0,0.35)'
+                : 'none',
+              transition: 'background 0.15s, color 0.15s, box-shadow 0.18s',
+              fontFamily: 'inherit',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {option.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -76,66 +102,133 @@ function ChartCard({ title, icon: Icon, children, headerRight, className = '' })
   )
 }
 
-function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, trend, isTop }) {
-  const getRankIcon = (rank, isTop) => {
-    if (isTop) {
-      if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-400" />
-      if (rank === 2) return <Medal className="w-5 h-5 text-gray-300" />
-      if (rank === 3) return <Medal className="w-5 h-5 text-orange-400" />
-      return <Star className="w-4 h-4 text-gray-500" />
-    } else {
-      return <Skull className="w-4 h-4 text-red-400" />
-    }
-  }
+function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, isTop }) {
+  const isProfit = pnl >= 0
+  const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
+  const barColor = isTop ? 'var(--accent-green)' : 'var(--red)'
+  // Highlight rank #1 in top performers with a warm/yellow tone, otherwise neutral.
+  const rankColor = (isTop && rank === 1) ? '#FFC857' : 'var(--text-secondary)'
+  const clampedWinRate = Math.max(0, Math.min(100, winRate || 0))
 
   return (
     <div
-      className="flex items-center gap-4 p-4 transition-all"
+      className="transition-all"
       style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+        padding: '14px 16px',
         background: 'var(--neu-bg)',
-        borderRadius: '18px',
+        borderRadius: '20px',
         boxShadow: 'var(--neu-raised-sm)',
       }}
     >
-      {/* Rank */}
+      {/* Rank pill */}
       <div
-        className="flex-shrink-0 flex items-center justify-center"
         style={{
-          width: '38px',
-          height: '38px',
+          flexShrink: 0,
+          width: '36px',
+          height: '36px',
           borderRadius: '12px',
           background: 'var(--neu-bg)',
-          boxShadow: isTop ? 'var(--neu-pressed-sm)' : 'var(--neu-pressed-sm)',
+          boxShadow: 'var(--neu-pressed-sm)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: rankColor,
+          fontWeight: 700,
+          fontSize: '14px',
+          fontFamily: 'inherit',
         }}
       >
-        {getRankIcon(rank, isTop)}
+        {rank}
       </div>
-      
-      {/* Channel name */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate" title={channel}>
+
+      {/* Channel info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          className="truncate"
+          style={{
+            fontSize: '14px',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.01em',
+          }}
+          title={channel}
+        >
           {channel}
         </p>
-        <p className="text-xs text-gray-500">
-          {trades} trades • {winRate.toFixed(1)}% <span className="font-mono">(<span className="text-green-400">{wins}</span>/<span className="text-red-400">{losses}</span>)</span>
-        </p>
-      </div>
-      
-      {/* P&L */}
-      <div className="text-right">
-        <div className={`text-lg font-bold font-mono ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '4px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+            {trades} trades • {winRate.toFixed(1)}%
+          </span>
+          <span
+            style={{
+              padding: '2px 8px',
+              borderRadius: '8px',
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-pressed-sm)',
+              fontSize: '10px',
+              fontWeight: 700,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ color: 'var(--accent-green)' }}>{wins}</span>
+            <span style={{ color: 'var(--text-tertiary)' }}> / </span>
+            <span style={{ color: 'var(--red)' }}>{losses}</span>
+          </span>
         </div>
-        {trend && (
-          <div className="flex items-center justify-end gap-1 text-xs text-gray-500">
-            {trend > 0 ? (
-              <TrendingUp className="w-3 h-3 text-green-400" />
-            ) : (
-              <TrendingDown className="w-3 h-3 text-red-400" />
-            )}
-            <span>{Math.abs(trend).toFixed(1)}%</span>
-          </div>
-        )}
+      </div>
+
+      {/* P&L + Winrate bar */}
+      <div style={{ flexShrink: 0, textAlign: 'right', minWidth: '88px' }}>
+        <div
+          style={{
+            fontSize: '17px',
+            fontWeight: 800,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            color: pnlColor,
+            letterSpacing: '-0.01em',
+            lineHeight: 1.1,
+          }}
+        >
+          {isProfit ? '+' : '−'}${Math.abs(pnl).toFixed(2)}
+        </div>
+        <div
+          aria-hidden
+          style={{
+            marginTop: '8px',
+            marginLeft: 'auto',
+            width: '72px',
+            height: '3px',
+            borderRadius: '2px',
+            background: 'rgba(255,255,255,0.05)',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+          title={`Win rate ${winRate.toFixed(1)}%`}
+        >
+          <div
+            style={{
+              width: `${clampedWinRate}%`,
+              height: '100%',
+              background: barColor,
+              boxShadow: `0 0 6px ${barColor}`,
+              borderRadius: '2px',
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
       </div>
     </div>
   )
@@ -268,19 +361,48 @@ export default function Dashboard() {
         <div className="flex-1 min-w-0">
           {/* Top/Bottom Channels Leaderboard */}
           <div className="mb-8">
-            <div className="flex items-center justify-end mb-6">
-              <TimeRangeSelector
-                value={leaderboardTimeRange}
-                onChange={setLeaderboardTimeRange}
-              />
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Top 5 */}
               <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="w-5 h-5 text-green-400" />
-                  <h3 className="text-lg font-semibold text-white">Top 5 Performers</h3>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '10px',
+                        background: 'var(--neu-bg)',
+                        boxShadow: 'var(--neu-raised-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Trophy style={{ width: '16px', height: '16px', color: '#FFC857' }} />
+                    </div>
+                    <h3
+                      style={{
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        letterSpacing: '-0.01em',
+                      }}
+                    >
+                      Top 5 Performers
+                    </h3>
+                  </div>
+                  <TimeRangeSelector
+                    value={leaderboardTimeRange}
+                    onChange={setLeaderboardTimeRange}
+                  />
                 </div>
                 <div className="space-y-3">
                   {channelPerformance.top5.map((channel, idx) => (
@@ -301,12 +423,41 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-              
+
               {/* Bottom 5 */}
               <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
-                  <h3 className="text-lg font-semibold text-white">Bottom 5 Performers</h3>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '10px',
+                      background: 'var(--neu-bg)',
+                      boxShadow: 'var(--neu-raised-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <AlertTriangle style={{ width: '16px', height: '16px', color: 'var(--red)' }} />
+                  </div>
+                  <h3
+                    style={{
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    Bottom 5 Performers
+                  </h3>
                 </div>
                 <div className="space-y-3">
                   {channelPerformance.bottom5.map((channel, idx) => (
