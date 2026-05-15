@@ -2862,11 +2862,11 @@ onPageChange={handlePageChange}
 
 {cumulativePnLData.length > 0 ? (
 
-<div className="w-full min-w-[300px]">
+<div className="w-full min-w-[300px] h-[360px] sm:h-[480px] lg:h-[600px]">
 
-<ResponsiveContainer width="100%" height={800}>
+<ResponsiveContainer width="100%" height="100%">
 
-<LineChart data={cumulativePnLData} margin={{ top: 20, right: 30, left: 50, bottom: 60 }}>
+<LineChart data={cumulativePnLData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
 
 <XAxis
 
@@ -2876,13 +2876,13 @@ stroke="#6e7681"
 
 fontSize={11}
 
-tickMargin={10}
+tickMargin={6}
 
 angle={-45}
 
 textAnchor="end"
 
-height={60}
+height={50}
 
 />
 
@@ -2899,6 +2899,8 @@ scale="linear"
 domain={['auto', 'auto']}
 
 allowDataOverflow={false}
+
+width={48}
 
 />
 
