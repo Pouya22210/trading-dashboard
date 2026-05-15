@@ -2492,7 +2492,7 @@ style={{
   const labelClass = 'text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-[0.12em]'
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
       {/* Analysis */}
       <div className="p-4 sm:p-5" style={cardStyle}>
         <div className="flex items-center gap-2 mb-3">
@@ -2595,12 +2595,15 @@ style={{
         </div>
       </div>
 
-      {/* Max Drawdown — spans full row on mobile, single column on desktop */}
+      {/* Max Drawdown
+          Mobile: full-width row card, horizontal layout (label+subtitle | Risk pill + value).
+          Desktop: single column, vertical layout matching the other KPI cards. */}
       <div
-        className="p-4 sm:p-5 col-span-2 lg:col-span-4"
+        className="p-4 sm:p-5 col-span-2 lg:col-span-1"
         style={cardStyle}
       >
-        <div className="flex items-center gap-3">
+        {/* Mobile horizontal layout */}
+        <div className="flex items-center gap-3 lg:hidden">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
@@ -2622,9 +2625,33 @@ style={{
               <AlertTriangle className="w-3 h-3" />
               Risk
             </span>
-            <div className="text-2xl sm:text-3xl font-bold font-mono text-red-400 leading-none">
+            <div className="text-2xl font-bold font-mono text-red-400 leading-none">
               {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
             </div>
+          </div>
+        </div>
+        {/* Desktop vertical layout */}
+        <div className="hidden lg:block">
+          <div className="flex items-center gap-2 mb-3">
+            <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
+            <span className={labelClass}>Max Drawdown</span>
+          </div>
+          <div className="text-2xl xl:text-3xl font-bold font-mono text-red-400 leading-none">
+            {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
+          </div>
+          <div className="flex items-center gap-2 mt-2.5">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                borderRadius: '9999px',
+              }}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Risk
+            </span>
+            <span className="text-[11px] text-gray-500">peak to trough</span>
           </div>
         </div>
       </div>
