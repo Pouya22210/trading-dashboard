@@ -18,7 +18,7 @@
   /* Flat card surface (no shadow) — slightly lighter than the page
      so cards stay distinguishable. Used where the neumorphic raise
      has been intentionally removed. */
-  --card-flat:         #2e3138;
+  --card-flat:         #252830;
   --card-recess:       #1e2127;
 
   /* Shadow tokens — light from top-left, dark to bottom-right.
