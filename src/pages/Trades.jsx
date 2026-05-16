@@ -3288,7 +3288,7 @@ Trade outcomes grouped by forex market sessions (based on signal time UTC)
 
 <ResponsiveContainer width="100%" height={200}>
 
-<BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 10, left: 60, bottom: 10 }} barSize={20}>
+<BarChart data={marketSessionsData} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 10 }} barSize={20}>
 
 <XAxis
 
@@ -3511,7 +3511,7 @@ data={paginatedOutcomeData}
 
 layout="vertical"
 
-margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
+margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
 
 barSize={16}
 
@@ -3529,7 +3529,7 @@ stroke="#6e7681"
 
 fontSize={10}
 
-width={280}
+width={180}
 
 interval={0}
 
@@ -3551,7 +3551,7 @@ fontSize={10}
 
 >
 
-{payload.value.length > 45 ? payload.value.slice(0, 45) + '...' : payload.value}
+{payload.value.length > 28 ? payload.value.slice(0, 28) + '...' : payload.value}
 
 </text>
 

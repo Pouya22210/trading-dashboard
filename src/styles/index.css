@@ -15,6 +15,12 @@
   --neu-bg-soft:       #272a32;
   --neu-bg-deep:       #20232a;
 
+  /* Flat card surface (no shadow) — slightly lighter than the page
+     so cards stay distinguishable. Used where the neumorphic raise
+     has been intentionally removed. */
+  --card-flat:         #2e3138;
+  --card-recess:       #1e2127;
+
   /* Shadow tokens — light from top-left, dark to bottom-right.
      These three pairs cover most depth levels. */
   --neu-shadow-dark-lg:   rgba(0,0,0,0.55);
@@ -75,6 +81,9 @@
   --neu-bg:       #e6ecf3;
   --neu-bg-soft:  #eef2f8;
   --neu-bg-deep:  #dde3ec;
+
+  --card-flat:    #f3f6fa;
+  --card-recess:  #d6dce5;
 
   --neu-shadow-dark-lg:  rgba(163, 177, 198, 0.55);
   --neu-shadow-light-lg: rgba(255, 255, 255, 0.95);
@@ -222,16 +231,11 @@ body {
 }
 
 .chart-card {
-  background: var(--neu-bg);
+  background: var(--card-flat);
   border: none;
   border-radius: 22px;
   overflow: hidden;
-  box-shadow: var(--neu-raised-md);
-  transition: box-shadow 0.22s ease;
-}
-
-.chart-card:hover {
-  box-shadow: var(--neu-raised-lg);
+  box-shadow: none;
 }
 
 /* ============================================================

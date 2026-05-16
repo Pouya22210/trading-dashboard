@@ -170,9 +170,9 @@ function EventCard({ event, isExpanded, onToggle }) {
     <div
       className="transition-all overflow-hidden"
       style={{
-        background: 'var(--neu-bg)',
+        background: 'var(--card-flat)',
         borderRadius: '18px',
-        boxShadow: 'var(--neu-raised-sm)',
+        boxShadow: 'none',
       }}
     >
       {/* Header - always visible */}

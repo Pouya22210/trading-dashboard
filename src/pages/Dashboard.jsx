@@ -34,8 +34,8 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
       className={className}
       style={{
         display: 'inline-flex',
-        background: 'var(--neu-bg)',
-        boxShadow: 'var(--neu-pressed-sm)',
+        background: 'var(--card-recess)',
+        boxShadow: 'none',
         borderRadius: '999px',
         padding: '4px',
         gap: '2px',
@@ -118,9 +118,9 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
         alignItems: 'center',
         gap: '14px',
         padding: '14px 16px',
-        background: 'var(--neu-bg)',
+        background: 'var(--card-flat)',
         borderRadius: '20px',
-        boxShadow: 'var(--neu-raised-sm)',
+        boxShadow: 'none',
       }}
     >
       {/* Rank pill */}
@@ -503,9 +503,9 @@ export default function Dashboard() {
                       key={channel.name}
                       className="p-4"
                       style={{
-                        background: 'var(--neu-bg)',
+                        background: 'var(--card-flat)',
                         borderRadius: '18px',
-                        boxShadow: 'var(--neu-raised-sm)',
+                        boxShadow: 'none',
                       }}
                     >
                       <div className="flex items-center gap-2 mb-3">
