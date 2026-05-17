@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react'
 import {
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap,
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
-  Save, X, Check, RefreshCw, Shuffle, Search
+  Save, X, Check, RefreshCw, Shuffle, Search,
+  Users
 } from 'lucide-react'
-import { fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels, fetchAppSetting, updateAppSetting } from '../lib/supabase'
+import {
+  fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels,
+  fetchAppSetting, updateAppSetting
+} from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
+import VisitorsTab from '../components/VisitorsTab'
 
 function Toggle({ checked, onChange, label }) {
   return (
@@ -794,6 +799,7 @@ export default function Channels() {
   const [editingChannel, setEditingChannel] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [pageTab, setPageTab] = useState('channels')
   
   // Global settings state (Issue 1: Pending order expiry)
   const [pendingExpiryHours, setPendingExpiryHours] = useState(6)
@@ -879,17 +885,64 @@ export default function Channels() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Channel Configuration</h1>
-          <p className="text-gray-500 mt-1">Manage your Telegram signal channels</p>
+          <h1 className="text-2xl font-bold text-white">
+            {pageTab === 'channels' ? 'Channel Configuration' : 'Site Visitors'}
+          </h1>
+          <p className="text-gray-500 mt-1">
+            {pageTab === 'channels'
+              ? 'Manage your Telegram signal channels'
+              : 'Track and manage visitors to this dashboard'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <LogoutButton />
-          <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Add Channel
-          </button>
+          {pageTab === 'channels' && (
+            <button onClick={openAddModal} className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Add Channel
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Page sub-tabs */}
+      <div
+        className="flex items-center gap-1.5 sm:gap-2 mb-6 p-1.5 overflow-x-auto"
+        style={{
+          background: 'var(--neu-bg)',
+          borderRadius: '14px',
+          boxShadow: 'var(--neu-pressed-sm)',
+          scrollbarWidth: 'none',
+        }}
+      >
+        {[
+          { key: 'channels', label: 'Channels', icon: Settings },
+          { key: 'visitors', label: 'Visitors', icon: Users },
+        ].map(tab => {
+          const Icon = tab.icon
+          const isActive = pageTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setPageTab(tab.key)}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap transition-all flex-shrink-0"
+              style={{
+                borderRadius: '10px',
+                background: isActive ? 'var(--neu-bg)' : 'transparent',
+                boxShadow: isActive ? 'var(--neu-raised-sm)' : 'none',
+                color: isActive ? '#ADFF2F' : '#9ca3af',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {pageTab === 'visitors' && <VisitorsTab />}
+
+      {pageTab === 'channels' && (<>
       {/* Global Settings (Issue 1: Pending Order Expiry) */}
       <div className="bg-dark-card border border-dark-border rounded-xl p-5 mb-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -1020,6 +1073,7 @@ export default function Channels() {
       </div>
         )
       })()}
+      </>)}
 
       {/* Edit Modal — now receives existingChannels for validation */}
       {showModal && (

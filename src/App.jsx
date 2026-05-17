@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
 import Channels from './pages/Channels'
 import Backtest from './pages/Backtest'
+import { recordSiteVisit } from './lib/supabase'
 
 export default function App() {
   const [theme, setTheme] = useState(() => {
@@ -20,6 +21,10 @@ export default function App() {
     document.documentElement.classList.toggle('light-theme', theme === 'light')
     window.localStorage.setItem('theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    recordSiteVisit()
+  }, [])
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'))

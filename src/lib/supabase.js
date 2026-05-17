@@ -392,6 +392,75 @@ export function subscribeToTrades(callbacks = {}) {
   return channel
 }
 
+// ==================== SITE VISITS ====================
+
+// Cheap session de-dup: don't insert another visit row within this tab session.
+const SITE_VISIT_SESSION_KEY = 'site_visit_recorded'
+
+async function fetchGeoIP() {
+  // ipapi.co is free for ~1000 req/day, returns ip/country/city/region.
+  // We swallow errors — visit gets recorded without geo data if the lookup fails.
+  try {
+    const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' })
+    if (!res.ok) return null
+    const j = await res.json()
+    return {
+      ip:           j.ip || null,
+      country:      j.country_name || null,
+      country_code: j.country_code || null,
+      city:         j.city || null,
+      region:       j.region || null,
+    }
+  } catch (_) {
+    return null
+  }
+}
+
+export async function recordSiteVisit({ path, referrer } = {}) {
+  try {
+    if (typeof window === 'undefined') return
+    if (sessionStorage.getItem(SITE_VISIT_SESSION_KEY) === '1') return
+    sessionStorage.setItem(SITE_VISIT_SESSION_KEY, '1')
+
+    const geo = await fetchGeoIP()
+    const row = {
+      ip:           geo?.ip ?? null,
+      country:      geo?.country ?? null,
+      country_code: geo?.country_code ?? null,
+      city:         geo?.city ?? null,
+      region:       geo?.region ?? null,
+      user_agent:   navigator.userAgent?.slice(0, 500) ?? null,
+      path:         path ?? window.location.pathname,
+      referrer:     referrer ?? document.referrer ?? null,
+    }
+    const { error } = await supabase.from('site_visits').insert(row)
+    if (error) console.warn('recordSiteVisit failed:', error.message)
+  } catch (err) {
+    console.warn('recordSiteVisit error:', err)
+  }
+}
+
+export async function fetchSiteVisits({ limit = 500 } = {}) {
+  const { data, error } = await supabase
+    .from('site_visits')
+    .select('*')
+    .order('visited_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
+}
+
+export async function deleteSiteVisit(id) {
+  const { error } = await supabase.from('site_visits').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function clearAllSiteVisits() {
+  // .neq with an always-true predicate would still hit RLS row-by-row; use a wide id filter.
+  const { error } = await supabase.from('site_visits').delete().gte('id', 0)
+  if (error) throw error
+}
+
 /**
  * Subscribe to channel configuration changes
  */

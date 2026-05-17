@@ -1903,6 +1903,24 @@ const maxDrawdown = useMemo(() => {
 
 
 
+// Trades for the Daily Profit calendar — same filters as analysisTrades but
+// IGNORES startDate/endDate, since the calendar paginates by month itself.
+const dailyProfitTrades = useMemo(() => {
+  return trades.filter(trade => {
+    if (!showOrphanedChannels && trade.is_orphaned_channel) return false
+    if (selectedChannelIds.length > 0 && !selectedChannelIds.includes(trade.channel_id)) return false
+    if (filters.orderType && trade.order_type !== filters.orderType) return false
+    if (filters.side && trade.direction !== filters.side) return false
+    if (filters.status && trade.status !== filters.status) return false
+    if (selectedWeekdays.length < 7 && trade.signal_time) {
+      const dayOfWeek = new Date(trade.signal_time).getDay()
+      if (!selectedWeekdays.includes(dayOfWeek)) return false
+    }
+    if (trade.status === 'canceled' && trade.cancel_reason !== 'cancel_policy') return false
+    return true
+  })
+}, [trades, selectedChannelIds, filters.orderType, filters.side, filters.status, showOrphanedChannels, selectedWeekdays])
+
 // Daily profit calendar data — risk-based, balance-independent.
 // Each closed trade contributes: +RR × risk%  (win)  or  -1 × risk%  (loss).
 // Result keyed by 'YYYY-MM-DD' → { profit, trades, wins, losses }.
@@ -1914,7 +1932,7 @@ const dailyProfitData = useMemo(() => {
 
   const dailyMap = {}
 
-  analysisTrades.forEach(trade => {
+  dailyProfitTrades.forEach(trade => {
     if (trade.status !== 'closed') return
     const when = trade.close_time || trade.signal_time
     if (!when) return
@@ -1952,7 +1970,7 @@ const dailyProfitData = useMemo(() => {
   })
 
   return dailyMap
-}, [analysisTrades, channels])
+}, [dailyProfitTrades, channels])
 
 // Min/max date bounds for daily profit pagination (limits prev/next navigation)
 const dailyProfitBounds = useMemo(() => {
@@ -3991,7 +4009,7 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
         ))}
         {cells.map((cell, i) => {
           if (cell === null) {
-            return <div key={i} className="aspect-square" />
+            return <div key={i} className="h-10 sm:h-12" />
           }
           const profit = cell.data?.profit
           const trades = cell.data?.trades || 0
@@ -3999,26 +4017,23 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
           return (
             <div
               key={i}
-              className="aspect-square p-1 sm:p-2 flex flex-col justify-between transition-all"
+              className="h-10 sm:h-12 px-1 py-0.5 sm:px-1.5 sm:py-1 flex flex-col justify-between transition-all"
               style={{
                 background: hasData ? cellColor(profit) : 'rgba(255,255,255,0.02)',
-                borderRadius: '6px',
+                borderRadius: '5px',
                 boxShadow: hasData ? 'inset 0 0 0 1px rgba(255,255,255,0.06)' : 'none',
               }}
               title={hasData
                 ? `${monthLabel} ${cell.day} — ${profit >= 0 ? '+' : ''}${profit.toFixed(2)}% (${trades} trade${trades !== 1 ? 's' : ''})`
                 : `${monthLabel} ${cell.day} — no trades`}
             >
-              <div className="text-[10px] sm:text-xs font-semibold text-white/90 leading-none">
+              <div className="text-[9px] sm:text-[10px] font-semibold text-white/90 leading-none">
                 {cell.day}
               </div>
               {hasData && (
                 <div className="text-right">
-                  <div className={`text-[9px] sm:text-xs font-mono font-bold leading-none ${profit >= 0 ? 'text-white' : 'text-white'}`}>
+                  <div className="text-[8px] sm:text-[10px] font-mono font-bold leading-none text-white">
                     {profit >= 0 ? '+' : ''}{profit.toFixed(1)}%
-                  </div>
-                  <div className="text-[8px] sm:text-[10px] text-white/60 font-mono mt-0.5 leading-none">
-                    {trades}t
                   </div>
                 </div>
               )}
