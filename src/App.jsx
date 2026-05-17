@@ -23,6 +23,7 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
+    console.log('[site_visits] App mounted — calling recordSiteVisit()')
     recordSiteVisit()
   }, [])
 

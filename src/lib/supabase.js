@@ -451,8 +451,10 @@ export async function recordSiteVisit({ path, referrer, force } = {}) {
       console.error('[site_visits] insert failed:', error.message, error)
       return { error }
     }
-    sessionStorage.setItem(SITE_VISIT_SESSION_KEY, '1')
-    console.log('[site_visits] recorded:', data?.country || 'unknown', data?.id)
+    // Only set the dedup flag for regular page-load tracking. Manual test
+    // inserts (force=true) should NOT lock out future auto-tracking in this tab.
+    if (!force) sessionStorage.setItem(SITE_VISIT_SESSION_KEY, '1')
+    console.log('[site_visits] recorded:', data?.country || 'unknown', 'id', data?.id)
     return { data }
   } catch (err) {
     console.error('[site_visits] unexpected error:', err)
