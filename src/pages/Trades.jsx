@@ -4,7 +4,7 @@ import {
   Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
-  Hash, DollarSign, Percent, AlertTriangle
+  Hash, DollarSign, Percent, AlertTriangle, LayoutGrid
 } from 'lucide-react'
 
 import {
@@ -990,6 +990,9 @@ const [ganttPage, setGanttPage] = useState(1)
 
 // Outcome distribution pagination
 const [outcomePage, setOutcomePage] = useState(1)
+
+// Active sub-tab for the analysis section
+const [activeTab, setActiveTab] = useState('trades')
 
 
 // Logarithmic scale toggle for cumulative P&L
@@ -2492,30 +2495,30 @@ style={{
   const labelClass = 'text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-[0.12em]'
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+    <div className="grid grid-cols-6 lg:grid-cols-5 gap-2 sm:gap-4 mb-6">
       {/* Analysis */}
-      <div className="p-4 sm:p-5" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-3">
+      <div className="p-3 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-2 sm:mb-3">
           <div style={iconBoxStyle}><Hash className="w-3.5 h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Analysis</span>
         </div>
-        <div className="text-2xl sm:text-3xl font-bold font-mono text-white leading-none">
+        <div className="text-lg sm:text-3xl font-bold font-mono text-white leading-none">
           {analysisTrades.length.toLocaleString()}
         </div>
         {filteredTrades.length !== analysisTrades.length && (
-          <div className="text-[11px] text-gray-500 mt-2">
+          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-2 leading-tight">
             of {filteredTrades.length.toLocaleString()} · {excluded.toLocaleString()} excluded
           </div>
         )}
       </div>
 
       {/* Net P&L */}
-      <div className="p-4 sm:p-5" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-3">
+      <div className="p-3 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-2 sm:mb-3">
           <div style={iconBoxStyle}><DollarSign className="w-3.5 h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Net P&amp;L</span>
         </div>
-        <div className={`text-2xl sm:text-3xl font-bold font-mono leading-none ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className={`text-lg sm:text-3xl font-bold font-mono leading-none ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {netPnL >= 0 ? '+' : '-'}${Math.abs(netPnL).toFixed(2)}
         </div>
         {totalWL > 0 && (
@@ -2536,16 +2539,16 @@ style={{
       </div>
 
       {/* Win Rate */}
-      <div className="p-4 sm:p-5" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-3">
+      <div className="p-3 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-2 sm:mb-3">
           <div style={iconBoxStyle}><Percent className="w-3.5 h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Win Rate</span>
         </div>
-        <div className="text-2xl sm:text-3xl font-bold font-mono text-white leading-none">
+        <div className="text-lg sm:text-3xl font-bold font-mono text-white leading-none">
           {parseFloat(winRate).toFixed(1)}%
         </div>
         <div
-          className="mt-3 h-1.5 w-full overflow-hidden"
+          className="mt-2 sm:mt-3 h-1.5 w-full overflow-hidden"
           style={{
             borderRadius: '9999px',
             background: 'rgba(148,163,184,0.18)',
@@ -2563,17 +2566,17 @@ style={{
       </div>
 
       {/* Wins · Losses */}
-      <div className="p-4 sm:p-5" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-3">
+      <div className="p-3 sm:p-5 col-span-3 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-2 sm:mb-3">
           <div style={iconBoxStyle}><BarChart3 className="w-3.5 h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Wins · Losses</span>
         </div>
-        <div className="text-xl sm:text-2xl font-bold font-mono leading-none">
+        <div className="text-base sm:text-2xl font-bold font-mono leading-none">
           <span className="text-green-400">{wins.toLocaleString()}</span>
           <span className="text-gray-600 mx-1.5">/</span>
           <span className="text-red-400">{losses.toLocaleString()}</span>
         </div>
-        <div className="flex gap-1 mt-3 h-1.5">
+        <div className="flex gap-1 mt-2 sm:mt-3 h-1.5">
           <div
             style={{
               width: `${winsPct}%`,
@@ -2595,72 +2598,85 @@ style={{
         </div>
       </div>
 
-      {/* Max Drawdown
-          Mobile: full-width row card, horizontal layout (label+subtitle | Risk pill + value).
-          Desktop: single column, vertical layout matching the other KPI cards. */}
+      {/* Max Drawdown — vertical layout on all sizes, half-row on mobile */}
       <div
-        className="p-4 sm:p-5 col-span-2 lg:col-span-1"
+        className="p-3 sm:p-5 col-span-3 lg:col-span-1"
         style={cardStyle}
       >
-        {/* Mobile horizontal layout */}
-        <div className="flex items-center gap-3 lg:hidden">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
-              <span className={labelClass}>Max Drawdown</span>
-            </div>
-            <div className="text-[11px] text-gray-500 ml-[34px]">
-              risk-based · peak to trough
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: '#ef4444',
-                borderRadius: '9999px',
-              }}
-            >
-              <AlertTriangle className="w-3 h-3" />
-              Risk
-            </span>
-            <div className="text-2xl font-bold font-mono text-red-400 leading-none">
-              {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
-            </div>
-          </div>
+        <div className="flex items-center gap-2 mb-2 sm:mb-3">
+          <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
+          <span className={labelClass}>Max Drawdown</span>
         </div>
-        {/* Desktop vertical layout */}
-        <div className="hidden lg:block">
-          <div className="flex items-center gap-2 mb-3">
-            <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
-            <span className={labelClass}>Max Drawdown</span>
-          </div>
-          <div className="text-2xl xl:text-3xl font-bold font-mono text-red-400 leading-none">
-            {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
-          </div>
-          <div className="flex items-center gap-2 mt-2.5">
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: '#ef4444',
-                borderRadius: '9999px',
-              }}
-            >
-              <AlertTriangle className="w-3 h-3" />
-              Risk
-            </span>
-            <span className="text-[11px] text-gray-500">peak to trough</span>
-          </div>
+        <div className="text-lg sm:text-2xl xl:text-3xl font-bold font-mono text-red-400 leading-none">
+          {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
+        </div>
+        <div className="flex items-center gap-2 mt-2 sm:mt-2.5 flex-wrap">
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider"
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#ef4444',
+              borderRadius: '9999px',
+            }}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            Risk
+          </span>
+          <span className="text-[10px] sm:text-[11px] text-gray-500">peak to trough</span>
         </div>
       </div>
     </div>
   )
 })()}
 
+{/* Sub-tab navigation for analysis sections */}
+{(() => {
+  const tabs = [
+    { key: 'trades',               label: 'Trades',               icon: BarChart3   },
+    { key: 'cumulative',           label: 'Cumulative P/L',       icon: TrendingUp  },
+    { key: 'channel-activity',     label: 'Channel Activity',     icon: Calendar    },
+    { key: 'market-sessions',      label: 'Market Sessions',      icon: Globe       },
+    { key: 'outcome-distribution', label: 'Outcome Distribution', icon: Target      },
+    { key: 'other',                label: 'Other',                icon: LayoutGrid  },
+  ]
+  return (
+    <div
+      className="flex items-center gap-1.5 sm:gap-2 mb-6 p-1.5 overflow-x-auto"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '14px',
+        boxShadow: 'var(--neu-pressed-sm)',
+        scrollbarWidth: 'none',
+      }}
+    >
+      {tabs.map(tab => {
+        const Icon = tab.icon
+        const isActive = activeTab === tab.key
+        return (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap transition-all flex-shrink-0"
+            style={{
+              borderRadius: '10px',
+              background: isActive ? 'var(--neu-bg)' : 'transparent',
+              boxShadow: isActive ? 'var(--neu-raised-sm)' : 'none',
+              color: isActive ? '#ADFF2F' : '#9ca3af',
+              cursor: 'pointer',
+            }}
+          >
+            <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>{tab.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+})()}
+
 {/* Trades Table */}
 
+{activeTab === 'trades' && (
 <div id="trades-table" className="chart-card flat-card mb-8 overflow-hidden">
 
 <div
@@ -2849,15 +2865,13 @@ onPageChange={handlePageChange}
 />
 
 </div>
+)}
 
 
-
-{/* CHANNEL COMPARISON SECTION */}
-
-<div className="mb-8">
 
 {/* Cumulative P&L Over Time */}
 
+{activeTab === 'cumulative' && (
 <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
 
 {cumulativePnLData.length > 0 ? (
@@ -2996,11 +3010,13 @@ No closed trades with dates to display
 )}
 
 </ChartCard>
+)}
 
 
 
 {/* Channel Activity Timeline (Gantt Chart) */}
 
+{activeTab === 'channel-activity' && (
 <ChartCard title="Channel Activity Timeline" icon={Calendar} className="mb-6">
 
 {/* Time Range Filter */}
@@ -3271,9 +3287,11 @@ No trades in selected time range
 )}
 
 </ChartCard>
+)}
 
 {/* Market Sessions Chart */}
 
+{activeTab === 'market-sessions' && (
 <ChartCard title="Performance by Market Session" icon={Globe} className="mb-6">
 
 <div className="mb-4 text-sm text-gray-400">
@@ -3432,11 +3450,13 @@ style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }
 </div>
 
 </ChartCard>
+)}
 
 
 
 {/* Outcome Distribution */}
 
+{activeTab === 'outcome-distribution' && (
 <ChartCard title="Outcome Distribution by Channel (sorted by Profit - Loss)" icon={Target} className="mb-6">
 
 <div className="mb-4">
@@ -3646,13 +3666,14 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
 )}
 
 </ChartCard>
-
-</div>
+)}
 
 
 
 {/* Analysis Charts */}
 
+{activeTab === 'other' && (
+<>
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
 <ChartCard title="Outcomes by Side" icon={Target}>
@@ -3800,6 +3821,8 @@ return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toF
 </ChartCard>
 
 </div>
+</>
+)}
 
 
 {/* Bottom spacing */}
