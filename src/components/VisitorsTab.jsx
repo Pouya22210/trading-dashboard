@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
-  Users, Globe, RefreshCw, Trash2, AlertTriangle, MapPin, Eye, Clock
+  Users, Globe, RefreshCw, Trash2, AlertTriangle, MapPin, Eye, Clock, X
 } from 'lucide-react'
-import { fetchSiteVisits, deleteSiteVisit, clearAllSiteVisits } from '../lib/supabase'
+import { fetchSiteVisits, deleteSiteVisit, clearAllSiteVisits, recordSiteVisit } from '../lib/supabase'
 
 const VISITS_PER_PAGE = 25
 
@@ -85,18 +85,35 @@ export default function VisitorsTab() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [error, setError] = useState(null)
+  const [diag, setDiag] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const data = await fetchSiteVisits({ limit: 1000 })
       setVisits(data)
     } catch (err) {
       console.error('Failed to load visits:', err)
+      setError(err.message || String(err))
     } finally {
       setLoading(false)
     }
   }, [])
+
+  async function handleTestRecord() {
+    setDiag({ status: 'running', message: 'Recording test visit...' })
+    const res = await recordSiteVisit({ force: true, path: '/__diagnostic__' })
+    if (res?.error) {
+      setDiag({ status: 'error', message: `Insert failed: ${res.error.message || res.error}` })
+    } else if (res?.data) {
+      setDiag({ status: 'ok', message: `Recorded id ${res.data.id} from ${res.data.country || 'unknown country'}` })
+      await load()
+    } else {
+      setDiag({ status: 'warn', message: `No insert: ${res?.skipped || 'unknown'}` })
+    }
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -151,7 +168,7 @@ export default function VisitorsTab() {
     <div>
       {/* Action bar */}
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={load}
             disabled={loading}
@@ -159,6 +176,14 @@ export default function VisitorsTab() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
+          </button>
+          <button
+            onClick={handleTestRecord}
+            className="btn-secondary flex items-center gap-2 text-sm"
+            title="Insert a test visit row to verify the table and RLS policies are working"
+          >
+            <Eye className="w-4 h-4" />
+            Record Test Visit
           </button>
           <button
             onClick={() => setConfirmClear(true)}
@@ -171,6 +196,46 @@ export default function VisitorsTab() {
         </div>
         <span className="text-xs text-gray-500">{visits.length} record{visits.length !== 1 ? 's' : ''}</span>
       </div>
+
+      {/* Error / diagnostic banner */}
+      {error && (
+        <div
+          className="mb-4 p-3 text-sm flex items-start gap-2"
+          style={{
+            background: 'rgba(248, 81, 73, 0.10)',
+            color: '#f85149',
+            borderRadius: '10px',
+            boxShadow: 'inset 0 0 0 1px rgba(248, 81, 73, 0.25)',
+          }}
+        >
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold mb-0.5">Failed to load visits</div>
+            <div className="text-xs font-mono opacity-90">{error}</div>
+            <div className="text-xs opacity-75 mt-1">Most likely the <code>site_visits</code> table is missing or RLS blocks SELECT. Re-run <code>migrations/001_site_visits.sql</code>.</div>
+          </div>
+        </div>
+      )}
+      {diag && (
+        <div
+          className="mb-4 p-3 text-sm flex items-start gap-2"
+          style={{
+            background: diag.status === 'ok'    ? 'rgba(34, 197, 94, 0.10)'
+                      : diag.status === 'error' ? 'rgba(248, 81, 73, 0.10)'
+                      :                           'rgba(240, 136, 62, 0.10)',
+            color:      diag.status === 'ok'    ? '#22c55e'
+                      : diag.status === 'error' ? '#f85149'
+                      :                           '#f0883e',
+            borderRadius: '10px',
+            boxShadow: 'inset 0 0 0 1px currentColor',
+          }}
+        >
+          <div className="flex-1 font-mono text-xs">{diag.message}</div>
+          <button onClick={() => setDiag(null)} className="opacity-60 hover:opacity-100">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">

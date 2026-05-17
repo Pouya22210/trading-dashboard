@@ -398,12 +398,21 @@ export function subscribeToTrades(callbacks = {}) {
 const SITE_VISIT_SESSION_KEY = 'site_visit_recorded'
 
 async function fetchGeoIP() {
-  // ipapi.co is free for ~1000 req/day, returns ip/country/city/region.
-  // We swallow errors — visit gets recorded without geo data if the lookup fails.
+  // ipapi.co is free for ~1000 req/day. Times out fast so a hanging request
+  // can't block the visit insert.
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 4000)
   try {
-    const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' })
-    if (!res.ok) return null
+    const res = await fetch('https://ipapi.co/json/', { cache: 'no-store', signal: ctrl.signal })
+    if (!res.ok) {
+      console.warn('[site_visits] geo-IP HTTP', res.status)
+      return null
+    }
     const j = await res.json()
+    if (j.error) {
+      console.warn('[site_visits] geo-IP API error:', j.reason || j.error)
+      return null
+    }
     return {
       ip:           j.ip || null,
       country:      j.country_name || null,
@@ -411,16 +420,20 @@ async function fetchGeoIP() {
       city:         j.city || null,
       region:       j.region || null,
     }
-  } catch (_) {
+  } catch (err) {
+    console.warn('[site_visits] geo-IP fetch failed:', err.message || err)
     return null
+  } finally {
+    clearTimeout(timer)
   }
 }
 
-export async function recordSiteVisit({ path, referrer } = {}) {
+export async function recordSiteVisit({ path, referrer, force } = {}) {
   try {
-    if (typeof window === 'undefined') return
-    if (sessionStorage.getItem(SITE_VISIT_SESSION_KEY) === '1') return
-    sessionStorage.setItem(SITE_VISIT_SESSION_KEY, '1')
+    if (typeof window === 'undefined') return { skipped: 'no-window' }
+    if (!force && sessionStorage.getItem(SITE_VISIT_SESSION_KEY) === '1') {
+      return { skipped: 'session-dedup' }
+    }
 
     const geo = await fetchGeoIP()
     const row = {
@@ -433,10 +446,17 @@ export async function recordSiteVisit({ path, referrer } = {}) {
       path:         path ?? window.location.pathname,
       referrer:     referrer ?? document.referrer ?? null,
     }
-    const { error } = await supabase.from('site_visits').insert(row)
-    if (error) console.warn('recordSiteVisit failed:', error.message)
+    const { data, error } = await supabase.from('site_visits').insert(row).select().single()
+    if (error) {
+      console.error('[site_visits] insert failed:', error.message, error)
+      return { error }
+    }
+    sessionStorage.setItem(SITE_VISIT_SESSION_KEY, '1')
+    console.log('[site_visits] recorded:', data?.country || 'unknown', data?.id)
+    return { data }
   } catch (err) {
-    console.warn('recordSiteVisit error:', err)
+    console.error('[site_visits] unexpected error:', err)
+    return { error: err }
   }
 }
 
