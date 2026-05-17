@@ -4,7 +4,7 @@ import {
   Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
-  Hash, DollarSign, Percent, AlertTriangle, LayoutGrid
+  Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays
 } from 'lucide-react'
 
 import {
@@ -994,6 +994,12 @@ const [outcomePage, setOutcomePage] = useState(1)
 // Active sub-tab for the analysis section
 const [activeTab, setActiveTab] = useState('trades')
 
+// Daily profit calendar — currently displayed month
+const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() }
+})
+
 
 // Logarithmic scale toggle for cumulative P&L
 
@@ -1897,6 +1903,74 @@ const maxDrawdown = useMemo(() => {
 
 
 
+// Daily profit calendar data — risk-based, balance-independent.
+// Each closed trade contributes: +RR × risk%  (win)  or  -1 × risk%  (loss).
+// Result keyed by 'YYYY-MM-DD' → { profit, trades, wins, losses }.
+const dailyProfitData = useMemo(() => {
+  const channelRiskMap = {}
+  channels.forEach(ch => {
+    channelRiskMap[ch.id] = (ch.risk_per_trade || 0.01) * 100
+  })
+
+  const dailyMap = {}
+
+  analysisTrades.forEach(trade => {
+    if (trade.status !== 'closed') return
+    const when = trade.close_time || trade.signal_time
+    if (!when) return
+
+    const riskPct = channelRiskMap[trade.channel_id] ?? 1
+
+    let pnlR = null
+    if (trade.outcome === 'profit') {
+      const entry = trade.executed_entry_price ?? trade.signal_entry_price
+      const tp = trade.executed_tp_price
+      const sl = trade.executed_sl_price ?? trade.signal_sl_price
+      if (entry != null && tp != null && sl != null && Math.abs(entry - sl) > 0) {
+        pnlR = Math.abs(tp - entry) / Math.abs(entry - sl)
+      } else {
+        pnlR = 1
+      }
+    } else if (trade.outcome === 'loss') {
+      pnlR = -1
+    } else if (trade.outcome === 'breakeven') {
+      pnlR = 0
+    } else {
+      return
+    }
+
+    const date = new Date(when)
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+    if (!dailyMap[dateKey]) {
+      dailyMap[dateKey] = { profit: 0, trades: 0, wins: 0, losses: 0 }
+    }
+    dailyMap[dateKey].profit += pnlR * riskPct
+    dailyMap[dateKey].trades++
+    if (trade.outcome === 'profit') dailyMap[dateKey].wins++
+    else if (trade.outcome === 'loss') dailyMap[dateKey].losses++
+  })
+
+  return dailyMap
+}, [analysisTrades, channels])
+
+// Min/max date bounds for daily profit pagination (limits prev/next navigation)
+const dailyProfitBounds = useMemo(() => {
+  const keys = Object.keys(dailyProfitData)
+  if (keys.length === 0) return null
+  const sorted = keys.sort()
+  const first = sorted[0]
+  const last = sorted[sorted.length - 1]
+  const [fy, fm] = first.split('-').map(Number)
+  const [ly, lm] = last.split('-').map(Number)
+  return {
+    min: { year: fy, month: fm - 1 },
+    max: { year: ly, month: lm - 1 },
+  }
+}, [dailyProfitData])
+
+
+
 // Chart data: Outcome by Side (uses analysisTrades)
 
 const outcomeBySide = analysisTrades.reduce((acc, trade) => {
@@ -2636,6 +2710,7 @@ style={{
     { key: 'channel-activity',     label: 'Channel Activity',     icon: Calendar    },
     { key: 'market-sessions',      label: 'Market Sessions',      icon: Globe       },
     { key: 'outcome-distribution', label: 'Outcome Distribution', icon: Target      },
+    { key: 'daily-profit',         label: 'Daily Profit',         icon: CalendarDays },
     { key: 'other',                label: 'Other',                icon: LayoutGrid  },
   ]
   return (
@@ -3774,6 +3849,192 @@ radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
 
 </ChartCard>
 )}
+
+
+
+{/* Daily Profit Calendar */}
+
+{activeTab === 'daily-profit' && (() => {
+  const { year, month } = dailyProfitMonth
+  const monthLabel = new Date(year, month, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+  const firstDay = new Date(year, month, 1)
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const startWeekday = firstDay.getDay()
+
+  const cells = []
+  for (let i = 0; i < startWeekday; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    cells.push({ day: d, data: dailyProfitData[dateKey] || null })
+  }
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const monthlyProfit = cells.reduce((s, c) => s + (c?.data?.profit || 0), 0)
+  const monthlyTrades = cells.reduce((s, c) => s + (c?.data?.trades || 0), 0)
+  const monthlyWins   = cells.reduce((s, c) => s + (c?.data?.wins   || 0), 0)
+  const monthlyLosses = cells.reduce((s, c) => s + (c?.data?.losses || 0), 0)
+
+  let maxAbs = 0
+  cells.forEach(c => {
+    if (c?.data) maxAbs = Math.max(maxAbs, Math.abs(c.data.profit))
+  })
+  if (maxAbs === 0) maxAbs = 1
+
+  const cellColor = (profit) => {
+    if (profit == null) return 'transparent'
+    if (profit === 0) return 'rgba(110, 118, 129, 0.18)'
+    const intensity = Math.min(1, Math.abs(profit) / maxAbs)
+    const alpha = 0.18 + intensity * 0.72
+    return profit > 0
+      ? `rgba(173, 255, 47, ${alpha})`
+      : `rgba(248, 81, 73, ${alpha})`
+  }
+
+  const goPrev = () => {
+    const m = month - 1
+    if (m < 0) setDailyProfitMonth({ year: year - 1, month: 11 })
+    else setDailyProfitMonth({ year, month: m })
+  }
+  const goNext = () => {
+    const m = month + 1
+    if (m > 11) setDailyProfitMonth({ year: year + 1, month: 0 })
+    else setDailyProfitMonth({ year, month: m })
+  }
+
+  const canPrev = !dailyProfitBounds || (
+    year > dailyProfitBounds.min.year ||
+    (year === dailyProfitBounds.min.year && month > dailyProfitBounds.min.month)
+  )
+  const canNext = !dailyProfitBounds || (
+    year < dailyProfitBounds.max.year ||
+    (year === dailyProfitBounds.max.year && month < dailyProfitBounds.max.month)
+  )
+
+  const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  return (
+    <ChartCard title="Daily Profit (Risk-Based)" icon={CalendarDays} className="mb-6">
+      {/* Header: month nav + monthly summary */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goPrev}
+            disabled={!canPrev}
+            className="p-2 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-raised-sm)',
+              color: '#9ca3af',
+            }}
+            title="Previous month"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="text-sm sm:text-base font-semibold text-white min-w-[150px] text-center">
+            {monthLabel}
+          </div>
+          <button
+            onClick={goNext}
+            disabled={!canNext}
+            className="p-2 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              background: 'var(--neu-bg)',
+              boxShadow: 'var(--neu-raised-sm)',
+              color: '#9ca3af',
+            }}
+            title="Next month"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 sm:gap-4 text-xs flex-wrap">
+          <div className="flex flex-col">
+            <span className="text-gray-500 uppercase tracking-wider text-[10px]">Month P/L</span>
+            <span className={`font-mono font-semibold text-sm ${monthlyProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {monthlyProfit >= 0 ? '+' : '-'}{Math.abs(monthlyProfit).toFixed(2)}%
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-gray-500 uppercase tracking-wider text-[10px]">Trades</span>
+            <span className="font-mono font-semibold text-sm text-white">{monthlyTrades}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-gray-500 uppercase tracking-wider text-[10px]">W / L</span>
+            <span className="font-mono font-semibold text-sm">
+              <span className="text-green-400">{monthlyWins}</span>
+              <span className="text-gray-600 mx-1">/</span>
+              <span className="text-red-400">{monthlyLosses}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-end gap-2 mb-3 text-[10px] sm:text-xs text-gray-500">
+        <span>Loss</span>
+        <div
+          className="h-2 w-24 sm:w-32 rounded-full"
+          style={{
+            background: 'linear-gradient(90deg, rgba(248,81,73,0.9) 0%, rgba(110,118,129,0.25) 50%, rgba(173,255,47,0.9) 100%)',
+          }}
+        />
+        <span>Profit</span>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
+        {weekdayLabels.map(w => (
+          <div key={w} className="text-[10px] sm:text-xs text-gray-500 text-center py-1 uppercase tracking-wider">
+            {w}
+          </div>
+        ))}
+        {cells.map((cell, i) => {
+          if (cell === null) {
+            return <div key={i} className="aspect-square" />
+          }
+          const profit = cell.data?.profit
+          const trades = cell.data?.trades || 0
+          const hasData = cell.data != null
+          return (
+            <div
+              key={i}
+              className="aspect-square p-1 sm:p-2 flex flex-col justify-between transition-all"
+              style={{
+                background: hasData ? cellColor(profit) : 'rgba(255,255,255,0.02)',
+                borderRadius: '6px',
+                boxShadow: hasData ? 'inset 0 0 0 1px rgba(255,255,255,0.06)' : 'none',
+              }}
+              title={hasData
+                ? `${monthLabel} ${cell.day} — ${profit >= 0 ? '+' : ''}${profit.toFixed(2)}% (${trades} trade${trades !== 1 ? 's' : ''})`
+                : `${monthLabel} ${cell.day} — no trades`}
+            >
+              <div className="text-[10px] sm:text-xs font-semibold text-white/90 leading-none">
+                {cell.day}
+              </div>
+              {hasData && (
+                <div className="text-right">
+                  <div className={`text-[9px] sm:text-xs font-mono font-bold leading-none ${profit >= 0 ? 'text-white' : 'text-white'}`}>
+                    {profit >= 0 ? '+' : ''}{profit.toFixed(1)}%
+                  </div>
+                  <div className="text-[8px] sm:text-[10px] text-white/60 font-mono mt-0.5 leading-none">
+                    {trades}t
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {monthlyTrades === 0 && (
+        <div className="text-center text-gray-500 py-6 text-sm">
+          No closed trades this month
+        </div>
+      )}
+    </ChartCard>
+  )
+})()}
 
 
 
