@@ -2482,9 +2482,7 @@ style={{
     boxShadow: 'var(--neu-raised-sm)',
   }
   const iconBoxStyle = {
-    width: '26px',
-    height: '26px',
-    borderRadius: '8px',
+    borderRadius: '7px',
     background: 'var(--neu-bg)',
     boxShadow: 'var(--neu-pressed-sm)',
     display: 'flex',
@@ -2492,38 +2490,39 @@ style={{
     justifyContent: 'center',
     flexShrink: 0,
   }
-  const labelClass = 'text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-[0.12em]'
+  const iconBoxClass = 'w-[20px] h-[20px] sm:w-[26px] sm:h-[26px]'
+  const labelClass = 'text-[9px] sm:text-xs font-semibold text-gray-400 uppercase tracking-[0.12em]'
 
   return (
     <div className="grid grid-cols-6 lg:grid-cols-5 gap-2 sm:gap-4 mb-6">
       {/* Analysis */}
-      <div className="p-3 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-          <div style={iconBoxStyle}><Hash className="w-3.5 h-3.5 text-gray-400" /></div>
+      <div className="p-2.5 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+          <div className={iconBoxClass} style={iconBoxStyle}><Hash className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Analysis</span>
         </div>
-        <div className="text-lg sm:text-3xl font-bold font-mono text-white leading-none">
+        <div className="text-sm sm:text-3xl font-bold font-mono text-white leading-none">
           {analysisTrades.length.toLocaleString()}
         </div>
         {filteredTrades.length !== analysisTrades.length && (
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-2 leading-tight">
+          <div className="text-[9px] sm:text-[11px] text-gray-500 mt-1.5 sm:mt-2 leading-tight">
             of {filteredTrades.length.toLocaleString()} · {excluded.toLocaleString()} excluded
           </div>
         )}
       </div>
 
       {/* Net P&L */}
-      <div className="p-3 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-          <div style={iconBoxStyle}><DollarSign className="w-3.5 h-3.5 text-gray-400" /></div>
+      <div className="p-2.5 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+          <div className={iconBoxClass} style={iconBoxStyle}><DollarSign className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Net P&amp;L</span>
         </div>
-        <div className={`text-lg sm:text-3xl font-bold font-mono leading-none ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className={`text-sm sm:text-3xl font-bold font-mono leading-none ${netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {netPnL >= 0 ? '+' : '-'}${Math.abs(netPnL).toFixed(2)}
         </div>
         {totalWL > 0 && (
           <div
-            className="inline-flex items-center gap-1 mt-2.5 px-2 py-0.5 text-[11px] font-semibold font-mono"
+            className="inline-flex items-center gap-1 mt-1.5 sm:mt-2.5 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[11px] font-semibold font-mono"
             style={{
               background: netPnL >= 0 ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
               color: netPnL >= 0 ? '#22c55e' : '#ef4444',
@@ -2531,20 +2530,20 @@ style={{
             }}
           >
             {netPnL >= 0
-              ? <TrendingUp className="w-3 h-3" />
-              : <TrendingDown className="w-3 h-3" />}
+              ? <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              : <TrendingDown className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
             {netPnL >= 0 ? '+' : '-'}{Math.abs(pnlDeltaPct).toFixed(1)}%
           </div>
         )}
       </div>
 
       {/* Win Rate */}
-      <div className="p-3 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-          <div style={iconBoxStyle}><Percent className="w-3.5 h-3.5 text-gray-400" /></div>
+      <div className="p-2.5 sm:p-5 col-span-2 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+          <div className={iconBoxClass} style={iconBoxStyle}><Percent className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Win Rate</span>
         </div>
-        <div className="text-lg sm:text-3xl font-bold font-mono text-white leading-none">
+        <div className="text-sm sm:text-3xl font-bold font-mono text-white leading-none">
           {parseFloat(winRate).toFixed(1)}%
         </div>
         <div
@@ -2566,17 +2565,17 @@ style={{
       </div>
 
       {/* Wins · Losses */}
-      <div className="p-3 sm:p-5 col-span-3 lg:col-span-1" style={cardStyle}>
-        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-          <div style={iconBoxStyle}><BarChart3 className="w-3.5 h-3.5 text-gray-400" /></div>
+      <div className="p-2.5 sm:p-5 col-span-3 lg:col-span-1" style={cardStyle}>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+          <div className={iconBoxClass} style={iconBoxStyle}><BarChart3 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Wins · Losses</span>
         </div>
-        <div className="text-base sm:text-2xl font-bold font-mono leading-none">
+        <div className="text-sm sm:text-2xl font-bold font-mono leading-none">
           <span className="text-green-400">{wins.toLocaleString()}</span>
-          <span className="text-gray-600 mx-1.5">/</span>
+          <span className="text-gray-600 mx-1 sm:mx-1.5">/</span>
           <span className="text-red-400">{losses.toLocaleString()}</span>
         </div>
-        <div className="flex gap-1 mt-2 sm:mt-3 h-1.5">
+        <div className="flex gap-1 mt-1.5 sm:mt-3 h-1 sm:h-1.5">
           <div
             style={{
               width: `${winsPct}%`,
@@ -2600,29 +2599,29 @@ style={{
 
       {/* Max Drawdown — vertical layout on all sizes, half-row on mobile */}
       <div
-        className="p-3 sm:p-5 col-span-3 lg:col-span-1"
+        className="p-2.5 sm:p-5 col-span-3 lg:col-span-1"
         style={cardStyle}
       >
-        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-          <div style={iconBoxStyle}><TrendingDown className="w-3.5 h-3.5 text-gray-400" /></div>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+          <div className={iconBoxClass} style={iconBoxStyle}><TrendingDown className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-gray-400" /></div>
           <span className={labelClass}>Max Drawdown</span>
         </div>
-        <div className="text-lg sm:text-2xl xl:text-3xl font-bold font-mono text-red-400 leading-none">
+        <div className="text-sm sm:text-2xl xl:text-3xl font-bold font-mono text-red-400 leading-none">
           {maxDrawdown > 0 ? `-${maxDrawdown.toFixed(2)}%` : '0.00%'}
         </div>
-        <div className="flex items-center gap-2 mt-2 sm:mt-2.5 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2.5 flex-wrap">
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider"
+            className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[11px] font-semibold uppercase tracking-wider"
             style={{
               background: 'rgba(239, 68, 68, 0.15)',
               color: '#ef4444',
               borderRadius: '9999px',
             }}
           >
-            <AlertTriangle className="w-3 h-3" />
+            <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
             Risk
           </span>
-          <span className="text-[10px] sm:text-[11px] text-gray-500">peak to trough</span>
+          <span className="text-[9px] sm:text-[11px] text-gray-500">peak to trough</span>
         </div>
       </div>
     </div>
@@ -2720,7 +2719,8 @@ style={{
 
 </div>
 
-<div className="overflow-x-auto">
+{/* Desktop / tablet table view */}
+<div className="hidden md:block overflow-x-auto">
 
 <table className="data-table">
 
@@ -2851,6 +2851,113 @@ No trades found
 
 </table>
 
+</div>
+
+{/* Mobile card view */}
+<div className="md:hidden p-3 space-y-3">
+  {paginatedTrades.map(trade => {
+    const badgeClass = getStatusBadgeClass(trade)
+    const statusColorClass =
+      badgeClass === 'badge-success'       ? 'text-green-400' :
+      badgeClass === 'badge-danger'        ? 'text-red-400' :
+      badgeClass === 'badge-warning'       ? 'text-orange-400' :
+      badgeClass === 'badge-cancel-policy' ? 'text-cyan-400' :
+      'text-gray-400'
+    const statusDotColor =
+      badgeClass === 'badge-success'       ? '#22c55e' :
+      badgeClass === 'badge-danger'        ? '#ef4444' :
+      badgeClass === 'badge-warning'       ? '#f59e0b' :
+      badgeClass === 'badge-cancel-policy' ? '#39d5ff' :
+      '#6e7681'
+    const isBuy = trade.direction === 'buy'
+    const entry = trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'
+    const tp = trade.executed_tp_price?.toFixed(2) || '-'
+    const sl = trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'
+    const time = trade.signal_time
+      ? new Date(trade.signal_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '-'
+    return (
+      <div
+        key={trade.id}
+        className="p-3.5"
+        style={{
+          background: 'var(--neu-bg)',
+          borderRadius: '14px',
+          boxShadow: 'var(--neu-raised-sm)',
+        }}
+      >
+        {/* Top row: channel name + side badge */}
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: getChannelColor(trade.channel_id) }}
+            />
+            <span className="text-sm font-semibold text-white truncate" title={getChannelName(trade.channel_id)}>
+              {getChannelName(trade.channel_id)}
+            </span>
+          </div>
+          <span
+            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider flex-shrink-0"
+            style={{
+              background: isBuy ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              color: isBuy ? '#22c55e' : '#ef4444',
+              borderRadius: '8px',
+            }}
+          >
+            {isBuy
+              ? <TrendingUp className="w-3 h-3" />
+              : <TrendingDown className="w-3 h-3" />}
+            {trade.direction?.toUpperCase() || '-'}
+          </span>
+        </div>
+
+        {/* Middle row: Entry / TP / SL */}
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Entry</span>
+            <span className="text-sm font-mono font-semibold text-white">{entry}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">TP</span>
+            <span className="text-sm font-mono font-semibold text-green-400">{tp}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">SL</span>
+            <span className="text-sm font-mono font-semibold text-red-400">{sl}</span>
+          </div>
+        </div>
+
+        {/* Bottom row: status pill + symbol + P&L/time */}
+        <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-white/5">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColorClass}`}
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: '6px',
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusDotColor }} />
+              {getStatusDisplay(trade)}
+              {trade.profit_loss != null && (
+                <span className="ml-1 font-mono">
+                  · {trade.profit_loss >= 0 ? '+' : '-'}${Math.abs(trade.profit_loss).toFixed(2)}
+                </span>
+              )}
+            </span>
+            <span className="text-[10px] text-gray-500 uppercase tracking-wider">
+              {trade.symbol || '-'}
+            </span>
+          </div>
+          <span className="text-[10px] text-gray-500 font-mono flex-shrink-0">{time}</span>
+        </div>
+      </div>
+    )
+  })}
+  {sortedFilteredTrades.length === 0 && (
+    <div className="text-center text-gray-500 py-8 text-sm">No trades found</div>
+  )}
 </div>
 
 
@@ -3369,7 +3476,7 @@ No closed trades to display
 
 {/* Session Stats Summary */}
 
-<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5 pt-5 border-t border-dark-border/50">
+<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-dark-border/50">
 
 {marketSessionsData.map(session => {
 
@@ -3381,37 +3488,37 @@ return (
 
 key={session.session}
 
-className="p-4 transition-all"
+className="p-2.5 sm:p-4 transition-all"
 
 style={{
   background: 'var(--neu-bg)',
-  borderRadius: '18px',
+  borderRadius: '14px',
   boxShadow: 'var(--neu-raised-sm), inset 3px 0 0 0 ' + sessionColor,
 }}
 
 >
 
-<div className="flex items-center gap-2 mb-3">
+<div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
 
 <span
 
-className="w-2.5 h-2.5 rounded-full shadow-lg"
+className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shadow-lg flex-shrink-0"
 
 style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }}
 
 />
 
-<span className="text-sm font-semibold text-white">{session.session}</span>
+<span className="text-xs sm:text-sm font-semibold text-white truncate">{session.session}</span>
 
 </div>
 
-<div className="grid grid-cols-2 gap-3 text-xs">
+<div className="grid grid-cols-2 gap-1.5 sm:gap-3 text-[10px] sm:text-xs">
 
 <div className="flex flex-col">
 
 <span className="text-gray-500 mb-0.5">Total</span>
 
-<span className="text-white font-mono text-base font-semibold">{session.total}</span>
+<span className="text-white font-mono text-xs sm:text-base font-semibold">{session.total}</span>
 
 </div>
 
@@ -3419,7 +3526,7 @@ style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }
 
 <span className="text-gray-500 mb-0.5">Win Rate</span>
 
-<span className="text-white font-mono text-base font-semibold">{session.winRate}%</span>
+<span className="text-white font-mono text-xs sm:text-base font-semibold">{session.winRate}%</span>
 
 </div>
 
@@ -3427,7 +3534,7 @@ style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }
 
 <span className="text-gray-500 mb-0.5">Wins</span>
 
-<span className="text-green-400 font-mono text-base font-semibold">{session.profit}</span>
+<span className="text-green-400 font-mono text-xs sm:text-base font-semibold">{session.profit}</span>
 
 </div>
 
@@ -3435,7 +3542,7 @@ style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }
 
 <span className="text-gray-500 mb-0.5">Losses</span>
 
-<span className="text-red-400 font-mono text-base font-semibold">{session.loss}</span>
+<span className="text-red-400 font-mono text-xs sm:text-base font-semibold">{session.loss}</span>
 
 </div>
 
