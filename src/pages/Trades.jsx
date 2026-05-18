@@ -612,7 +612,7 @@ return (
 
 <label
 
-className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+className={`flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-2 rounded-md sm:rounded-lg cursor-pointer transition-all ${
 
 checked
 
@@ -621,6 +621,8 @@ checked
 : 'bg-dark-secondary/50 border border-transparent hover:border-dark-border'
 
 }`}
+
+style={checked ? { boxShadow: `inset 0 -2px 0 ${outcome.color}` } : undefined}
 
 >
 
@@ -638,23 +640,15 @@ className="hidden"
 
 {checked ? (
 
-<CheckSquare className="w-4 h-4" style={{ color: outcome.color }} />
+<CheckSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: outcome.color }} />
 
 ) : (
 
-<Square className="w-4 h-4 text-gray-500" />
+<Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
 
 )}
 
-<span
-
-className="w-3 h-3 rounded-full"
-
-style={{ backgroundColor: outcome.color }}
-
-/>
-
-<span className={`text-sm ${checked ? 'text-white' : 'text-gray-500'}`}>
+<span className={`text-xs sm:text-sm ${checked ? 'text-white' : 'text-gray-500'}`}>
 
 {outcome.label}
 
@@ -3097,7 +3091,7 @@ onPageChange={handlePageChange}
 
 <ResponsiveContainer width="100%" height="100%">
 
-<AreaChart data={cumulativePnLData} margin={{ top: 20, right: 70, left: 0, bottom: 0 }}>
+<AreaChart data={cumulativePnLData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
 
 <defs>
   {chartChannelIds.map((channelId) => {
@@ -3232,26 +3226,8 @@ isAnimationActive={false}
 
 ))}
 
-{channelExtremes.map(({ channelId, color, minP, maxP, latest }) => (
+{channelExtremes.map(({ channelId, color, minP, maxP }) => (
   <React.Fragment key={`anno-${channelId}`}>
-    <ReferenceLine
-      y={latest.value}
-      stroke={color}
-      strokeDasharray="4 4"
-      strokeOpacity={0.7}
-      ifOverflow="extendDomain"
-      label={{
-        value: `$${latest.value.toFixed(2)}`,
-        position: 'right',
-        fill: '#0d1117',
-        fontSize: 11,
-        fontWeight: 700,
-        offset: 6,
-        style: {
-          background: color,
-        },
-      }}
-    />
     <ReferenceDot
       x={maxP.date}
       y={maxP.value}
@@ -3260,7 +3236,7 @@ isAnimationActive={false}
       stroke="#0d1117"
       strokeWidth={1}
       label={{
-        value: `— $${maxP.value.toFixed(2)}`,
+        value: `$${maxP.value.toFixed(2)}`,
         position: 'top',
         fill: '#c9d1d9',
         fontSize: 10,
@@ -3274,7 +3250,7 @@ isAnimationActive={false}
       stroke="#0d1117"
       strokeWidth={1}
       label={{
-        value: `— $${minP.value.toFixed(2)}`,
+        value: `$${minP.value.toFixed(2)}`,
         position: 'bottom',
         fill: '#c9d1d9',
         fontSize: 10,
@@ -3372,27 +3348,44 @@ ganttTimeRange === option.key
 const GANTT_PER_PAGE = 10
 const ganttTotalPages = Math.ceil(ganttChartData.channels.length / GANTT_PER_PAGE)
 const paginatedGanttChannels = ganttChartData.channels.slice((ganttPage - 1) * GANTT_PER_PAGE, ganttPage * GANTT_PER_PAGE)
-const formatDateTime = (d) => d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-const formatDuration = (ms) => {
-  if (ms <= 0) return 'single signal'
-  const mins = Math.round(ms / 60000)
-  if (mins < 60) return `${mins} min`
-  const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `${hrs} hr`
-  const days = Math.round(hrs / 24)
-  return `${days} day${days === 1 ? '' : 's'}`
-}
 return (
 <div className="relative overflow-x-auto">
 
-{/* Channel rows — each row spans the channel's own first → last signal time */}
+{/* Timeline header */}
 
-<div className="space-y-4 min-w-[600px]">
+<div className="flex items-center mb-2 pl-[200px] min-w-[600px]">
 
-{paginatedGanttChannels.map((channel) => {
+<div className="flex-1 flex justify-between text-xs text-gray-500">
 
-const channelRange = channel.lastTrade.getTime() - channel.firstTrade.getTime()
-const channelColor = getChannelColor(channel.channelId)
+<span>{ganttChartData.minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+
+<span>{ganttChartData.maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+
+</div>
+
+</div>
+
+
+{/* Channel rows */}
+
+<div className="space-y-2 min-w-[600px]">
+
+{paginatedGanttChannels.map((channel, idx) => {
+
+const startPercent = ganttChartData.totalRange > 0
+
+? ((channel.firstTrade.getTime() - ganttChartData.minDate.getTime()) / ganttChartData.totalRange) * 100
+
+: 0
+
+const widthPercent = ganttChartData.totalRange > 0
+
+? ((channel.lastTrade.getTime() - channel.firstTrade.getTime()) / ganttChartData.totalRange) * 100
+
+: 100
+
+const minWidth = Math.max(widthPercent, 1)
+
 
 return (
 
@@ -3406,7 +3399,7 @@ return (
 
 className="w-2 h-2 rounded-full flex-shrink-0"
 
-style={{ backgroundColor: channelColor }}
+style={{ backgroundColor: getChannelColor(channel.channelId) }}
 
 />
 
@@ -3419,45 +3412,37 @@ style={{ backgroundColor: channelColor }}
 </div>
 
 
-{/* Per-channel timeline (full row width = this channel's first→last signal) */}
+{/* Timeline bar */}
 
-<div className="flex-1 min-w-0">
-
-<div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
-
-<span title={channel.firstTrade.toString()}>{formatDateTime(channel.firstTrade)}</span>
-
-<span className="text-gray-600">{formatDuration(channelRange)}</span>
-
-<span title={channel.lastTrade.toString()}>{formatDateTime(channel.lastTrade)}</span>
-
-</div>
-
-<div className="h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
+<div className="flex-1 h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
 
 <div
 
-className="absolute inset-0 rounded transition-all group-hover:opacity-80"
+className="absolute h-full rounded transition-all group-hover:opacity-80"
 
 style={{
 
-backgroundColor: channelColor,
+left: `${startPercent}%`,
 
-opacity: 0.85,
+width: `${minWidth}%`,
+
+backgroundColor: getChannelColor(channel.channelId),
+
+minWidth: '4px'
 
 }}
 
-title={`${channel.totalTrades} signals from ${formatDateTime(channel.firstTrade)} to ${formatDateTime(channel.lastTrade)}`}
+title={`${channel.totalTrades} trades from ${channel.firstTrade.toLocaleDateString()} to ${channel.lastTrade.toLocaleDateString()}`}
 
 >
 
-{/* Individual signal dots within this channel's own time range */}
+{/* Trade dots within the bar */}
 
-{channel.trades.slice(0, 100).map((trade, tIdx) => {
+{channel.trades.slice(0, 50).map((trade, tIdx) => {
 
-const tradePercent = channelRange > 0
+const tradePercent = ganttChartData.totalRange > 0 && widthPercent > 5
 
-? ((trade.date.getTime() - channel.firstTrade.getTime()) / channelRange) * 100
+? ((trade.date.getTime() - channel.firstTrade.getTime()) / (channel.lastTrade.getTime() - channel.firstTrade.getTime())) * 100
 
 : 50
 
@@ -3467,9 +3452,9 @@ return (
 
 key={tIdx}
 
-className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/40"
+className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/30"
 
-style={{ left: `${Math.min(Math.max(tradePercent, 1), 99)}%` }}
+style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 />
 
@@ -3481,14 +3466,12 @@ style={{ left: `${Math.min(Math.max(tradePercent, 1), 99)}%` }}
 
 </div>
 
-</div>
-
 
 {/* Trade count */}
 
-<div className="w-[70px] text-right text-xs text-gray-500">
+<div className="w-[60px] text-right text-xs text-gray-500">
 
-{channel.totalTrades} <span className="hidden sm:inline">signals</span>
+{channel.totalTrades} <span className="hidden sm:inline">trades</span>
 
 </div>
 
@@ -3509,7 +3492,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 1), 99)}%` }}
 
 <div className="w-8 h-2 bg-accent-cyan rounded" />
 
-<span>First signal → last signal (per channel)</span>
+<span>Active period</span>
 
 </div>
 
@@ -3517,7 +3500,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 1), 99)}%` }}
 
 <div className="w-1 h-1 bg-white/50 rounded-full" />
 
-<span>Individual signal</span>
+<span>Individual trade</span>
 
 </div>
 
@@ -3744,39 +3727,39 @@ style={{ backgroundColor: sessionColor, boxShadow: `0 0 8px ${sessionColor}40` }
 
 <div className="mb-4">
 
-<div className="flex flex-wrap items-center gap-2 mb-3">
+<div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2 sm:mb-3">
 
-<span className="text-sm text-gray-400">Filter outcomes:</span>
+<span className="text-xs sm:text-sm text-gray-400">Filter:</span>
 
 <button
 
 onClick={selectAllOutcomes}
 
-className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+className="text-[11px] sm:text-xs text-accent-cyan hover:text-accent-blue transition-colors"
 
 >
 
-Select All
+All
 
 </button>
 
-<span className="text-gray-600">|</span>
+<span className="text-gray-600 text-xs">|</span>
 
 <button
 
 onClick={deselectAllOutcomes}
 
-className="text-xs text-accent-cyan hover:text-accent-blue transition-colors"
+className="text-[11px] sm:text-xs text-accent-cyan hover:text-accent-blue transition-colors"
 
 >
 
-Deselect All
+None
 
 </button>
 
 </div>
 
-<div className="flex flex-wrap gap-2">
+<div className="flex flex-wrap gap-1.5 sm:gap-2">
 
 {OUTCOME_TYPES.map(outcome => (
 
@@ -3803,98 +3786,72 @@ onChange={toggleOutcome}
 const OUTCOME_PER_PAGE = 15
 const outcomeTotalPages = Math.ceil(outcomeByChannelData.length / OUTCOME_PER_PAGE)
 const paginatedOutcomeData = outcomeByChannelData.slice((outcomePage - 1) * OUTCOME_PER_PAGE, outcomePage * OUTCOME_PER_PAGE)
+const visibleOutcomes = OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key))
+const channelTotals = paginatedOutcomeData.map(c => visibleOutcomes.reduce((s, o) => s + (c[o.key] || 0), 0))
+const maxTotal = Math.max(1, ...channelTotals)
 return (
-<div className="w-full min-w-[300px]">
+<div className="w-full">
 
-<ResponsiveContainer width="100%" height={Math.max(300, paginatedOutcomeData.length * 34)}>
+<div className="space-y-2.5 sm:space-y-3">
 
-<BarChart
+{paginatedOutcomeData.map((channel, idx) => {
+  const total = channelTotals[idx]
+  const rowWidth = maxTotal > 0 ? (total / maxTotal) * 100 : 0
+  return (
+    <div key={channel.channelId}>
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <span
+          className="text-xs sm:text-sm text-gray-200 truncate min-w-0 flex-1"
+          title={channel.fullName}
+        >
+          {channel.fullName}
+        </span>
+        <span className="text-[11px] sm:text-xs text-gray-500 flex-shrink-0 tabular-nums">
+          {total}
+        </span>
+      </div>
+      <div className="h-4 sm:h-5 w-full bg-dark-tertiary/40 rounded overflow-hidden">
+        <div
+          className="h-full flex rounded overflow-hidden transition-all"
+          style={{ width: `${rowWidth}%` }}
+          title={visibleOutcomes
+            .filter(o => (channel[o.key] || 0) > 0)
+            .map(o => `${o.label}: ${channel[o.key]}`)
+            .join(' • ')}
+        >
+          {visibleOutcomes.map((outcome) => {
+            const value = channel[outcome.key] || 0
+            if (value === 0 || total === 0) return null
+            const pct = (value / total) * 100
+            return (
+              <div
+                key={outcome.key}
+                className="h-full"
+                style={{ width: `${pct}%`, backgroundColor: outcome.color }}
+                title={`${outcome.label}: ${value}`}
+              />
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+})}
 
-data={paginatedOutcomeData}
+</div>
 
-layout="vertical"
-
-margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
-
-barSize={16}
-
->
-
-<XAxis type="number" stroke="#6e7681" fontSize={11} />
-
-<YAxis
-
-type="category"
-
-dataKey="fullName"
-
-stroke="#6e7681"
-
-fontSize={10}
-
-width={180}
-
-interval={0}
-
-tick={({ x, y, payload }) => (
-
-<text
-
-x={x}
-
-y={y}
-
-dy={4}
-
-textAnchor="end"
-
-fill="#9ca3af"
-
-fontSize={10}
-
->
-
-{payload.value.length > 28 ? payload.value.slice(0, 28) + '...' : payload.value}
-
-</text>
-
-)}
-
-/>
-
-<Tooltip content={<OutcomeDistributionTooltip />} />
-
-<Legend
-
-wrapperStyle={{ paddingTop: 20 }}
-
-formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
-
-/>
-
-{OUTCOME_TYPES.filter(o => selectedOutcomes.includes(o.key)).map((outcome, index, arr) => (
-
-<Bar
-
-key={outcome.key}
-
-dataKey={outcome.key}
-
-name={outcome.label}
-
-fill={outcome.color}
-
-stackId="outcomes"
-
-radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
-
-/>
-
-))}
-
-</BarChart>
-
-</ResponsiveContainer>
+{/* Legend */}
+<div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-dark-border/50">
+  {visibleOutcomes.map(outcome => (
+    <div key={outcome.key} className="flex items-center gap-1.5">
+      <span
+        className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+        style={{ backgroundColor: outcome.color }}
+      />
+      <span className="text-[11px] sm:text-xs text-gray-400">{outcome.label}</span>
+    </div>
+  ))}
+</div>
 
 {/* Outcome Pagination */}
 {outcomeTotalPages > 1 && (
