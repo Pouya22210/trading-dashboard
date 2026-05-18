@@ -11,7 +11,8 @@ import {
 
 BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
 
-XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ComposedChart, Area
+XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ComposedChart, Area,
+AreaChart, ReferenceLine, ReferenceDot, CartesianGrid
 
 } from 'recharts'
 
@@ -3074,13 +3075,43 @@ onPageChange={handlePageChange}
 {activeTab === 'cumulative' && (
 <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
 
-{cumulativePnLData.length > 0 ? (
+{cumulativePnLData.length > 0 ? (() => {
+  // Compute per-channel min / max / latest points for annotations + dashed reference line
+  const channelExtremes = chartChannelIds.map((channelId) => {
+    const points = cumulativePnLData
+      .map(d => ({ date: d.date, value: d[channelId] }))
+      .filter(p => p.value !== undefined && p.value !== null)
+    if (points.length === 0) return null
+    let minP = points[0], maxP = points[0]
+    for (const p of points) {
+      if (p.value < minP.value) minP = p
+      if (p.value > maxP.value) maxP = p
+    }
+    const latest = points[points.length - 1]
+    const color = channelId === 'all' ? '#ADFF2F' : getChannelColor(channelId)
+    return { channelId, color, minP, maxP, latest }
+  }).filter(Boolean)
 
+  return (
 <div className="w-full min-w-[300px] h-[360px] sm:h-[480px] lg:h-[600px]">
 
 <ResponsiveContainer width="100%" height="100%">
 
-<LineChart data={cumulativePnLData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+<AreaChart data={cumulativePnLData} margin={{ top: 20, right: 70, left: 0, bottom: 0 }}>
+
+<defs>
+  {chartChannelIds.map((channelId) => {
+    const color = channelId === 'all' ? '#ADFF2F' : getChannelColor(channelId)
+    return (
+      <linearGradient key={`grad-${channelId}`} id={`cum-grad-${channelId}`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+        <stop offset="100%" stopColor={color} stopOpacity={0} />
+      </linearGradient>
+    )
+  })}
+</defs>
+
+<CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
 
 <XAxis
 
@@ -3114,11 +3145,13 @@ domain={['auto', 'auto']}
 
 allowDataOverflow={false}
 
-width={48}
+width={56}
 
 />
 
 <Tooltip
+
+cursor={{ stroke: '#6e7681', strokeDasharray: '3 3', strokeWidth: 1 }}
 
 content={({ active, payload, label }) => {
 
@@ -3169,7 +3202,7 @@ ${hoveredItem.value?.toFixed(2)}
 
 {chartChannelIds.map((channelId) => (
 
-<Line
+<Area
 
 key={channelId}
 
@@ -3181,7 +3214,11 @@ name={channelId === 'all' ? 'All Channels' : getChannelName(channelId)}
 
 stroke={channelId === 'all' ? '#ADFF2F' : getChannelColor(channelId)}
 
-strokeWidth={2.5}
+strokeWidth={2}
+
+fill={`url(#cum-grad-${channelId})`}
+
+fillOpacity={1}
 
 dot={false}
 
@@ -3189,17 +3226,70 @@ connectNulls
 
 activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
 
+isAnimationActive={false}
+
 />
 
 ))}
 
-</LineChart>
+{channelExtremes.map(({ channelId, color, minP, maxP, latest }) => (
+  <React.Fragment key={`anno-${channelId}`}>
+    <ReferenceLine
+      y={latest.value}
+      stroke={color}
+      strokeDasharray="4 4"
+      strokeOpacity={0.7}
+      ifOverflow="extendDomain"
+      label={{
+        value: `$${latest.value.toFixed(2)}`,
+        position: 'right',
+        fill: '#0d1117',
+        fontSize: 11,
+        fontWeight: 700,
+        offset: 6,
+        style: {
+          background: color,
+        },
+      }}
+    />
+    <ReferenceDot
+      x={maxP.date}
+      y={maxP.value}
+      r={3}
+      fill={color}
+      stroke="#0d1117"
+      strokeWidth={1}
+      label={{
+        value: `— $${maxP.value.toFixed(2)}`,
+        position: 'top',
+        fill: '#c9d1d9',
+        fontSize: 10,
+      }}
+    />
+    <ReferenceDot
+      x={minP.date}
+      y={minP.value}
+      r={3}
+      fill={color}
+      stroke="#0d1117"
+      strokeWidth={1}
+      label={{
+        value: `— $${minP.value.toFixed(2)}`,
+        position: 'bottom',
+        fill: '#c9d1d9',
+        fontSize: 10,
+      }}
+    />
+  </React.Fragment>
+))}
+
+</AreaChart>
 
 </ResponsiveContainer>
 
 </div>
-
-) : (
+  )
+})() : (
 
 <div className="flex items-center justify-center h-64 text-gray-500">
 
@@ -3282,44 +3372,27 @@ ganttTimeRange === option.key
 const GANTT_PER_PAGE = 10
 const ganttTotalPages = Math.ceil(ganttChartData.channels.length / GANTT_PER_PAGE)
 const paginatedGanttChannels = ganttChartData.channels.slice((ganttPage - 1) * GANTT_PER_PAGE, ganttPage * GANTT_PER_PAGE)
+const formatDateTime = (d) => d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+const formatDuration = (ms) => {
+  if (ms <= 0) return 'single signal'
+  const mins = Math.round(ms / 60000)
+  if (mins < 60) return `${mins} min`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs} hr`
+  const days = Math.round(hrs / 24)
+  return `${days} day${days === 1 ? '' : 's'}`
+}
 return (
 <div className="relative overflow-x-auto">
 
-{/* Timeline header */}
+{/* Channel rows — each row spans the channel's own first → last signal time */}
 
-<div className="flex items-center mb-2 pl-[200px] min-w-[600px]">
+<div className="space-y-4 min-w-[600px]">
 
-<div className="flex-1 flex justify-between text-xs text-gray-500">
+{paginatedGanttChannels.map((channel) => {
 
-<span>{ganttChartData.minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-
-<span>{ganttChartData.maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-
-</div>
-
-</div>
-
-
-{/* Channel rows */}
-
-<div className="space-y-2 min-w-[600px]">
-
-{paginatedGanttChannels.map((channel, idx) => {
-
-const startPercent = ganttChartData.totalRange > 0
-
-? ((channel.firstTrade.getTime() - ganttChartData.minDate.getTime()) / ganttChartData.totalRange) * 100
-
-: 0
-
-const widthPercent = ganttChartData.totalRange > 0
-
-? ((channel.lastTrade.getTime() - channel.firstTrade.getTime()) / ganttChartData.totalRange) * 100
-
-: 100
-
-const minWidth = Math.max(widthPercent, 1)
-
+const channelRange = channel.lastTrade.getTime() - channel.firstTrade.getTime()
+const channelColor = getChannelColor(channel.channelId)
 
 return (
 
@@ -3333,7 +3406,7 @@ return (
 
 className="w-2 h-2 rounded-full flex-shrink-0"
 
-style={{ backgroundColor: getChannelColor(channel.channelId) }}
+style={{ backgroundColor: channelColor }}
 
 />
 
@@ -3346,37 +3419,45 @@ style={{ backgroundColor: getChannelColor(channel.channelId) }}
 </div>
 
 
-{/* Timeline bar */}
+{/* Per-channel timeline (full row width = this channel's first→last signal) */}
 
-<div className="flex-1 h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
+<div className="flex-1 min-w-0">
+
+<div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+
+<span title={channel.firstTrade.toString()}>{formatDateTime(channel.firstTrade)}</span>
+
+<span className="text-gray-600">{formatDuration(channelRange)}</span>
+
+<span title={channel.lastTrade.toString()}>{formatDateTime(channel.lastTrade)}</span>
+
+</div>
+
+<div className="h-6 bg-dark-tertiary/50 rounded relative overflow-hidden">
 
 <div
 
-className="absolute h-full rounded transition-all group-hover:opacity-80"
+className="absolute inset-0 rounded transition-all group-hover:opacity-80"
 
 style={{
 
-left: `${startPercent}%`,
+backgroundColor: channelColor,
 
-width: `${minWidth}%`,
-
-backgroundColor: getChannelColor(channel.channelId),
-
-minWidth: '4px'
+opacity: 0.85,
 
 }}
 
-title={`${channel.totalTrades} trades from ${channel.firstTrade.toLocaleDateString()} to ${channel.lastTrade.toLocaleDateString()}`}
+title={`${channel.totalTrades} signals from ${formatDateTime(channel.firstTrade)} to ${formatDateTime(channel.lastTrade)}`}
 
 >
 
-{/* Trade dots within the bar */}
+{/* Individual signal dots within this channel's own time range */}
 
-{channel.trades.slice(0, 50).map((trade, tIdx) => {
+{channel.trades.slice(0, 100).map((trade, tIdx) => {
 
-const tradePercent = ganttChartData.totalRange > 0 && widthPercent > 5
+const tradePercent = channelRange > 0
 
-? ((trade.date.getTime() - channel.firstTrade.getTime()) / (channel.lastTrade.getTime() - channel.firstTrade.getTime())) * 100
+? ((trade.date.getTime() - channel.firstTrade.getTime()) / channelRange) * 100
 
 : 50
 
@@ -3386,9 +3467,9 @@ return (
 
 key={tIdx}
 
-className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/30"
+className="absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-white/40"
 
-style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
+style={{ left: `${Math.min(Math.max(tradePercent, 1), 99)}%` }}
 
 />
 
@@ -3400,12 +3481,14 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 </div>
 
+</div>
+
 
 {/* Trade count */}
 
-<div className="w-[60px] text-right text-xs text-gray-500">
+<div className="w-[70px] text-right text-xs text-gray-500">
 
-{channel.totalTrades} <span className="hidden sm:inline">trades</span>
+{channel.totalTrades} <span className="hidden sm:inline">signals</span>
 
 </div>
 
@@ -3426,7 +3509,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 <div className="w-8 h-2 bg-accent-cyan rounded" />
 
-<span>Active period</span>
+<span>First signal → last signal (per channel)</span>
 
 </div>
 
@@ -3434,7 +3517,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 <div className="w-1 h-1 bg-white/50 rounded-full" />
 
-<span>Individual trade</span>
+<span>Individual signal</span>
 
 </div>
 
