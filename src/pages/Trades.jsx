@@ -3792,7 +3792,8 @@ const maxTotal = Math.max(1, ...channelTotals)
 return (
 <div className="w-full">
 
-<div className="space-y-2.5 sm:space-y-3">
+{/* Mobile: stacked-bar list with channel name above each bar */}
+<div className="sm:hidden space-y-2.5">
 
 {paginatedOutcomeData.map((channel, idx) => {
   const total = channelTotals[idx]
@@ -3801,16 +3802,16 @@ return (
     <div key={channel.channelId}>
       <div className="flex items-center justify-between mb-1 gap-2">
         <span
-          className="text-xs sm:text-sm text-gray-200 truncate min-w-0 flex-1"
+          className="text-xs text-gray-200 truncate min-w-0 flex-1"
           title={channel.fullName}
         >
           {channel.fullName}
         </span>
-        <span className="text-[11px] sm:text-xs text-gray-500 flex-shrink-0 tabular-nums">
+        <span className="text-[11px] text-gray-500 flex-shrink-0 tabular-nums">
           {total}
         </span>
       </div>
-      <div className="h-4 sm:h-5 w-full bg-dark-tertiary/40 rounded overflow-hidden">
+      <div className="h-4 w-full bg-dark-tertiary/40 rounded overflow-hidden">
         <div
           className="h-full flex rounded overflow-hidden transition-all"
           style={{ width: `${rowWidth}%` }}
@@ -3838,9 +3839,7 @@ return (
   )
 })}
 
-</div>
-
-{/* Legend */}
+{/* Mobile legend */}
 <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-dark-border/50">
   {visibleOutcomes.map(outcome => (
     <div key={outcome.key} className="flex items-center gap-1.5">
@@ -3848,9 +3847,70 @@ return (
         className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
         style={{ backgroundColor: outcome.color }}
       />
-      <span className="text-[11px] sm:text-xs text-gray-400">{outcome.label}</span>
+      <span className="text-[11px] text-gray-400">{outcome.label}</span>
     </div>
   ))}
+</div>
+
+</div>
+
+{/* Desktop: original Recharts BarChart with channel names on Y-axis */}
+<div className="hidden sm:block">
+
+<ResponsiveContainer width="100%" height={Math.max(300, paginatedOutcomeData.length * 34)}>
+
+<BarChart
+  data={paginatedOutcomeData}
+  layout="vertical"
+  margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
+  barSize={16}
+>
+
+<XAxis type="number" stroke="#6e7681" fontSize={11} />
+
+<YAxis
+  type="category"
+  dataKey="fullName"
+  stroke="#6e7681"
+  fontSize={10}
+  width={180}
+  interval={0}
+  tick={({ x, y, payload }) => (
+    <text
+      x={x}
+      y={y}
+      dy={4}
+      textAnchor="end"
+      fill="#9ca3af"
+      fontSize={10}
+    >
+      {payload.value.length > 28 ? payload.value.slice(0, 28) + '...' : payload.value}
+    </text>
+  )}
+/>
+
+<Tooltip content={<OutcomeDistributionTooltip />} />
+
+<Legend
+  wrapperStyle={{ paddingTop: 20 }}
+  formatter={(value) => <span className="text-gray-300 text-sm">{value}</span>}
+/>
+
+{visibleOutcomes.map((outcome, index, arr) => (
+  <Bar
+    key={outcome.key}
+    dataKey={outcome.key}
+    name={outcome.label}
+    fill={outcome.color}
+    stackId="outcomes"
+    radius={index === arr.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
+  />
+))}
+
+</BarChart>
+
+</ResponsiveContainer>
+
 </div>
 
 {/* Outcome Pagination */}
@@ -4101,15 +4161,15 @@ return (
 
 <ChartCard title="Outcomes by Side" icon={Target}>
 
-<div className="w-full min-w-[280px]">
+<div className="w-full">
 
 <ResponsiveContainer width="100%" height={250}>
 
-<BarChart data={outcomeBySideData} barSize={40} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+<BarChart data={outcomeBySideData} barSize={40} margin={{ top: 10, right: 4, left: 0, bottom: 0 }}>
 
 <XAxis dataKey="side" stroke="#6e7681" fontSize={11} tickMargin={8} />
 
-<YAxis stroke="#6e7681" fontSize={11} />
+<YAxis stroke="#6e7681" fontSize={11} width={36} />
 
 <Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
@@ -4133,15 +4193,15 @@ return (
 
 <ChartCard title="Performance by Hour" icon={Clock}>
 
-<div className="w-full min-w-[280px]">
+<div className="w-full">
 
 <ResponsiveContainer width="100%" height={250}>
 
-<BarChart data={hourlyChartData} barSize={12} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+<BarChart data={hourlyChartData} barSize={12} margin={{ top: 10, right: 4, left: 0, bottom: 0 }}>
 
 <XAxis dataKey="hour" stroke="#6e7681" fontSize={10} tickMargin={8} />
 
-<YAxis stroke="#6e7681" fontSize={11} />
+<YAxis stroke="#6e7681" fontSize={11} width={36} />
 
 <Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
@@ -4171,15 +4231,15 @@ return (
 
 <ChartCard title="Day of Week Analysis" icon={Calendar}>
 
-<div className="w-full min-w-[280px]">
+<div className="w-full">
 
 <ResponsiveContainer width="100%" height={250}>
 
-<BarChart data={dowChartData} barSize={32} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+<BarChart data={dowChartData} barSize={32} margin={{ top: 10, right: 4, left: 0, bottom: 0 }}>
 
 <XAxis dataKey="day" stroke="#6e7681" fontSize={11} tickMargin={8} />
 
-<YAxis stroke="#6e7681" fontSize={11} />
+<YAxis stroke="#6e7681" fontSize={11} width={36} />
 
 <Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
@@ -4205,31 +4265,26 @@ return (
 
 <ChartCard title="Rolling Win Rate (20 trades)" icon={TrendingUp}>
 
-<div className="w-full min-w-[280px]">
+<div className="w-full">
 
 <ResponsiveContainer width="100%" height={250}>
 
-<LineChart data={
-
-closedTrades.slice().reverse().map((_, idx, arr) => {
-
-const window = arr.slice(Math.max(0, idx - 19), idx + 1)
-
-const windowWins = window.filter(t => t.outcome === 'profit').length
-
-const windowLosses = window.filter(t => t.outcome === 'loss').length
-
-const totalWL = windowWins + windowLosses
-
-return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toFixed(1) : '0.0' }
-
-})
-
-}>
+<LineChart
+  data={
+    closedTrades.slice().reverse().map((_, idx, arr) => {
+      const window = arr.slice(Math.max(0, idx - 19), idx + 1)
+      const windowWins = window.filter(t => t.outcome === 'profit').length
+      const windowLosses = window.filter(t => t.outcome === 'loss').length
+      const totalWL = windowWins + windowLosses
+      return { trade: idx + 1, winRate: totalWL > 0 ? (windowWins / totalWL * 100).toFixed(1) : '0.0' }
+    })
+  }
+  margin={{ top: 10, right: 4, left: 0, bottom: 0 }}
+>
 
 <XAxis dataKey="trade" stroke="#6e7681" fontSize={11} />
 
-<YAxis stroke="#6e7681" fontSize={11} domain={[0, 100]} />
+<YAxis stroke="#6e7681" fontSize={11} domain={[0, 100]} width={36} />
 
 <Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
