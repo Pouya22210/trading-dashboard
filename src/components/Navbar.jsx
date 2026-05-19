@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sparkles, Clock, Menu, X, Moon, Sun, History } from 'lucide-react'
+import { Sparkles, Clock, Menu, X, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ActivityLogPanel from './ActivityLogPanel'
 
-export default function Navbar({ theme, toggleTheme }) {
+export default function Navbar() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activityLogOpen, setActivityLogOpen] = useState(false)
@@ -47,15 +47,12 @@ export default function Navbar({ theme, toggleTheme }) {
   ]
 
   const handleNavClick = () => setMobileMenuOpen(false)
-  const isLight = theme === 'light'
 
   return (
     <>
       <nav style={{
         background: 'var(--neu-bg)',
-        boxShadow: isLight
-          ? '0 6px 18px rgba(145,160,191,0.18)'
-          : '0 6px 18px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.025)',
+        boxShadow: '0 6px 18px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.025)',
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -173,31 +170,6 @@ export default function Navbar({ theme, toggleTheme }) {
                 <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
               </div>
 
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                aria-label="Toggle theme"
-                title={isLight ? 'Switch to dark theme' : 'Switch to light theme'}
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '12px',
-                  background: 'var(--neu-bg)',
-                  border: 'none',
-                  boxShadow: 'var(--neu-raised-sm)',
-                  color: isLight ? '#f59e0b' : 'var(--accent-green)',
-                  cursor: 'pointer',
-                  transition: 'box-shadow 0.18s ease, color 0.18s ease',
-                }}
-              >
-                {isLight
-                  ? <Sun style={{ width: '18px', height: '18px' }} />
-                  : <Moon style={{ width: '18px', height: '18px' }} />}
-              </button>
-
               {/* Activity Log Toggle */}
               <button
                 onClick={() => setActivityLogOpen(!activityLogOpen)}
@@ -251,7 +223,7 @@ export default function Navbar({ theme, toggleTheme }) {
           className="lg:hidden fixed inset-0"
           style={{
             top: '68px',
-            background: isLight ? 'rgba(120,135,160,0.35)' : 'rgba(15,17,21,0.7)',
+            background: 'rgba(15,17,21,0.7)',
             backdropFilter: 'blur(6px)',
             zIndex: 40,
           }}
@@ -265,7 +237,7 @@ export default function Navbar({ theme, toggleTheme }) {
           className="fixed inset-0"
           style={{
             top: '68px',
-            background: isLight ? 'rgba(120,135,160,0.35)' : 'rgba(15,17,21,0.7)',
+            background: 'rgba(15,17,21,0.7)',
             backdropFilter: 'blur(6px)',
             zIndex: 45,
           }}
@@ -281,9 +253,7 @@ export default function Navbar({ theme, toggleTheme }) {
           height: 'calc(100vh - 68px)',
           width: 'min(420px, 92vw)',
           background: 'var(--neu-bg)',
-          boxShadow: isLight
-            ? '-8px 0 18px rgba(145,160,191,0.25)'
-            : '-8px 0 18px rgba(0,0,0,0.5)',
+          boxShadow: '-8px 0 18px rgba(0,0,0,0.5)',
           zIndex: 55,
           transform: activityLogOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
@@ -301,9 +271,7 @@ export default function Navbar({ theme, toggleTheme }) {
           height: 'calc(100vh - 68px)',
           width: '280px',
           background: 'var(--neu-bg)',
-          boxShadow: isLight
-            ? '-8px 0 18px rgba(145,160,191,0.25)'
-            : '-8px 0 18px rgba(0,0,0,0.5)',
+          boxShadow: '-8px 0 18px rgba(0,0,0,0.5)',
           zIndex: 50,
           transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',

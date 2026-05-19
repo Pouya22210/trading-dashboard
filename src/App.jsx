@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './components/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -10,33 +10,17 @@ import Backtest from './pages/Backtest'
 import { recordSiteVisit } from './lib/supabase'
 
 export default function App() {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.localStorage.getItem('theme') || 'dark'
-    }
-    return 'dark'
-  })
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('light-theme', theme === 'light')
-    window.localStorage.setItem('theme', theme)
-  }, [theme])
-
   useEffect(() => {
     console.log('[site_visits] App mounted — calling recordSiteVisit()')
     recordSiteVisit()
   }, [])
 
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'))
-  }
-
   return (
     <AuthProvider>
       <BrowserRouter>
         <div className="min-h-screen bg-dark-primary">
-          <Navbar theme={theme} toggleTheme={toggleTheme} />
-          
+          <Navbar />
+
           <main>
             <Routes>
               <Route path="/" element={<Dashboard />} />
