@@ -60,11 +60,11 @@ export default function Navbar({ theme, toggleTheme }) {
         top: 0,
         zIndex: 50,
       }}>
-        <div className="max-w-7xl mx-auto px-4" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
-          <div className="flex items-center justify-between" style={{ height: '68px' }}>
+        <div className="max-w-7xl mx-auto px-4 lg:max-w-none lg:px-0">
+          <div className="flex items-center justify-between gap-4" style={{ height: '68px' }}>
 
             {/* Logo */}
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none">
               <div style={{
                 width: '40px',
                 height: '40px',
@@ -108,8 +108,8 @@ export default function Navbar({ theme, toggleTheme }) {
               </div>
             </div>
 
-            {/* Desktop Tabs */}
-            <div className="hidden lg:flex" style={{ gap: '10px', alignItems: 'center' }}>
+            {/* Desktop Tabs — centered */}
+            <div className="hidden lg:flex flex-1 justify-center" style={{ gap: '10px', alignItems: 'center' }}>
               {tabs.map(tab => {
                 const isActive = location.pathname === tab.path
                 return (
@@ -137,6 +137,37 @@ export default function Navbar({ theme, toggleTheme }) {
 
             {/* Right Side */}
             <div className="flex items-center gap-2 flex-shrink-0">
+              {/* LIVE badge - flat */}
+              <div className="hidden lg:flex items-center gap-2" style={{
+                padding: '6px 12px',
+                color: 'var(--accent-green)',
+                background: 'transparent',
+                boxShadow: 'none',
+                border: 'none',
+              }}>
+                <span style={{
+                  width: '6px', height: '6px',
+                  borderRadius: '50%',
+                  background: 'var(--accent-green)',
+                  display: 'inline-block',
+                }} />
+                <span style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.06em' }}>
+                  LIVE
+                </span>
+              </div>
+
+              {/* Clock - flat */}
+              <div className="hidden lg:flex items-center gap-2" style={{
+                color: 'var(--text-secondary)',
+                padding: '6px 12px',
+                background: 'transparent',
+                boxShadow: 'none',
+                border: 'none',
+              }}>
+                <Clock style={{ width: '13px', height: '13px' }} />
+                <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
+              </div>
+
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
@@ -184,37 +215,6 @@ export default function Navbar({ theme, toggleTheme }) {
               >
                 <History style={{ width: '18px', height: '18px' }} />
               </button>
-
-              {/* LIVE badge - flat */}
-              <div className="hidden lg:flex items-center gap-2" style={{
-                padding: '6px 12px',
-                color: 'var(--accent-green)',
-                background: 'transparent',
-                boxShadow: 'none',
-                border: 'none',
-              }}>
-                <span style={{
-                  width: '6px', height: '6px',
-                  borderRadius: '50%',
-                  background: 'var(--accent-green)',
-                  display: 'inline-block',
-                }} />
-                <span style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.06em' }}>
-                  LIVE
-                </span>
-              </div>
-
-              {/* Clock - flat */}
-              <div className="hidden lg:flex items-center gap-2" style={{
-                color: 'var(--text-secondary)',
-                padding: '6px 12px',
-                background: 'transparent',
-                boxShadow: 'none',
-                border: 'none',
-              }}>
-                <Clock style={{ width: '13px', height: '13px' }} />
-                <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
-              </div>
 
               {/* Mobile Menu Button */}
               <button

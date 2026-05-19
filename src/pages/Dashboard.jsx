@@ -206,9 +206,11 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
 export default function Dashboard() {
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
-  
+
   // State for filters
   const [leaderboardTimeRange, setLeaderboardTimeRange] = useState('1w')
+  // Mobile/tablet section selector: shows one of the three lists at a time
+  const [mobileSection, setMobileSection] = useState('gainers')
 
   useEffect(() => {
     loadTrades()
@@ -369,6 +371,12 @@ export default function Dashboard() {
     </div>
   )
 
+  const mobileTabs = [
+    { key: 'gainers', label: 'Gainers', icon: Trophy },
+    { key: 'losers',  label: 'Losers',  icon: AlertTriangle },
+    { key: 'hot',     label: 'Hot',     icon: Zap },
+  ]
+
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Shared time range selector */}
@@ -379,10 +387,43 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Top 5 / Bottom 5 / Hot Channels — one row on PC */}
+      {/* Mobile / tablet section selector (hidden on lg+) */}
+      <div
+        className="lg:hidden flex items-center gap-1.5 mb-4 p-1.5"
+        style={{
+          background: 'var(--neu-bg)',
+          borderRadius: '14px',
+          boxShadow: 'var(--neu-pressed-sm)',
+        }}
+      >
+        {mobileTabs.map(tab => {
+          const Icon = tab.icon
+          const isActive = mobileSection === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setMobileSection(tab.key)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap transition-all"
+              style={{
+                borderRadius: '10px',
+                background: isActive ? 'var(--neu-bg)' : 'transparent',
+                boxShadow: isActive ? 'var(--neu-raised-sm)' : 'none',
+                color: isActive ? '#ADFF2F' : '#9ca3af',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Top 5 / Bottom 5 / Hot Channels — one row on PC, tab-switched on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Top 5 */}
-        <div>
+        {/* Top 5 / Gainers */}
+        <div className={mobileSection === 'gainers' ? 'block' : 'hidden lg:block'}>
           {sectionHeader(Trophy, '#FFC857', 'Top 5')}
           <div className="space-y-3">
             {channelPerformance.top5.map((channel, idx) => (
@@ -404,8 +445,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bottom 5 */}
-        <div>
+        {/* Bottom 5 / Losers */}
+        <div className={mobileSection === 'losers' ? 'block' : 'hidden lg:block'}>
           {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 5')}
           <div className="space-y-3">
             {channelPerformance.bottom5.map((channel, idx) => (
@@ -428,7 +469,7 @@ export default function Dashboard() {
         </div>
 
         {/* Hot Channels */}
-        <div>
+        <div className={mobileSection === 'hot' ? 'block' : 'hidden lg:block'}>
           {sectionHeader(Zap, '#FFC857', 'Hot Channels')}
           <div className="space-y-3">
             {hotChannels.map((channel, idx) => (
