@@ -1284,7 +1284,7 @@ const filteredTrades = useMemo(() => {
 
       if (filters.side && trade.direction !== filters.side) return false
 
-      if (filters.status && trade.status !== filters.status) return false
+      if (filters.status && getTradeEffectiveStatus(trade) !== filters.status) return false
 
       if (filters.startDate && new Date(trade.signal_time) < new Date(filters.startDate)) return false
 
@@ -1323,7 +1323,7 @@ const statusRank = (s) => (s === 'active' ? 0 : s === 'pending' ? 1 : 2)
 
 return [...filteredTrades].sort((a, b) => {
 
-const rankDiff = statusRank(a.status) - statusRank(b.status)
+const rankDiff = statusRank(getTradeEffectiveStatus(a)) - statusRank(getTradeEffectiveStatus(b))
 
 if (rankDiff !== 0) return rankDiff
 
@@ -1917,7 +1917,7 @@ const dailyProfitTrades = useMemo(() => {
     if (selectedChannelIds.length > 0 && !selectedChannelIds.includes(trade.channel_id)) return false
     if (filters.orderType && trade.order_type !== filters.orderType) return false
     if (filters.side && trade.direction !== filters.side) return false
-    if (filters.status && trade.status !== filters.status) return false
+    if (filters.status && getTradeEffectiveStatus(trade) !== filters.status) return false
     if (selectedWeekdays.length < 7 && trade.signal_time) {
       const dayOfWeek = new Date(trade.signal_time).getDay()
       if (!selectedWeekdays.includes(dayOfWeek)) return false
@@ -2122,7 +2122,14 @@ a.click()
 
 function getTradeEffectiveStatus(trade) {
 
-if (trade.order_type === 'STOP' && !trade.fill_time && trade.status !== 'closed' && trade.status !== 'canceled') {
+// A LIMIT/STOP order is only truly "active" once it has filled (fill_time set).
+// If the bot ever fails to write the pending→active update and the row is left
+// stuck at status='active' with no fill_time, treat it as still 'pending' so the
+// UI matches MT5 (which still shows it as a pending order, not a position).
+const pendingOrderType = trade.order_type === 'STOP' || trade.order_type === 'LIMIT'
+const isTerminal = trade.status === 'closed' || trade.status === 'canceled' || trade.status === 'blocked' || trade.status === 'expired'
+
+if (pendingOrderType && !trade.fill_time && !isTerminal) {
 
 return 'pending'
 
