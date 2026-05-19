@@ -3,7 +3,6 @@ import {
   Zap, AlertTriangle, Trophy
 } from 'lucide-react'
 import { fetchTrades, subscribeToTrades } from '../lib/supabase'
-import ActivityLogPanel from '../components/ActivityLogPanel'
 
 // Color palette
 const COLORS = {
@@ -332,205 +331,127 @@ export default function Dashboard() {
     )
   }
 
+  const sectionHeader = (Icon, iconColor, title) => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        marginBottom: '16px',
+      }}
+    >
+      <div
+        style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '10px',
+          background: 'var(--neu-bg)',
+          boxShadow: 'var(--neu-raised-sm)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <Icon style={{ width: '16px', height: '16px', color: iconColor }} />
+      </div>
+      <h3
+        style={{
+          fontSize: '15px',
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {title}
+      </h3>
+    </div>
+  )
+
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Main layout: Content + Activity Log */}
-      <div className="flex flex-col xl:flex-row gap-6">
-        
-        {/* Left side: Main dashboard content */}
-        <div className="flex-1 min-w-0">
-          {/* Top/Bottom Channels Leaderboard */}
-          <div className="mb-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Top 5 */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    marginBottom: '16px',
-                    flexWrap: 'wrap',
-                    rowGap: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <div
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '10px',
-                        background: 'var(--neu-bg)',
-                        boxShadow: 'var(--neu-raised-sm)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Trophy style={{ width: '16px', height: '16px', color: '#FFC857' }} />
-                    </div>
-                    <h3
-                      style={{
-                        fontSize: '15px',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        letterSpacing: '-0.01em',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Top 5
-                    </h3>
-                  </div>
-                  <TimeRangeSelector
-                    value={leaderboardTimeRange}
-                    onChange={setLeaderboardTimeRange}
-                  />
-                </div>
-                <div className="space-y-3">
-                  {channelPerformance.top5.map((channel, idx) => (
-                    <ChannelRankCard
-                      key={channel.channelId}
-                      rank={idx + 1}
-                      channel={channel.channelName}
-                      pnl={channel.pnl}
-                      winRate={channel.winRate}
-                      trades={channel.trades}
-                      wins={channel.wins}
-                      losses={channel.losses}
-                      isTop={true}
-                    />
-                  ))}
-                  {channelPerformance.top5.length === 0 && (
-                    <div className="text-center text-gray-500 py-8">No data for selected period</div>
-                  )}
-                </div>
-              </div>
+      {/* Shared time range selector */}
+      <div className="flex justify-end mb-4">
+        <TimeRangeSelector
+          value={leaderboardTimeRange}
+          onChange={setLeaderboardTimeRange}
+        />
+      </div>
 
-              {/* Bottom 5 */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '10px',
-                      background: 'var(--neu-bg)',
-                      boxShadow: 'var(--neu-raised-sm)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <AlertTriangle style={{ width: '16px', height: '16px', color: 'var(--red)' }} />
-                  </div>
-                  <h3
-                    style={{
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
-                      letterSpacing: '-0.01em',
-                    }}
-                  >
-                    Bottom 5
-                  </h3>
-                </div>
-                <div className="space-y-3">
-                  {channelPerformance.bottom5.map((channel, idx) => (
-                    <ChannelRankCard
-                      key={channel.channelId}
-                      rank={idx + 1}
-                      channel={channel.channelName}
-                      pnl={channel.pnl}
-                      winRate={channel.winRate}
-                      trades={channel.trades}
-                      wins={channel.wins}
-                      losses={channel.losses}
-                      isTop={false}
-                    />
-                  ))}
-                  {channelPerformance.bottom5.length === 0 && (
-                    <div className="text-center text-gray-500 py-8">No data for selected period</div>
-                  )}
-                </div>
-              </div>
-            </div>
+      {/* Top 5 / Bottom 5 / Hot Channels — one row on PC */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Top 5 */}
+        <div>
+          {sectionHeader(Trophy, '#FFC857', 'Top 5')}
+          <div className="space-y-3">
+            {channelPerformance.top5.map((channel, idx) => (
+              <ChannelRankCard
+                key={channel.channelId}
+                rank={idx + 1}
+                channel={channel.channelName}
+                pnl={channel.pnl}
+                winRate={channel.winRate}
+                trades={channel.trades}
+                wins={channel.wins}
+                losses={channel.losses}
+                isTop={true}
+              />
+            ))}
+            {channelPerformance.top5.length === 0 && (
+              <div className="text-center text-gray-500 py-8">No data for selected period</div>
+            )}
           </div>
-
-          {/* Hot Channels - most active */}
-          {hotChannels.length > 0 && (
-            <div className="mb-8">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '10px',
-                    background: 'var(--neu-bg)',
-                    boxShadow: 'var(--neu-raised-sm)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Zap style={{ width: '16px', height: '16px', color: '#FFC857' }} />
-                </div>
-                <h3
-                  style={{
-                    fontSize: '15px',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  Hot Channels
-                </h3>
-              </div>
-              <div className="space-y-3">
-                {hotChannels.map((channel, idx) => (
-                  <ChannelRankCard
-                    key={channel.channelId}
-                    rank={idx + 1}
-                    channel={channel.channelName}
-                    pnl={channel.pnl}
-                    winRate={channel.winRate}
-                    trades={channel.trades}
-                    wins={channel.wins}
-                    losses={channel.losses}
-                    isTop={channel.pnl >= 0}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Channel Performance Summary Table */}
-          {/* Bottom spacing */}
-          <div className="pb-8" />
         </div>
 
-        {/* Right side: Activity Log Panel */}
-        <div className="xl:w-[380px] flex-shrink-0">
-          <div className="xl:sticky xl:top-24">
-            <ActivityLogPanel />
+        {/* Bottom 5 */}
+        <div>
+          {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 5')}
+          <div className="space-y-3">
+            {channelPerformance.bottom5.map((channel, idx) => (
+              <ChannelRankCard
+                key={channel.channelId}
+                rank={idx + 1}
+                channel={channel.channelName}
+                pnl={channel.pnl}
+                winRate={channel.winRate}
+                trades={channel.trades}
+                wins={channel.wins}
+                losses={channel.losses}
+                isTop={false}
+              />
+            ))}
+            {channelPerformance.bottom5.length === 0 && (
+              <div className="text-center text-gray-500 py-8">No data for selected period</div>
+            )}
+          </div>
+        </div>
+
+        {/* Hot Channels */}
+        <div>
+          {sectionHeader(Zap, '#FFC857', 'Hot Channels')}
+          <div className="space-y-3">
+            {hotChannels.map((channel, idx) => (
+              <ChannelRankCard
+                key={channel.channelId}
+                rank={idx + 1}
+                channel={channel.channelName}
+                pnl={channel.pnl}
+                winRate={channel.winRate}
+                trades={channel.trades}
+                wins={channel.wins}
+                losses={channel.losses}
+                isTop={channel.pnl >= 0}
+              />
+            ))}
+            {hotChannels.length === 0 && (
+              <div className="text-center text-gray-500 py-8">No data for selected period</div>
+            )}
           </div>
         </div>
       </div>
+
+      <div className="pb-8" />
     </div>
   )
 }

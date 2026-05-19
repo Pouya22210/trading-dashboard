@@ -2848,23 +2848,11 @@ style={{
 
 <td>
 
-<div className="flex items-center gap-2">
-
-<span
-
-className="w-2 h-2 rounded-full flex-shrink-0"
-
-style={{ backgroundColor: getChannelColor(trade.channel_id) }}
-
-/>
-
-<span className="truncate max-w-[180px]" title={getChannelName(trade.channel_id)}>
+<span className="truncate max-w-[180px] block" title={getChannelName(trade.channel_id)}>
 
 {getChannelName(trade.channel_id)}
 
 </span>
-
-</div>
 
 </td>
 
@@ -2991,10 +2979,6 @@ No trades found
             >
               {trade.direction?.toUpperCase() || '-'}
             </span>
-            <span
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: getChannelColor(trade.channel_id) }}
-            />
             <span className="text-xs font-semibold text-white truncate" title={getChannelName(trade.channel_id)}>
               {getChannelName(trade.channel_id)}
             </span>

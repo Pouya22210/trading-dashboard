@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Sparkles, Clock, Menu, X, Moon, Sun } from 'lucide-react'
+import { Sparkles, Clock, Menu, X, Moon, Sun, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import ActivityLogPanel from './ActivityLogPanel'
 
 export default function Navbar({ theme, toggleTheme }) {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activityLogOpen, setActivityLogOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
   const [channelCount, setChannelCount] = useState(null)
 
@@ -160,6 +162,29 @@ export default function Navbar({ theme, toggleTheme }) {
                   : <Moon style={{ width: '18px', height: '18px' }} />}
               </button>
 
+              {/* Activity Log Toggle */}
+              <button
+                onClick={() => setActivityLogOpen(!activityLogOpen)}
+                aria-label="Toggle activity log"
+                title="Activity log"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '12px',
+                  background: 'var(--neu-bg)',
+                  border: 'none',
+                  boxShadow: activityLogOpen ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+                  color: 'var(--purple)',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.18s ease, color 0.18s ease',
+                }}
+              >
+                <History style={{ width: '18px', height: '18px' }} />
+              </button>
+
               {/* LIVE badge - flat */}
               <div className="hidden lg:flex items-center gap-2" style={{
                 padding: '6px 12px',
@@ -228,6 +253,40 @@ export default function Navbar({ theme, toggleTheme }) {
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
+
+      {/* Activity Log Overlay */}
+      {activityLogOpen && (
+        <div
+          className="fixed inset-0"
+          style={{
+            top: '68px',
+            background: isLight ? 'rgba(120,135,160,0.35)' : 'rgba(15,17,21,0.7)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 45,
+          }}
+          onClick={() => setActivityLogOpen(false)}
+        />
+      )}
+
+      {/* Activity Log Slide Panel */}
+      <div
+        className="fixed right-0"
+        style={{
+          top: '68px',
+          height: 'calc(100vh - 68px)',
+          width: 'min(420px, 92vw)',
+          background: 'var(--neu-bg)',
+          boxShadow: isLight
+            ? '-8px 0 18px rgba(145,160,191,0.25)'
+            : '-8px 0 18px rgba(0,0,0,0.5)',
+          zIndex: 55,
+          transform: activityLogOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+          overflowY: 'auto',
+        }}
+      >
+        <ActivityLogPanel />
+      </div>
 
       {/* Mobile Slide Menu */}
       <div
