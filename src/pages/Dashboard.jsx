@@ -72,36 +72,6 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
   )
 }
 
-function ChartCard({ title, icon: Icon, children, headerRight, className = '' }) {
-  return (
-    <div className={`chart-card ${className}`}>
-      <div
-        className="flex items-center justify-between gap-3 px-5 py-4"
-        style={{
-          background: 'var(--neu-bg)',
-          boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35), inset 0 -2px 0 rgba(255,255,255,0.02)',
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="p-2"
-            style={{
-              borderRadius: '10px',
-              background: 'var(--neu-bg)',
-              boxShadow: 'var(--neu-pressed-sm)',
-            }}
-          >
-            <Icon className="w-4 h-4 text-accent-cyan" />
-          </div>
-          <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider">{title}</span>
-        </div>
-        {headerRight}
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  )
-}
-
 function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, isTop }) {
   const isProfit = pnl >= 0
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
@@ -320,29 +290,39 @@ export default function Dashboard() {
     }
   }, [trades, leaderboardTimeRange, filterByTimeRange])
 
-  // Hot channels (last 24h activity)
+  // Hot channels — most active in the selected time range
   const hotChannels = useMemo(() => {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 1)
-    
-    const recentTrades = trades.filter(t => new Date(t.signal_time) >= cutoff)
+    const filteredTrades = filterByTimeRange(trades, leaderboardTimeRange)
     const channelActivity = {}
-    
-    recentTrades.forEach(trade => {
-      const name = trade.channel_name || 'Unknown'
-      if (!channelActivity[name]) {
-        channelActivity[name] = { name, signals: 0, wins: 0, losses: 0, pnl: 0 }
+
+    filteredTrades.forEach(trade => {
+      const channelId = trade.channel_id || 'unknown'
+      const channelName = trade.channel_name || 'Unknown'
+      if (!channelActivity[channelId]) {
+        channelActivity[channelId] = {
+          channelId,
+          channelName,
+          trades: 0,
+          wins: 0,
+          losses: 0,
+          pnl: 0,
+        }
       }
-      channelActivity[name].signals++
-      if (trade.outcome === 'profit') channelActivity[name].wins++
-      if (trade.outcome === 'loss') channelActivity[name].losses++
-      channelActivity[name].pnl += trade.profit_loss || 0
+      channelActivity[channelId].trades++
+      if (trade.outcome === 'profit') channelActivity[channelId].wins++
+      if (trade.outcome === 'loss') channelActivity[channelId].losses++
+      channelActivity[channelId].pnl += trade.profit_loss || 0
     })
-    
+
+    Object.values(channelActivity).forEach(ch => {
+      const totalWL = ch.wins + ch.losses
+      ch.winRate = totalWL > 0 ? (ch.wins / totalWL) * 100 : 0
+    })
+
     return Object.values(channelActivity)
-      .sort((a, b) => b.signals - a.signals)
+      .sort((a, b) => b.trades - a.trades)
       .slice(0, 5)
-  }, [trades])
+  }, [trades, leaderboardTimeRange, filterByTimeRange])
 
   if (loading) {
     return (
@@ -485,59 +465,57 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Hot Channels - 24h Activity */}
+          {/* Hot Channels - most active */}
           {hotChannels.length > 0 && (
             <div className="mb-8">
-              <ChartCard 
-                title="Hot Channels (Last 24h)"
-                icon={Zap}
-                headerRight={
-                  <span className="text-xs text-gray-500">
-                    Most active channels
-                  </span>
-                }
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  marginBottom: '16px',
+                }}
               >
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {hotChannels.map((channel, idx) => (
-                    <div
-                      key={channel.name}
-                      className="p-4"
-                      style={{
-                        background: 'var(--card-flat)',
-                        borderRadius: '18px',
-                        boxShadow: 'none',
-                      }}
-                    >
-                      <div className="flex items-center gap-2 mb-3">
-                        <Zap className={`w-4 h-4 ${idx === 0 ? 'text-yellow-400' : 'text-gray-500'}`} />
-                        <span className="text-sm font-medium text-white truncate" title={channel.name}>
-                          {channel.name.length > 15 ? channel.name.slice(0, 15) + '...' : channel.name}
-                        </span>
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Signals</span>
-                          <span className="text-white font-mono">{channel.signals}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">W/L</span>
-                          <span className="font-mono">
-                            <span className="text-green-400">{channel.wins}</span>
-                            <span className="text-gray-600">/</span>
-                            <span className="text-red-400">{channel.losses}</span>
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">P&L</span>
-                          <span className={`font-mono font-semibold ${channel.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {channel.pnl >= 0 ? '+' : ''}${channel.pnl.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    background: 'var(--neu-bg)',
+                    boxShadow: 'var(--neu-raised-sm)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Zap style={{ width: '16px', height: '16px', color: '#FFC857' }} />
                 </div>
-              </ChartCard>
+                <h3
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  Hot Channels
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {hotChannels.map((channel, idx) => (
+                  <ChannelRankCard
+                    key={channel.channelId}
+                    rank={idx + 1}
+                    channel={channel.channelName}
+                    pnl={channel.pnl}
+                    winRate={channel.winRate}
+                    trades={channel.trades}
+                    wins={channel.wins}
+                    losses={channel.losses}
+                    isTop={channel.pnl >= 0}
+                  />
+                ))}
+              </div>
             </div>
           )}
 

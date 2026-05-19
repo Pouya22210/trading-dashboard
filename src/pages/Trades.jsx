@@ -2961,72 +2961,77 @@ No trades found
     const entry = trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'
     const tp = trade.executed_tp_price?.toFixed(2) || '-'
     const sl = trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'
-    const time = trade.signal_time
-      ? new Date(trade.signal_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const signalDate = trade.signal_time ? new Date(trade.signal_time) : null
+    const dateStr = signalDate
+      ? signalDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      : '-'
+    const timeStr = signalDate
+      ? signalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : '-'
     return (
       <div
         key={trade.id}
-        className="p-3.5"
+        className="p-3"
         style={{
           background: 'var(--neu-bg)',
           borderRadius: '14px',
           boxShadow: 'var(--neu-raised-sm)',
         }}
       >
-        {/* Top row: channel name + side badge */}
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2 min-w-0">
+        {/* Top row: side badge + channel name (left) | date/time (right) */}
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
+              className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider flex-shrink-0"
+              style={{
+                background: isBuy ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                color: isBuy ? '#22c55e' : '#ef4444',
+                borderRadius: '6px',
+              }}
+            >
+              {trade.direction?.toUpperCase() || '-'}
+            </span>
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{ backgroundColor: getChannelColor(trade.channel_id) }}
             />
-            <span className="text-sm font-semibold text-white truncate" title={getChannelName(trade.channel_id)}>
+            <span className="text-xs font-semibold text-white truncate" title={getChannelName(trade.channel_id)}>
               {getChannelName(trade.channel_id)}
             </span>
           </div>
-          <span
-            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider flex-shrink-0"
-            style={{
-              background: isBuy ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-              color: isBuy ? '#22c55e' : '#ef4444',
-              borderRadius: '8px',
-            }}
-          >
-            {isBuy
-              ? <TrendingUp className="w-3 h-3" />
-              : <TrendingDown className="w-3 h-3" />}
-            {trade.direction?.toUpperCase() || '-'}
-          </span>
+          <div className="flex flex-col items-end flex-shrink-0 leading-tight">
+            <span className="text-[10px] text-gray-400 font-mono">{dateStr}</span>
+            <span className="text-[9px] text-gray-500 font-mono">{timeStr}</span>
+          </div>
         </div>
 
         {/* Middle row: Entry / TP / SL */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="grid grid-cols-3 gap-2 mb-2.5">
           <div className="flex flex-col">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Entry</span>
-            <span className="text-sm font-mono font-semibold text-white">{entry}</span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Entry</span>
+            <span className="text-xs font-mono font-semibold text-white">{entry}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">TP</span>
-            <span className="text-sm font-mono font-semibold text-green-400">{tp}</span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">TP</span>
+            <span className="text-xs font-mono font-semibold text-green-400">{tp}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">SL</span>
-            <span className="text-sm font-mono font-semibold text-red-400">{sl}</span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">SL</span>
+            <span className="text-xs font-mono font-semibold text-red-400">{sl}</span>
           </div>
         </div>
 
-        {/* Bottom row: status pill + symbol + P&L/time */}
-        <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-white/5">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+        {/* Bottom row: status pill + symbol + P&L */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
+          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColorClass}`}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${statusColorClass}`}
               style={{
                 background: 'rgba(255,255,255,0.04)',
                 borderRadius: '6px',
               }}
             >
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusDotColor }} />
+              <span className="w-1 h-1 rounded-full" style={{ backgroundColor: statusDotColor }} />
               {getStatusDisplay(trade)}
               {trade.profit_loss != null && (
                 <span className="ml-1 font-mono">
@@ -3034,11 +3039,10 @@ No trades found
                 </span>
               )}
             </span>
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider">
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider">
               {trade.symbol || '-'}
             </span>
           </div>
-          <span className="text-[10px] text-gray-500 font-mono flex-shrink-0">{time}</span>
         </div>
       </div>
     )
@@ -3289,7 +3293,7 @@ No closed trades with dates to display
 
 <div className="flex flex-wrap items-center gap-2 mb-4">
 
-<span className="text-sm text-gray-400">Time Range:</span>
+<span className="text-[11px] sm:text-sm text-gray-400">Time Range:</span>
 
 <div className="flex bg-dark-tertiary rounded-lg p-1">
 
@@ -3313,7 +3317,7 @@ key={option.key}
 
 onClick={() => { setGanttTimeRange(option.key); setGanttPage(1) }}
 
-className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-md transition-all ${
 
 ganttTimeRange === option.key
 
@@ -3333,7 +3337,7 @@ ganttTimeRange === option.key
 
 </div>
 
-<span className="ml-auto text-xs text-gray-500">
+<span className="ml-auto text-[10px] sm:text-xs text-gray-500">
 
 {ganttChartData.channels.length} channels active
 
@@ -3355,7 +3359,7 @@ return (
 
 <div className="flex items-center mb-2 pl-[200px] min-w-[600px]">
 
-<div className="flex-1 flex justify-between text-xs text-gray-500">
+<div className="flex-1 flex justify-between text-[10px] sm:text-xs text-gray-500">
 
 <span>{ganttChartData.minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
 
@@ -3403,7 +3407,7 @@ style={{ backgroundColor: getChannelColor(channel.channelId) }}
 
 />
 
-<span className="text-sm text-gray-300 truncate" title={channel.channelName}>
+<span className="text-[11px] sm:text-sm text-gray-300 truncate" title={channel.channelName}>
 
 {channel.channelName.length > 25 ? channel.channelName.slice(0, 25) + '...' : channel.channelName}
 
@@ -3469,7 +3473,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 {/* Trade count */}
 
-<div className="w-[60px] text-right text-xs text-gray-500">
+<div className="w-[60px] text-right text-[10px] sm:text-xs text-gray-500">
 
 {channel.totalTrades} <span className="hidden sm:inline">trades</span>
 
@@ -3486,7 +3490,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 
 {/* Legend */}
 
-<div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-dark-border/50 text-xs text-gray-500">
+<div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-dark-border/50 text-[10px] sm:text-xs text-gray-500">
 
 <div className="flex items-center gap-1">
 
@@ -3509,14 +3513,14 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
 {/* Gantt Pagination */}
 {ganttTotalPages > 1 && (
   <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-border/50">
-    <span className="text-xs text-gray-500">
+    <span className="text-[10px] sm:text-xs text-gray-500">
       Showing {(ganttPage - 1) * GANTT_PER_PAGE + 1}–{Math.min(ganttPage * GANTT_PER_PAGE, ganttChartData.channels.length)} of {ganttChartData.channels.length} channels
     </span>
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       <button
         onClick={() => setGanttPage(p => Math.max(1, p - 1))}
         disabled={ganttPage === 1}
-        className="px-3 py-1.5 text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         Prev
       </button>
@@ -3524,7 +3528,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
         <button
           key={page}
           onClick={() => setGanttPage(page)}
-          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${ganttPage === page ? 'bg-accent-cyan text-dark-primary font-semibold' : 'bg-dark-tertiary text-gray-400 hover:text-white'}`}
+          className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs rounded-md transition-colors ${ganttPage === page ? 'bg-accent-cyan text-dark-primary font-semibold' : 'bg-dark-tertiary text-gray-400 hover:text-white'}`}
         >
           {page}
         </button>
@@ -3532,7 +3536,7 @@ style={{ left: `${Math.min(Math.max(tradePercent, 2), 98)}%` }}
       <button
         onClick={() => setGanttPage(p => Math.min(ganttTotalPages, p + 1))}
         disabled={ganttPage === ganttTotalPages}
-        className="px-3 py-1.5 text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs rounded-md bg-dark-tertiary text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         Next
       </button>
