@@ -17,7 +17,7 @@ AreaChart, ReferenceLine, ReferenceDot, CartesianGrid
 
 } from 'recharts'
 
-import { fetchTrades, fetchChannels, subscribeToTrades } from '../lib/supabase'
+import { fetchTrades, fetchChannels, subscribeToTrades, subscribeToLivePositions } from '../lib/supabase'
 
 
 
@@ -962,6 +962,10 @@ const [connectionStatus, setConnectionStatus] = useState('CONNECTING')
 
 const [toast, setToast] = useState(null)
 
+// Live unrealized P&L per MT5 ticket, pushed by sigbot ~every 2s via Supabase
+// Realtime broadcast. Used to make the P&L column lively for active trades.
+const [livePnLByTicket, setLivePnLByTicket] = useState({})
+
 const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar state
 
 
@@ -1198,6 +1202,30 @@ subscription.unsubscribe()
 }
 
 }, [handleTradeInsert, handleTradeUpdate, handleTradeDelete, handleStatusChange])
+
+
+
+// Subscribe to live MT5 P&L broadcasts pushed by sigbot ~every 2s.
+// Each tick is the full set of open positions, so we replace state wholesale.
+useEffect(() => {
+  const channel = subscribeToLivePositions((payload) => {
+    if (!payload || !Array.isArray(payload.positions)) return
+    const next = {}
+    for (const pos of payload.positions) {
+      if (pos.ticket == null) continue
+      next[pos.ticket] = {
+        profit: pos.profit,
+        price: pos.price,
+        ts: payload.ts,
+      }
+    }
+    setLivePnLByTicket(next)
+  })
+
+  return () => {
+    channel.unsubscribe()
+  }
+}, [])
 
 
 
@@ -2912,10 +2940,39 @@ style={{
 
 <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
 
-<td className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
-
-{trade.profit_loss ? `$${trade.profit_loss.toFixed(2)}` : '-'}
-
+<td>
+  {(() => {
+    const live = trade.status === 'active' && trade.mt5_ticket != null
+      ? livePnLByTicket[trade.mt5_ticket]
+      : null
+    if (live && typeof live.profit === 'number') {
+      const isUp = live.profit >= 0
+      return (
+        <span
+          className={`font-mono inline-flex items-center gap-1 ${isUp ? 'text-green-400' : 'text-red-400'}`}
+          title={`Live · updated ${live.ts ? new Date(live.ts).toLocaleTimeString() : ''}${live.price ? ` · @${live.price}` : ''}`}
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              backgroundColor: isUp ? '#22c55e' : '#ef4444',
+              boxShadow: `0 0 6px ${isUp ? '#22c55e' : '#ef4444'}`,
+              animation: 'livePulse 1.6s ease-in-out infinite',
+            }}
+          />
+          {isUp ? '+' : '-'}${Math.abs(live.profit).toFixed(2)}
+        </span>
+      )
+    }
+    if (trade.profit_loss != null) {
+      return (
+        <span className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
+          {trade.profit_loss >= 0 ? '+' : '-'}${Math.abs(trade.profit_loss).toFixed(2)}
+        </span>
+      )
+    }
+    return <span className="text-gray-500">-</span>
+  })()}
 </td>
 
 <td>
@@ -3053,11 +3110,26 @@ No trades found
             >
               <span className="w-1 h-1 rounded-full" style={{ backgroundColor: statusDotColor }} />
               {getStatusDisplay(trade)}
-              {trade.profit_loss != null && (
-                <span className="ml-1 font-mono">
-                  · {trade.profit_loss >= 0 ? '+' : '-'}${Math.abs(trade.profit_loss).toFixed(2)}
-                </span>
-              )}
+              {(() => {
+                const live = trade.status === 'active' && trade.mt5_ticket != null
+                  ? livePnLByTicket[trade.mt5_ticket]
+                  : null
+                if (live && typeof live.profit === 'number') {
+                  return (
+                    <span className={`ml-1 font-mono ${live.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      · {live.profit >= 0 ? '+' : '-'}${Math.abs(live.profit).toFixed(2)}
+                    </span>
+                  )
+                }
+                if (trade.profit_loss != null) {
+                  return (
+                    <span className="ml-1 font-mono">
+                      · {trade.profit_loss >= 0 ? '+' : '-'}${Math.abs(trade.profit_loss).toFixed(2)}
+                    </span>
+                  )
+                }
+                return null
+              })()}
             </span>
             <span className="text-[9px] text-gray-500 uppercase tracking-wider">
               {trade.symbol || '-'}

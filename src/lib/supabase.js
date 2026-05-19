@@ -484,6 +484,27 @@ export async function clearAllSiteVisits() {
 }
 
 /**
+ * Subscribe to live MT5 position P&L broadcasts from the sigbot.
+ * The bot pushes a tick every ~2s on topic 'live-positions' with shape:
+ *   { positions: [{ ticket, magic, symbol, side, profit, swap, price, volume }], ts }
+ * Returns the channel so callers can unsubscribe.
+ */
+export function subscribeToLivePositions(onTick) {
+  const channel = supabase
+    .channel('live-positions')
+    .on('broadcast', { event: 'tick' }, ({ payload }) => {
+      try {
+        onTick(payload)
+      } catch (err) {
+        console.error('subscribeToLivePositions handler error:', err)
+      }
+    })
+    .subscribe()
+
+  return channel
+}
+
+/**
  * Subscribe to channel configuration changes
  */
 export function subscribeToChannels(callback) {
