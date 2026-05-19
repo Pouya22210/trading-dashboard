@@ -81,28 +81,29 @@
    shadows. Inspired by the attached neumorphism dashboard mock.
    ============================================================ */
 .light-theme {
-  /* Warm almond palette — creamy off-white with brown undertones,
-     keeps the neumorphism softness without the cool blue glare. */
-  --neu-bg:       #e8d9bf;
-  --neu-bg-soft:  #efe1ca;
-  --neu-bg-deep:  #d4c2a3;
+  /* Soft neutral light-gray palette — desaturated, slightly muted so
+     it reads as a light theme without the eye-strain glare of pure
+     white or a saturated tint. */
+  --neu-bg:       #dfe4ea;
+  --neu-bg-soft:  #e7ebf0;
+  --neu-bg-deep:  #cdd3da;
 
-  --card-flat:    #f0e3cb;
-  --card-recess:  #c5b496;
+  --card-flat:    #e6ebf1;
+  --card-recess:  #c0c7cf;
 
-  /* Sepia shadows — warm brown to match the almond surface. */
-  --neu-shadow-dark-lg:  rgba(120, 90, 50, 0.40);
-  --neu-shadow-light-lg: rgba(255, 248, 230, 0.95);
-  --neu-shadow-dark-md:  rgba(120, 90, 50, 0.34);
-  --neu-shadow-light-md: rgba(255, 248, 230, 0.92);
-  --neu-shadow-dark-sm:  rgba(120, 90, 50, 0.28);
-  --neu-shadow-light-sm: rgba(255, 248, 230, 0.85);
+  /* Neutral cool-gray shadows — no warm or blue cast. */
+  --neu-shadow-dark-lg:  rgba(90, 100, 115, 0.32);
+  --neu-shadow-light-lg: rgba(255, 255, 255, 0.92);
+  --neu-shadow-dark-md:  rgba(90, 100, 115, 0.28);
+  --neu-shadow-light-md: rgba(255, 255, 255, 0.88);
+  --neu-shadow-dark-sm:  rgba(90, 100, 115, 0.22);
+  --neu-shadow-light-sm: rgba(255, 255, 255, 0.80);
 
-  --text-primary:   #3c2f1c;
-  --text-secondary: rgba(60, 47, 28, 0.72);
-  --text-tertiary:  rgba(60, 47, 28, 0.45);
-  --border:         rgba(120, 90, 50, 0.18);
-  --border-mid:     rgba(120, 90, 50, 0.14);
+  --text-primary:   #2d3340;
+  --text-secondary: rgba(45, 51, 64, 0.72);
+  --text-tertiary:  rgba(45, 51, 64, 0.45);
+  --border:         rgba(90, 100, 115, 0.18);
+  --border-mid:     rgba(90, 100, 115, 0.14);
 
   --bg-primary:    var(--neu-bg);
   --bg-secondary:  var(--neu-bg);
@@ -135,10 +136,10 @@
 }
 
 .light-theme .text-white     { color: var(--text-primary); }
-.light-theme .text-gray-300  { color: rgba(60, 47, 28, 0.78); }
-.light-theme .text-gray-400  { color: rgba(60, 47, 28, 0.60); }
-.light-theme .text-gray-500  { color: rgba(60, 47, 28, 0.45); }
-.light-theme .text-gray-600  { color: rgba(60, 47, 28, 0.32); }
+.light-theme .text-gray-300  { color: rgba(45, 51, 64, 0.78); }
+.light-theme .text-gray-400  { color: rgba(45, 51, 64, 0.60); }
+.light-theme .text-gray-500  { color: rgba(45, 51, 64, 0.45); }
+.light-theme .text-gray-600  { color: rgba(45, 51, 64, 0.32); }
 .light-theme .text-green-400 { color: var(--accent-green); }
 .light-theme .text-red-400   { color: var(--red); }
 .light-theme .text-orange-400 { color: var(--orange); }
@@ -156,13 +157,13 @@
 
 /* Input placeholders need a dark muted tone in light mode, not white. */
 .light-theme input::placeholder,
-.light-theme textarea::placeholder { color: rgba(60, 47, 28, 0.40); }
+.light-theme textarea::placeholder { color: rgba(45, 51, 64, 0.40); }
 
 .light-theme .bg-dark-secondary { background-color: var(--neu-bg); }
 .light-theme .bg-dark-tertiary  { background-color: var(--neu-bg); }
 .light-theme .bg-dark-primary   { background-color: var(--neu-bg); }
 .light-theme .bg-dark-card      { background-color: var(--neu-bg); }
-.light-theme .border-dark-border { border-color: rgba(120, 90, 50, 0.18); }
+.light-theme .border-dark-border { border-color: rgba(90, 100, 115, 0.18); }
 
 /* Make accent backgrounds + borders work in light theme */
 .light-theme .bg-accent-cyan       { background-color: var(--accent-cyan); }
@@ -177,13 +178,13 @@
 
 /* btn-secondary defaults to near-white text + pure white on hover, both
    invisible on a light surface. Repoint to dark text in light theme. */
-.light-theme .btn-secondary { color: rgba(60, 47, 28, 0.78); }
+.light-theme .btn-secondary { color: rgba(45, 51, 64, 0.78); }
 .light-theme .btn-secondary:hover { color: var(--text-primary); }
 
 /* Unselected nav tabs default to a near-white color built for dark
    surfaces — invisible on light. Repoint to a muted dark text. */
-.light-theme .tab-btn { color: rgba(60, 47, 28, 0.60); }
-.light-theme .tab-btn:hover { color: rgba(60, 47, 28, 0.92); }
+.light-theme .tab-btn { color: rgba(45, 51, 64, 0.60); }
+.light-theme .tab-btn:hover { color: rgba(45, 51, 64, 0.92); }
 
 /* Mobile slide-menu inactive items use --text-secondary which is fine,
    but the hover state should match. The mobile menu in Navbar reads
