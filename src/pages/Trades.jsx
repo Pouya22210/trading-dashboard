@@ -4189,21 +4189,21 @@ return (
 
 <ResponsiveContainer width="100%" height={250}>
 
-<BarChart data={outcomeBySideData} barSize={40} margin={{ top: 10, right: 4, left: 0, bottom: 0 }}>
+<BarChart data={outcomeBySideData} layout="vertical" barSize={18} barGap={4} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
 
-<XAxis dataKey="side" stroke="#6e7681" fontSize={11} tickMargin={8} />
+<XAxis type="number" stroke="#6e7681" fontSize={11} tickMargin={8} />
 
-<YAxis stroke="#6e7681" fontSize={11} width={36} />
+<YAxis type="category" dataKey="side" stroke="#6e7681" fontSize={11} width={60} />
 
 <Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
 <Legend wrapperStyle={{ paddingTop: 10 }} />
 
-<Bar dataKey="profit" fill={COLORS.green} name="Profit" stackId="a" radius={[0, 0, 0, 0]} />
+<Bar dataKey="profit" fill={COLORS.green} name="Profit" radius={[0, 4, 4, 0]} />
 
-<Bar dataKey="loss" fill={COLORS.red} name="Loss" stackId="a" radius={[0, 0, 0, 0]} />
+<Bar dataKey="loss" fill={COLORS.red} name="Loss" radius={[0, 4, 4, 0]} />
 
-<Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" stackId="a" radius={[4, 4, 0, 0]} />
+<Bar dataKey="breakeven" fill={COLORS.gray} name="Breakeven" radius={[0, 4, 4, 0]} />
 
 </BarChart>
 
