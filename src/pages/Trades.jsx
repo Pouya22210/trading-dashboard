@@ -2208,17 +2208,28 @@ return effectiveStatus || '-'
 if (loading) {
 
 return (
-  <div className="flex flex-col items-center justify-center h-96 gap-4">
-    <div className="relative">
-      <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
-      <div className="relative flex items-center gap-1">
-        <TrendingUp className="w-8 h-8 text-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-        <BarChart3 className="w-8 h-8 text-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-        <TrendingDown className="w-8 h-8 text-rose-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-      </div>
-    </div>
-    <div className="text-gray-400 text-sm font-medium tracking-wide animate-pulse">
-      Reading the tape...
+  <div className="flex items-center justify-center h-96">
+    <style>{`
+      @keyframes tradeBarPulse {
+        0%, 100% { transform: scaleY(0.25); }
+        50% { transform: scaleY(1); }
+      }
+    `}</style>
+    <div className="flex items-end gap-1.5 h-16">
+      {[
+        { color: 'bg-emerald-500', delay: '0ms' },
+        { color: 'bg-rose-500', delay: '120ms' },
+        { color: 'bg-emerald-500', delay: '240ms' },
+        { color: 'bg-emerald-500', delay: '360ms' },
+        { color: 'bg-rose-500', delay: '480ms' },
+        { color: 'bg-emerald-500', delay: '600ms' },
+      ].map((bar, i) => (
+        <div
+          key={i}
+          className={`w-2 h-full rounded-sm origin-bottom ${bar.color}`}
+          style={{ animation: 'tradeBarPulse 1.1s ease-in-out infinite', animationDelay: bar.delay }}
+        />
+      ))}
     </div>
   </div>
 )
