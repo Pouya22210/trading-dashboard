@@ -4259,15 +4259,15 @@ return (
 
 <ResponsiveContainer width="100%" height={250}>
 
-<BarChart data={dowChartData} barSize={32} margin={{ top: 10, right: 4, left: 0, bottom: 0 }}>
+<BarChart data={dowChartData} layout="vertical" barSize={20} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
 
-<XAxis dataKey="day" stroke="#6e7681" fontSize={11} tickMargin={8} />
+<XAxis type="number" stroke="#6e7681" fontSize={11} tickMargin={8} />
 
-<YAxis stroke="#6e7681" fontSize={11} width={36} />
+<YAxis type="category" dataKey="day" stroke="#6e7681" fontSize={11} width={60} />
 
 <Tooltip contentStyle={{ background: '#2a2a2a', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8 }} />
 
-<Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
+<Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
 
 {dowChartData.map((entry, index) => (
 
