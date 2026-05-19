@@ -60,7 +60,7 @@ export default function Navbar({ theme, toggleTheme }) {
         top: 0,
         zIndex: 50,
       }}>
-        <div className="max-w-7xl mx-auto px-4 lg:max-w-none lg:px-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:max-w-[1600px] lg:px-8">
           <div className="flex items-center justify-between gap-4" style={{ height: '68px' }}>
 
             {/* Logo */}

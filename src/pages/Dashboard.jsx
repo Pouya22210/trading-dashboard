@@ -424,7 +424,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Top 5 / Gainers */}
         <div className={mobileSection === 'gainers' ? 'block' : 'hidden lg:block'}>
-          {sectionHeader(Trophy, '#FFC857', 'Top 5')}
+          <div className="hidden lg:block">
+            {sectionHeader(Trophy, '#FFC857', 'Top 5')}
+          </div>
           <div className="space-y-3">
             {channelPerformance.top5.map((channel, idx) => (
               <ChannelRankCard
@@ -447,7 +449,9 @@ export default function Dashboard() {
 
         {/* Bottom 5 / Losers */}
         <div className={mobileSection === 'losers' ? 'block' : 'hidden lg:block'}>
-          {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 5')}
+          <div className="hidden lg:block">
+            {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 5')}
+          </div>
           <div className="space-y-3">
             {channelPerformance.bottom5.map((channel, idx) => (
               <ChannelRankCard
@@ -470,7 +474,9 @@ export default function Dashboard() {
 
         {/* Hot Channels */}
         <div className={mobileSection === 'hot' ? 'block' : 'hidden lg:block'}>
-          {sectionHeader(Zap, '#FFC857', 'Hot Channels')}
+          <div className="hidden lg:block">
+            {sectionHeader(Zap, '#FFC857', 'Hot Channels')}
+          </div>
           <div className="space-y-3">
             {hotChannels.map((channel, idx) => (
               <ChannelRankCard
