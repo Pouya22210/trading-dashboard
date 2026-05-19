@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import {
   Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
@@ -973,7 +974,17 @@ OUTCOME_TYPES.map(o => o.key)
 )
 
 
-const [selectedChannelIds, setSelectedChannelIds] = useState([])
+const [searchParams] = useSearchParams()
+const [selectedChannelIds, setSelectedChannelIds] = useState(() => {
+  const ch = searchParams.get('channel')
+  return ch ? [ch] : []
+})
+
+// React to navigation that lands on /trades with a ?channel=… param
+useEffect(() => {
+  const ch = searchParams.get('channel')
+  if (ch) setSelectedChannelIds([ch])
+}, [searchParams])
 
 
 // Gantt chart time range filter

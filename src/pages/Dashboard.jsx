@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Zap, AlertTriangle, Trophy
 } from 'lucide-react'
@@ -71,7 +72,7 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
   )
 }
 
-function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, isTop }) {
+function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, isTop, onClick }) {
   const isProfit = pnl >= 0
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
   const barColor = isTop ? 'var(--accent-green)' : 'var(--red)'
@@ -81,12 +82,24 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
 
   return (
     <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      } : undefined}
       className="transition-all flex items-center gap-2.5 sm:gap-3.5 p-2.5 sm:p-[14px_16px]"
       style={{
         background: 'var(--card-flat)',
         borderRadius: '20px',
         boxShadow: 'none',
+        cursor: onClick ? 'pointer' : 'default',
       }}
+      onMouseEnter={onClick ? (e) => { e.currentTarget.style.boxShadow = 'var(--neu-raised-sm)' } : undefined}
+      onMouseLeave={onClick ? (e) => { e.currentTarget.style.boxShadow = 'none' } : undefined}
     >
       {/* Rank pill */}
       <div
@@ -179,6 +192,7 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -186,6 +200,10 @@ export default function Dashboard() {
   const [leaderboardTimeRange, setLeaderboardTimeRange] = useState('1w')
   // Mobile/tablet section selector: shows one of the three lists at a time
   const [mobileSection, setMobileSection] = useState('gainers')
+
+  const goToChannel = useCallback((channelId) => {
+    navigate(`/trades?channel=${encodeURIComponent(channelId)}`)
+  }, [navigate])
 
   useEffect(() => {
     loadTrades()
@@ -414,6 +432,7 @@ export default function Dashboard() {
                 wins={channel.wins}
                 losses={channel.losses}
                 isTop={true}
+                onClick={() => goToChannel(channel.channelId)}
               />
             ))}
             {channelPerformance.top5.length === 0 && (
@@ -439,6 +458,7 @@ export default function Dashboard() {
                 wins={channel.wins}
                 losses={channel.losses}
                 isTop={false}
+                onClick={() => goToChannel(channel.channelId)}
               />
             ))}
             {channelPerformance.bottom5.length === 0 && (
@@ -464,6 +484,7 @@ export default function Dashboard() {
                 wins={channel.wins}
                 losses={channel.losses}
                 isTop={channel.pnl >= 0}
+                onClick={() => goToChannel(channel.channelId)}
               />
             ))}
             {hotChannels.length === 0 && (
