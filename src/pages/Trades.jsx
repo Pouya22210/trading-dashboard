@@ -2972,9 +2972,9 @@ No trades found
         key={trade.id}
         className="p-3"
         style={{
-          background: 'var(--neu-bg)',
+          background: 'var(--card-flat)',
           borderRadius: '14px',
-          boxShadow: 'var(--neu-raised-sm)',
+          boxShadow: 'none',
         }}
       >
         {/* Top row: side badge + channel name (left) | date/time (right) */}
