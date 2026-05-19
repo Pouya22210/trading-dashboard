@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import {
@@ -17,7 +17,7 @@ AreaChart, ReferenceLine, ReferenceDot, CartesianGrid
 
 } from 'recharts'
 
-import { fetchTrades, fetchChannels, subscribeToTrades, subscribeToLivePositions } from '../lib/supabase'
+import { fetchTrades, fetchChannels, subscribeToTrades } from '../lib/supabase'
 
 
 
@@ -458,13 +458,16 @@ page === '...' ? (
 
 function Toast({ message, type, onClose }) {
 
+const onCloseRef = useRef(onClose)
+onCloseRef.current = onClose
+
 useEffect(() => {
 
-const timer = setTimeout(onClose, 3000)
+const timer = setTimeout(() => onCloseRef.current(), 3000)
 
 return () => clearTimeout(timer)
 
-}, [onClose])
+}, [message])
 
 
 
@@ -962,10 +965,6 @@ const [connectionStatus, setConnectionStatus] = useState('CONNECTING')
 
 const [toast, setToast] = useState(null)
 
-// Live unrealized P&L per MT5 ticket, pushed by sigbot ~every 2s via Supabase
-// Realtime broadcast. Used to make the P&L column lively for active trades.
-const [livePnLByTicket, setLivePnLByTicket] = useState({})
-
 const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar state
 
 
@@ -1202,30 +1201,6 @@ subscription.unsubscribe()
 }
 
 }, [handleTradeInsert, handleTradeUpdate, handleTradeDelete, handleStatusChange])
-
-
-
-// Subscribe to live MT5 P&L broadcasts pushed by sigbot ~every 2s.
-// Each tick is the full set of open positions, so we replace state wholesale.
-useEffect(() => {
-  const channel = subscribeToLivePositions((payload) => {
-    if (!payload || !Array.isArray(payload.positions)) return
-    const next = {}
-    for (const pos of payload.positions) {
-      if (pos.ticket == null) continue
-      next[pos.ticket] = {
-        profit: pos.profit,
-        price: pos.price,
-        ts: payload.ts,
-      }
-    }
-    setLivePnLByTicket(next)
-  })
-
-  return () => {
-    channel.unsubscribe()
-  }
-}, [])
 
 
 
@@ -2939,28 +2914,6 @@ style={{
 
 <td>
   {(() => {
-    const live = trade.status === 'active' && trade.mt5_ticket != null
-      ? livePnLByTicket[trade.mt5_ticket]
-      : null
-    if (live && typeof live.profit === 'number') {
-      const isUp = live.profit >= 0
-      return (
-        <span
-          className={`font-mono inline-flex items-center gap-1 ${isUp ? 'text-green-400' : 'text-red-400'}`}
-          title={`Live · updated ${live.ts ? new Date(live.ts).toLocaleTimeString() : ''}${live.price ? ` · @${live.price}` : ''}`}
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{
-              backgroundColor: isUp ? '#22c55e' : '#ef4444',
-              boxShadow: `0 0 6px ${isUp ? '#22c55e' : '#ef4444'}`,
-              animation: 'livePulse 1.6s ease-in-out infinite',
-            }}
-          />
-          {isUp ? '+' : '-'}${Math.abs(live.profit).toFixed(2)}
-        </span>
-      )
-    }
     if (trade.status === 'canceled') {
       return <span className="text-gray-500">-</span>
     }
@@ -3111,16 +3064,6 @@ No trades found
               <span className="w-1 h-1 rounded-full" style={{ backgroundColor: statusDotColor }} />
               {getStatusDisplay(trade)}
               {(() => {
-                const live = trade.status === 'active' && trade.mt5_ticket != null
-                  ? livePnLByTicket[trade.mt5_ticket]
-                  : null
-                if (live && typeof live.profit === 'number') {
-                  return (
-                    <span className={`ml-1 font-mono ${live.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      · {live.profit >= 0 ? '+' : '-'}${Math.abs(live.profit).toFixed(2)}
-                    </span>
-                  )
-                }
                 if (trade.status === 'canceled') {
                   return null
                 }
