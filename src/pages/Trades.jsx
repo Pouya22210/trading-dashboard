@@ -1344,16 +1344,13 @@ const analysisTrades = useMemo(() => {
 
 const sortedFilteredTrades = useMemo(() => {
 
+const statusRank = (s) => (s === 'active' ? 0 : s === 'pending' ? 1 : 2)
+
 return [...filteredTrades].sort((a, b) => {
 
-const isActiveOrPendingA = a.status === 'pending' || a.status === 'active'
+const rankDiff = statusRank(a.status) - statusRank(b.status)
 
-const isActiveOrPendingB = b.status === 'pending' || b.status === 'active'
-
-
-if (isActiveOrPendingA && !isActiveOrPendingB) return -1
-
-if (!isActiveOrPendingA && isActiveOrPendingB) return 1
+if (rankDiff !== 0) return rankDiff
 
 
 return new Date(b.signal_time) - new Date(a.signal_time)
@@ -2964,6 +2961,9 @@ style={{
         </span>
       )
     }
+    if (trade.status === 'canceled') {
+      return <span className="text-gray-500">-</span>
+    }
     if (trade.profit_loss != null) {
       return (
         <span className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -3120,6 +3120,9 @@ No trades found
                       · {live.profit >= 0 ? '+' : '-'}${Math.abs(live.profit).toFixed(2)}
                     </span>
                   )
+                }
+                if (trade.status === 'canceled') {
+                  return null
                 }
                 if (trade.profit_loss != null) {
                   return (
