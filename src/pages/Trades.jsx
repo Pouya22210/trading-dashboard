@@ -2207,7 +2207,21 @@ return effectiveStatus || '-'
 
 if (loading) {
 
-return <div className="flex items-center justify-center h-96 text-gray-500">Loading trades...</div>
+return (
+  <div className="flex flex-col items-center justify-center h-96 gap-4">
+    <div className="relative">
+      <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
+      <div className="relative flex items-center gap-1">
+        <TrendingUp className="w-8 h-8 text-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+        <BarChart3 className="w-8 h-8 text-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+        <TrendingDown className="w-8 h-8 text-rose-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+    <div className="text-gray-400 text-sm font-medium tracking-wide animate-pulse">
+      Reading the tape...
+    </div>
+  </div>
+)
 
 }
 
