@@ -81,12 +81,8 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
 
   return (
     <div
-      className="transition-all"
+      className="transition-all flex items-center gap-2.5 sm:gap-3.5 p-2.5 sm:p-[14px_16px]"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '14px',
-        padding: '14px 16px',
         background: 'var(--card-flat)',
         borderRadius: '20px',
         boxShadow: 'none',
@@ -94,19 +90,12 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
     >
       {/* Rank pill */}
       <div
+        className="flex-shrink-0 flex items-center justify-center font-bold w-7 h-7 sm:w-9 sm:h-9 text-[12px] sm:text-[14px]"
         style={{
-          flexShrink: 0,
-          width: '36px',
-          height: '36px',
           borderRadius: '12px',
           background: 'var(--neu-bg)',
           boxShadow: 'var(--neu-pressed-sm)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           color: rankColor,
-          fontWeight: 700,
-          fontSize: '14px',
           fontFamily: 'inherit',
         }}
       >
@@ -116,10 +105,8 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
       {/* Channel info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p
-          className="truncate"
+          className="truncate font-semibold text-[12px] sm:text-[14px]"
           style={{
-            fontSize: '14px',
-            fontWeight: 600,
             color: 'var(--text-primary)',
             letterSpacing: '-0.01em',
           }}
@@ -127,29 +114,21 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
         >
           {channel}
         </p>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginTop: '4px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
+          <span
+            className="text-[9px] sm:text-[11px]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
             {trades} trades • {winRate.toFixed(1)}%
           </span>
           <span
+            className="font-bold whitespace-nowrap text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5"
             style={{
-              padding: '2px 8px',
               borderRadius: '8px',
               background: 'var(--neu-bg)',
               boxShadow: 'var(--neu-pressed-sm)',
-              fontSize: '10px',
-              fontWeight: 700,
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
               letterSpacing: '0.02em',
-              whiteSpace: 'nowrap',
             }}
           >
             <span style={{ color: 'var(--accent-green)' }}>{wins}</span>
@@ -160,11 +139,12 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
       </div>
 
       {/* P&L + Winrate bar */}
-      <div style={{ flexShrink: 0, textAlign: 'right', minWidth: '88px' }}>
+      <div
+        className="flex-shrink-0 text-right min-w-[72px] sm:min-w-[88px]"
+      >
         <div
+          className="font-extrabold text-[14px] sm:text-[17px]"
           style={{
-            fontSize: '17px',
-            fontWeight: 800,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             color: pnlColor,
             letterSpacing: '-0.01em',
@@ -175,15 +155,10 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
         </div>
         <div
           aria-hidden
+          className="ml-auto w-[60px] sm:w-[72px] h-[3px] mt-2 overflow-hidden relative"
           style={{
-            marginTop: '8px',
-            marginLeft: 'auto',
-            width: '72px',
-            height: '3px',
             borderRadius: '2px',
             background: 'rgba(255,255,255,0.05)',
-            overflow: 'hidden',
-            position: 'relative',
           }}
           title={`Win rate ${winRate.toFixed(1)}%`}
         >
