@@ -63,8 +63,13 @@ export default function Navbar({ theme, toggleTheme }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:max-w-[1600px] lg:px-8">
           <div className="flex items-center justify-between gap-4" style={{ height: '68px' }}>
 
-            {/* Logo */}
-            <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none">
+            {/* Logo — links to dashboard */}
+            <Link
+              to="/"
+              aria-label="Go to dashboard"
+              className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none"
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
               <div style={{
                 width: '40px',
                 height: '40px',
@@ -106,7 +111,7 @@ export default function Navbar({ theme, toggleTheme }) {
                   Track your trading performance with real-time insights
                 </span>
               </div>
-            </div>
+            </Link>
 
             {/* Desktop Tabs — centered */}
             <div className="hidden lg:flex flex-1 justify-center" style={{ gap: '10px', alignItems: 'center' }}>

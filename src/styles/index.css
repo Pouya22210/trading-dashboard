@@ -67,6 +67,9 @@
   --accent-green: #ADFF2F;
   --accent-blue:  #4DA8FF;
   --accent-cyan:  #ADFF2F;
+  /* Warm accent for trophy / hot-channel / rank-1 highlights.
+     Repointed to a deeper amber in .light-theme so it stays legible. */
+  --accent-warm:  #FFC857;
 
   --success: #ADFF2F;
   --danger: #FF5C5C;
@@ -78,18 +81,20 @@
    shadows. Inspired by the attached neumorphism dashboard mock.
    ============================================================ */
 .light-theme {
-  --neu-bg:       #e6ecf3;
-  --neu-bg-soft:  #eef2f8;
-  --neu-bg-deep:  #dde3ec;
+  /* Slightly darker, less glaring than the original near-white surfaces.
+     Keeps the airy neumorphism feel but is easier on the eyes. */
+  --neu-bg:       #d4dce5;
+  --neu-bg-soft:  #dde4ec;
+  --neu-bg-deep:  #c2cad6;
 
-  --card-flat:    #f3f6fa;
-  --card-recess:  #d6dce5;
+  --card-flat:    #e1e8f0;
+  --card-recess:  #bcc4d0;
 
-  --neu-shadow-dark-lg:  rgba(163, 177, 198, 0.55);
+  --neu-shadow-dark-lg:  rgba(133, 148, 172, 0.55);
   --neu-shadow-light-lg: rgba(255, 255, 255, 0.95);
-  --neu-shadow-dark-md:  rgba(163, 177, 198, 0.48);
+  --neu-shadow-dark-md:  rgba(133, 148, 172, 0.48);
   --neu-shadow-light-md: rgba(255, 255, 255, 0.92);
-  --neu-shadow-dark-sm:  rgba(163, 177, 198, 0.40);
+  --neu-shadow-dark-sm:  rgba(133, 148, 172, 0.40);
   --neu-shadow-light-sm: rgba(255, 255, 255, 0.85);
 
   --text-primary:   #2b3556;
@@ -109,6 +114,8 @@
   --accent-green: #4aa84a;
   --accent-blue:  #2b6cff;
   --accent-cyan:  #1f7ad9;
+  /* Deeper amber so trophy / hot-channel / rank-1 stay visible. */
+  --accent-warm:  #b45309;
 
   --green:   #4aa84a;
   --blue:    #2b6cff;
@@ -166,6 +173,11 @@
 .light-theme .btn-primary { color: var(--accent-green); }
 .light-theme .btn-primary:hover { color: #3d8e3d; }
 .light-theme .tab-btn.active { color: var(--accent-green); }
+
+/* btn-secondary defaults to near-white text + pure white on hover, both
+   invisible on a light surface. Repoint to dark text in light theme. */
+.light-theme .btn-secondary { color: rgba(43, 53, 86, 0.78); }
+.light-theme .btn-secondary:hover { color: var(--text-primary); }
 
 /* Unselected nav tabs default to a near-white color built for dark
    surfaces — invisible on light. Repoint to a muted dark text. */

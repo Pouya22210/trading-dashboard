@@ -77,7 +77,7 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
   const barColor = isTop ? 'var(--accent-green)' : 'var(--red)'
   // Highlight rank #1 in top  with a warm/yellow tone, otherwise neutral.
-  const rankColor = (isTop && rank === 1) ? '#FFC857' : 'var(--text-secondary)'
+  const rankColor = (isTop && rank === 1) ? 'var(--accent-warm)' : 'var(--text-secondary)'
   const clampedWinRate = Math.max(0, Math.min(100, winRate || 0))
 
   return (
@@ -418,7 +418,7 @@ export default function Dashboard() {
         {/* Top 5 / Gainers */}
         <div className={mobileSection === 'gainers' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
-            {sectionHeader(Trophy, '#FFC857', 'Top 5')}
+            {sectionHeader(Trophy, 'var(--accent-warm)', 'Top 5')}
           </div>
           <div className="space-y-3">
             {channelPerformance.top5.map((channel, idx) => (
@@ -470,7 +470,7 @@ export default function Dashboard() {
         {/* Hot Channels */}
         <div className={mobileSection === 'hot' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
-            {sectionHeader(Zap, '#FFC857', 'Hot Channels')}
+            {sectionHeader(Zap, 'var(--accent-warm)', 'Hot Channels')}
           </div>
           <div className="space-y-3">
             {hotChannels.map((channel, idx) => (
