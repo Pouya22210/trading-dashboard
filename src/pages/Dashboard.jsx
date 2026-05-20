@@ -4,7 +4,7 @@ import {
   Zap, AlertTriangle, Trophy
 } from 'lucide-react'
 import { fetchTrades, subscribeToTrades } from '../lib/supabase'
-
+// note
 // Color palette
 const COLORS = {
   green: '#ADFF2F',
