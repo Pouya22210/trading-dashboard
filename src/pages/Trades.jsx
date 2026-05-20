@@ -1084,6 +1084,8 @@ return [newTrade, ...prev]
 })
 
 
+console.log('[toast-debug] CALLING setToast for INSERT', newTrade.symbol, newTrade.direction)
+
 setToast({
 
 message: `New trade: ${newTrade.symbol} ${newTrade.direction?.toUpperCase()}`,
@@ -1105,6 +1107,11 @@ trade.id === updatedTrade.id ? updatedTrade : trade
 ))
 
 
+console.log('[toast-debug] handleTradeUpdate:',
+  'old.status=', oldTrade?.status,
+  'new.status=', updatedTrade.status,
+  'will-fire=', oldTrade?.status !== updatedTrade.status)
+
 if (oldTrade?.status !== updatedTrade.status) {
 
 const statusEmoji = updatedTrade.status === 'closed' ? '✅' :
@@ -1112,6 +1119,8 @@ const statusEmoji = updatedTrade.status === 'closed' ? '✅' :
 updatedTrade.status === 'canceled' ? '❌' :
 
 updatedTrade.status === 'active' ? '🟢' : '🔄'
+
+console.log('[toast-debug] CALLING setToast for status change')
 
 setToast({
 
