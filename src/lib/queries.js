@@ -42,8 +42,9 @@ export async function fetchChannelPerformance(timeRange = '1w', excludeOrphaned 
     wins:        Number(row.wins),
     losses:      Number(row.losses),
     breakevens:  Number(row.breakevens),
-    pnl:         Number(row.total_pnl) || 0,
-    winRate:     Number(row.win_rate)  || 0,
+    pnl:         Number(row.total_pnl)     || 0,
+    pnlPercent:  Number(row.total_pnl_pct) || 0,
+    winRate:     Number(row.win_rate)      || 0,
   }))
 }
 

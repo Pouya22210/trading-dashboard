@@ -95,7 +95,12 @@ $$;
 -- ---------------------------------------------------------------------
 -- Returns per-channel rollup for a date range. Replaces the dashboard's
 -- "fetch every trade and group in JS" pattern.
+--
+-- total_pnl_pct is balance-independent: per-trade R-multiple (computed
+-- from executed prices, same formula as get_daily_profit_calendar) times
+-- the channel's risk_per_trade %, summed across closed trades.
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.get_channel_performance(timestamptz, timestamptz, boolean);
 CREATE OR REPLACE FUNCTION public.get_channel_performance(
   p_start_ts          timestamptz DEFAULT NULL,
   p_end_ts            timestamptz DEFAULT NULL,
@@ -110,35 +115,70 @@ RETURNS TABLE (
   losses        bigint,
   breakevens    bigint,
   total_pnl     numeric,
+  total_pnl_pct numeric,
   win_rate      numeric
 )
 LANGUAGE sql
 STABLE
 AS $$
+  WITH with_r AS (
+    SELECT
+      v.channel_id,
+      v.display_channel_name,
+      v.channel_name,
+      v.is_orphaned_channel,
+      v.outcome,
+      v.status,
+      v.profit_loss,
+      COALESCE(c.risk_per_trade, 0.01) * 100.0 AS risk_pct,
+      CASE
+        WHEN v.outcome = 'profit' THEN
+          CASE
+            WHEN COALESCE(v.executed_entry_price, v.signal_entry_price) IS NOT NULL
+                 AND v.executed_tp_price IS NOT NULL
+                 AND COALESCE(v.executed_sl_price, v.signal_sl_price) IS NOT NULL
+                 AND ABS(COALESCE(v.executed_entry_price, v.signal_entry_price)
+                       - COALESCE(v.executed_sl_price, v.signal_sl_price)) > 0
+            THEN ABS(v.executed_tp_price - COALESCE(v.executed_entry_price, v.signal_entry_price))
+               / ABS(COALESCE(v.executed_entry_price, v.signal_entry_price)
+                   - COALESCE(v.executed_sl_price, v.signal_sl_price))
+            ELSE 1
+          END
+        WHEN v.outcome = 'loss'      THEN -1
+        WHEN v.outcome = 'breakeven' THEN 0
+        ELSE NULL
+      END AS pnl_r
+    FROM public.v_trades_with_channels v
+    LEFT JOIN public.channels c ON c.id = v.channel_id
+    WHERE
+          (p_start_ts IS NULL OR v.signal_time >= p_start_ts)
+      AND (p_end_ts   IS NULL OR v.signal_time <= p_end_ts)
+      AND (NOT p_exclude_orphaned OR COALESCE(v.is_orphaned_channel, false) = false)
+  )
   SELECT
-    v.channel_id,
-    COALESCE(MAX(v.display_channel_name), MAX(v.channel_name), 'Unknown')      AS channel_name,
-    BOOL_OR(COALESCE(v.is_orphaned_channel, false))                            AS is_orphaned,
+    channel_id,
+    COALESCE(MAX(display_channel_name), MAX(channel_name), 'Unknown')          AS channel_name,
+    BOOL_OR(COALESCE(is_orphaned_channel, false))                              AS is_orphaned,
     COUNT(*)                                                                   AS total_trades,
-    COUNT(*) FILTER (WHERE v.outcome = 'profit')                               AS wins,
-    COUNT(*) FILTER (WHERE v.outcome = 'loss')                                 AS losses,
-    COUNT(*) FILTER (WHERE v.outcome = 'breakeven')                            AS breakevens,
-    COALESCE(SUM(v.profit_loss) FILTER (WHERE v.status = 'closed'), 0)         AS total_pnl,
+    COUNT(*) FILTER (WHERE outcome = 'profit')                                 AS wins,
+    COUNT(*) FILTER (WHERE outcome = 'loss')                                   AS losses,
+    COUNT(*) FILTER (WHERE outcome = 'breakeven')                              AS breakevens,
+    COALESCE(SUM(profit_loss) FILTER (WHERE status = 'closed'), 0)             AS total_pnl,
+    ROUND(
+      COALESCE(SUM(pnl_r * risk_pct) FILTER (WHERE status = 'closed' AND pnl_r IS NOT NULL), 0)::numeric,
+      4
+    )                                                                          AS total_pnl_pct,
     CASE
-      WHEN COUNT(*) FILTER (WHERE v.outcome IN ('profit', 'loss')) > 0 THEN
+      WHEN COUNT(*) FILTER (WHERE outcome IN ('profit', 'loss')) > 0 THEN
         ROUND(
-          100.0 * COUNT(*) FILTER (WHERE v.outcome = 'profit')
-          / NULLIF(COUNT(*) FILTER (WHERE v.outcome IN ('profit', 'loss')), 0),
+          100.0 * COUNT(*) FILTER (WHERE outcome = 'profit')
+          / NULLIF(COUNT(*) FILTER (WHERE outcome IN ('profit', 'loss')), 0),
           2
         )
       ELSE 0
     END AS win_rate
-  FROM public.v_trades_with_channels v
-  WHERE
-        (p_start_ts IS NULL OR v.signal_time >= p_start_ts)
-    AND (p_end_ts   IS NULL OR v.signal_time <= p_end_ts)
-    AND (NOT p_exclude_orphaned OR COALESCE(v.is_orphaned_channel, false) = false)
-  GROUP BY v.channel_id
+  FROM with_r
+  GROUP BY channel_id
 $$;
 
 

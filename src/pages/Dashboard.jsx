@@ -58,12 +58,14 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
   )
 }
 
-function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, isTop, onClick }) {
+function ChannelRankCard({ rank, channel, pnl, pnlPercent, winRate, trades, wins, losses, isTop, onClick }) {
   const isProfit = pnl >= 0
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
   const barColor = isTop ? 'var(--accent-green)' : 'var(--red)'
   const rankColor = (isTop && rank === 1) ? 'var(--accent-warm)' : 'var(--text-secondary)'
   const clampedWinRate = Math.max(0, Math.min(100, winRate || 0))
+  const pctValue = Number.isFinite(pnlPercent) ? pnlPercent : 0
+  const pctSign = pctValue >= 0 ? '+' : '−'
 
   return (
     <div
@@ -134,7 +136,7 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
         </div>
       </div>
 
-      <div className="flex-shrink-0 text-right min-w-[72px] sm:min-w-[88px]">
+      <div className="flex-shrink-0 text-right min-w-[80px] sm:min-w-[96px]">
         <div
           className="font-extrabold text-[14px] sm:text-[17px]"
           style={{
@@ -145,6 +147,19 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
           }}
         >
           {isProfit ? '+' : '−'}${Math.abs(pnl).toFixed(2)}
+        </div>
+        <div
+          className="font-semibold text-[10px] sm:text-[12px] mt-0.5"
+          style={{
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            color: pnlColor,
+            opacity: 0.85,
+            letterSpacing: '-0.01em',
+            lineHeight: 1.1,
+          }}
+          title="Risk-based return: per-trade R-multiple × channel risk %"
+        >
+          {pctSign}{Math.abs(pctValue).toFixed(2)}%
         </div>
         <div
           aria-hidden
@@ -225,13 +240,13 @@ export default function Dashboard() {
 
   // Derive leaderboards from the server-side aggregate. These are O(n_channels),
   // not O(n_trades) — for any reasonable channel count it's free.
-  const { top5, bottom5, hot5 } = useMemo(() => {
+  const { top, bottom, hot } = useMemo(() => {
     const byScore = [...channels].sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses))
     const byActivity = [...channels].sort((a, b) => b.trades - a.trades)
     return {
-      top5:    byScore.slice(0, 5),
-      bottom5: byScore.slice(-5).reverse(),
-      hot5:    byActivity.slice(0, 5),
+      top:    byScore.slice(0, 10),
+      bottom: byScore.slice(-10).reverse(),
+      hot:    byActivity.slice(0, 10),
     }
   }, [channels])
 
@@ -331,15 +346,16 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className={mobileSection === 'gainers' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
-            {sectionHeader(Trophy, 'var(--accent-warm)', 'Top 5')}
+            {sectionHeader(Trophy, 'var(--accent-warm)', 'Top 10')}
           </div>
           <div className="space-y-3">
-            {top5.map((channel, idx) => (
+            {top.map((channel, idx) => (
               <ChannelRankCard
                 key={channel.channelId}
                 rank={idx + 1}
                 channel={channel.channelName}
                 pnl={channel.pnl}
+                pnlPercent={channel.pnlPercent}
                 winRate={channel.winRate}
                 trades={channel.trades}
                 wins={channel.wins}
@@ -348,7 +364,7 @@ export default function Dashboard() {
                 onClick={() => goToChannel(channel.channelId)}
               />
             ))}
-            {top5.length === 0 && (
+            {top.length === 0 && (
               <div className="text-center text-gray-500 py-8">No data for selected period</div>
             )}
           </div>
@@ -356,15 +372,16 @@ export default function Dashboard() {
 
         <div className={mobileSection === 'losers' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
-            {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 5')}
+            {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 10')}
           </div>
           <div className="space-y-3">
-            {bottom5.map((channel, idx) => (
+            {bottom.map((channel, idx) => (
               <ChannelRankCard
                 key={channel.channelId}
                 rank={idx + 1}
                 channel={channel.channelName}
                 pnl={channel.pnl}
+                pnlPercent={channel.pnlPercent}
                 winRate={channel.winRate}
                 trades={channel.trades}
                 wins={channel.wins}
@@ -373,7 +390,7 @@ export default function Dashboard() {
                 onClick={() => goToChannel(channel.channelId)}
               />
             ))}
-            {bottom5.length === 0 && (
+            {bottom.length === 0 && (
               <div className="text-center text-gray-500 py-8">No data for selected period</div>
             )}
           </div>
@@ -384,12 +401,13 @@ export default function Dashboard() {
             {sectionHeader(Zap, 'var(--accent-warm)', 'Hot Channels')}
           </div>
           <div className="space-y-3">
-            {hot5.map((channel, idx) => (
+            {hot.map((channel, idx) => (
               <ChannelRankCard
                 key={channel.channelId}
                 rank={idx + 1}
                 channel={channel.channelName}
                 pnl={channel.pnl}
+                pnlPercent={channel.pnlPercent}
                 winRate={channel.winRate}
                 trades={channel.trades}
                 wins={channel.wins}
@@ -398,7 +416,7 @@ export default function Dashboard() {
                 onClick={() => goToChannel(channel.channelId)}
               />
             ))}
-            {hot5.length === 0 && (
+            {hot.length === 0 && (
               <div className="text-center text-gray-500 py-8">No data for selected period</div>
             )}
           </div>
