@@ -696,19 +696,32 @@ export default function Trades() {
   }, [filterKey])
 
   // ---------- Realtime: invalidate and refetch (debounced) ----------
-  const refetchTimerRef = useRef(null)
+  // The realtime subscription must be set up exactly once for the page's
+  // lifetime — re-subscribing on every filter/page change would tear down the
+  // websocket channel and lose events in the gap. We achieve that by reading
+  // the live filter/page values through refs inside stable callbacks.
+  const refetchTimerRef    = useRef(null)
+  const queryFiltersRef    = useRef(queryFilters)
+  const currentPageRef     = useRef(currentPage)
+  const dailyProfitMonthRef = useRef(dailyProfitMonth)
+  queryFiltersRef.current    = queryFilters
+  currentPageRef.current     = currentPage
+  dailyProfitMonthRef.current = dailyProfitMonth
+
   const scheduleRefetch = useCallback(() => {
     if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
     refetchTimerRef.current = setTimeout(async () => {
+      const filters = queryFiltersRef.current
+      const page    = currentPageRef.current
       try {
         const [a, p, dd, cal] = await Promise.all([
-          fetchTradesAnalytics(queryFilters),
-          fetchTradesPage(queryFilters, {
+          fetchTradesAnalytics(filters),
+          fetchTradesPage(filters, {
             limit:  TRADES_PER_PAGE,
-            offset: (currentPage - 1) * TRADES_PER_PAGE,
+            offset: (page - 1) * TRADES_PER_PAGE,
           }),
-          fetchMaxDrawdown(queryFilters),
-          fetchDailyProfitCalendar(queryFilters),
+          fetchMaxDrawdown(filters),
+          fetchDailyProfitCalendar(filters),
         ])
         setAnalytics(a)
         setPageData(p)
@@ -718,7 +731,7 @@ export default function Trades() {
         console.error('Refetch after realtime event failed:', err)
       }
     }, 1500)
-  }, [queryFilters, currentPage])
+  }, [])
 
   const handleTradeInsert = useCallback((newTrade) => {
     setToast({
@@ -765,7 +778,10 @@ export default function Trades() {
       if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
       subscription.unsubscribe()
     }
-  }, [handleTradeInsert, handleTradeUpdate, handleTradeDelete, handleStatusChange])
+    // Stable identities (empty-dep callbacks + refs for live values) keep this
+    // subscription alive for the entire page lifetime — no resubs on filter/page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
 
   // =====================================================================

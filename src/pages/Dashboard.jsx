@@ -183,13 +183,12 @@ export default function Dashboard() {
   }, [navigate])
 
   // Real-time trade events trigger a debounced refetch. We don't patch the
-  // aggregate in JS — we just invalidate and let Postgres recompute. This is
-  // cheaper than maintaining duplicate aggregation logic on the client.
-  const refetchTimerRef = useRef(null)
-  const scheduleRefetch = useCallback(() => {
-    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
-    refetchTimerRef.current = setTimeout(() => loadChannels(leaderboardTimeRange), 1500)
-  }, [leaderboardTimeRange])
+  // aggregate in JS — we just invalidate and let Postgres recompute.
+  // Stable identity for the subscription: read the live time-range through a
+  // ref so the subscription useEffect can run exactly once on mount.
+  const refetchTimerRef     = useRef(null)
+  const timeRangeRef        = useRef(leaderboardTimeRange)
+  timeRangeRef.current      = leaderboardTimeRange
 
   async function loadChannels(timeRange) {
     try {
@@ -201,6 +200,11 @@ export default function Dashboard() {
       setLoading(false)
     }
   }
+
+  const scheduleRefetch = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+    refetchTimerRef.current = setTimeout(() => loadChannels(timeRangeRef.current), 1500)
+  }, [])
 
   useEffect(() => {
     loadChannels(leaderboardTimeRange)
@@ -216,7 +220,8 @@ export default function Dashboard() {
       if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
       subscription.unsubscribe()
     }
-  }, [scheduleRefetch])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Derive leaderboards from the server-side aggregate. These are O(n_channels),
   // not O(n_trades) — for any reasonable channel count it's free.

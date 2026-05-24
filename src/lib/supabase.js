@@ -358,8 +358,12 @@ export function subscribeToTrades(callbacks = {}) {
     onStatus = () => {}
   } = callbacks
 
+  // Each subscriber gets its own channel so independent subscriptions
+  // (Dashboard + Trades, or re-subscriptions after dep changes) don't
+  // collide on the same channel name.
+  const channelName = `trades-changes-${Math.random().toString(36).slice(2, 10)}`
   const channel = supabase
-    .channel('trades-changes')
+    .channel(channelName)
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'trades' },
