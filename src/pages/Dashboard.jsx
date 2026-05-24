@@ -192,6 +192,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [leaderboardTimeRange, setLeaderboardTimeRange] = useState('1w')
   const [mobileSection, setMobileSection] = useState('gainers')
+  const [showScrollHint, setShowScrollHint] = useState(false)
 
   const goToChannel = useCallback((channelId) => {
     navigate(`/trades?channel=${encodeURIComponent(channelId)}`)
@@ -237,6 +238,23 @@ export default function Dashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Show a bottom shadow whenever the page has more content below the fold.
+  useEffect(() => {
+    const update = () => {
+      const doc = document.documentElement
+      const hasOverflow = doc.scrollHeight - window.innerHeight > 4
+      const atBottom = window.scrollY + window.innerHeight >= doc.scrollHeight - 20
+      setShowScrollHint(hasOverflow && !atBottom)
+    }
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [channels, loading, mobileSection])
 
   // Derive leaderboards from the server-side aggregate. These are O(n_channels),
   // not O(n_trades) — for any reasonable channel count it's free.
@@ -424,6 +442,22 @@ export default function Dashboard() {
       </div>
 
       <div className="pb-8" />
+
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '56px',
+          pointerEvents: 'none',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 100%)',
+          opacity: showScrollHint ? 1 : 0,
+          transition: 'opacity 0.25s ease',
+          zIndex: 40,
+        }}
+      />
     </div>
   )
 }
