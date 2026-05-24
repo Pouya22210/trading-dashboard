@@ -1,33 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, AlertTriangle, Trophy
 } from 'lucide-react'
-import { fetchTrades, subscribeToTrades } from '../lib/supabase'
-// note
-// Color palette
-const COLORS = {
-  green: '#ADFF2F',
-  red: '#f85149',
-  blue: '#58a6ff',
-  cyan: '#39d5ff',
-  purple: '#a371f7',
-  orange: '#f0883e',
-  pink: '#db61a2',
-  yellow: '#d29922',
-  gray: '#6e7681',
-}
+import { fetchChannelPerformance } from '../lib/queries'
+import { subscribeToTrades } from '../lib/supabase'
 
-// Time range options
 const TIME_RANGES = [
-  { key: '1d', label: '1D', days: 1 },
-  { key: '1w', label: '1W', days: 7 },
-  { key: '1m', label: '1M', days: 30 },
-  { key: '1y', label: '1Y', days: 365 },
-  { key: 'all', label: 'All', days: null },
+  { key: '1d', label: '1D' },
+  { key: '1w', label: '1W' },
+  { key: '1m', label: '1M' },
+  { key: '1y', label: '1Y' },
+  { key: 'all', label: 'All' },
 ]
 
-// Reusable Components
 function TimeRangeSelector({ value, onChange, className = '' }) {
   return (
     <div
@@ -76,7 +62,6 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
   const isProfit = pnl >= 0
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
   const barColor = isTop ? 'var(--accent-green)' : 'var(--red)'
-  // Highlight rank #1 in top  with a warm/yellow tone, otherwise neutral.
   const rankColor = (isTop && rank === 1) ? 'var(--accent-warm)' : 'var(--text-secondary)'
   const clampedWinRate = Math.max(0, Math.min(100, winRate || 0))
 
@@ -101,7 +86,6 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
       onMouseEnter={onClick ? (e) => { e.currentTarget.style.boxShadow = 'var(--neu-raised-sm)' } : undefined}
       onMouseLeave={onClick ? (e) => { e.currentTarget.style.boxShadow = 'none' } : undefined}
     >
-      {/* Rank pill */}
       <div
         className="flex-shrink-0 flex items-center justify-center font-bold w-7 h-7 sm:w-9 sm:h-9 text-[12px] sm:text-[14px]"
         style={{
@@ -115,7 +99,6 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
         {rank}
       </div>
 
-      {/* Channel info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p
           className="truncate font-semibold text-[12px] sm:text-[14px]"
@@ -151,10 +134,7 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
         </div>
       </div>
 
-      {/* P&L + Winrate bar */}
-      <div
-        className="flex-shrink-0 text-right min-w-[72px] sm:min-w-[88px]"
-      >
+      <div className="flex-shrink-0 text-right min-w-[72px] sm:min-w-[88px]">
         <div
           className="font-extrabold text-[14px] sm:text-[17px]"
           style={{
@@ -193,130 +173,62 @@ function ChannelRankCard({ rank, channel, pnl, winRate, trades, wins, losses, is
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [trades, setTrades] = useState([])
+  const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
-
-  // State for filters
   const [leaderboardTimeRange, setLeaderboardTimeRange] = useState('1w')
-  // Mobile/tablet section selector: shows one of the three lists at a time
   const [mobileSection, setMobileSection] = useState('gainers')
 
   const goToChannel = useCallback((channelId) => {
     navigate(`/trades?channel=${encodeURIComponent(channelId)}`)
   }, [navigate])
 
-  useEffect(() => {
-    loadTrades()
-    
-    const subscription = subscribeToTrades(() => {
-      loadTrades()
-    })
+  // Real-time trade events trigger a debounced refetch. We don't patch the
+  // aggregate in JS — we just invalidate and let Postgres recompute. This is
+  // cheaper than maintaining duplicate aggregation logic on the client.
+  const refetchTimerRef = useRef(null)
+  const scheduleRefetch = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+    refetchTimerRef.current = setTimeout(() => loadChannels(leaderboardTimeRange), 1500)
+  }, [leaderboardTimeRange])
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  async function loadTrades() {
+  async function loadChannels(timeRange) {
     try {
-      const data = await fetchTrades({ limit: 50000 })
-      setTrades(data)
+      const data = await fetchChannelPerformance(timeRange)
+      setChannels(data)
     } catch (err) {
-      console.error('Failed to load trades:', err)
+      console.error('Failed to load channel performance:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  // Filter trades by time range
-  const filterByTimeRange = useCallback((tradesArray, timeRange) => {
-    const range = TIME_RANGES.find(r => r.key === timeRange)
-    if (!range || !range.days) return tradesArray
-    
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - range.days)
-    
-    return tradesArray.filter(t => {
-      const tradeDate = new Date(t.signal_time || t.close_time)
-      return tradeDate >= cutoffDate
-    })
-  }, [])
+  useEffect(() => {
+    loadChannels(leaderboardTimeRange)
+  }, [leaderboardTimeRange])
 
-  // Channel performance data for leaderboard
-  const channelPerformance = useMemo(() => {
-    const filteredTrades = filterByTimeRange(trades, leaderboardTimeRange)
-    const channelStats = {}
-    
-    filteredTrades.filter(t => t.status === 'closed').forEach(trade => {
-      const channelId = trade.channel_id || 'unknown'
-      const channelName = trade.channel_name || 'Unknown'
-      
-      if (!channelStats[channelId]) {
-        channelStats[channelId] = {
-          channelId,
-          channelName,
-          pnl: 0,
-          wins: 0,
-          losses: 0,
-          trades: 0,
-        }
-      }
-      
-      channelStats[channelId].pnl += trade.profit_loss || 0
-      channelStats[channelId].trades++
-      if (trade.outcome === 'profit') channelStats[channelId].wins++
-      if (trade.outcome === 'loss') channelStats[channelId].losses++
+  useEffect(() => {
+    const subscription = subscribeToTrades({
+      onInsert: scheduleRefetch,
+      onUpdate: scheduleRefetch,
+      onDelete: scheduleRefetch,
     })
-    
-    // Calculate win rates
-    Object.values(channelStats).forEach(ch => {
-      const totalWL = ch.wins + ch.losses
-      ch.winRate = totalWL > 0 ? (ch.wins / totalWL) * 100 : 0
-    })
-    
-    // Sort by wins - losses
-    const sorted = Object.values(channelStats).sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses))
-    
-    return {
-      top5: sorted.slice(0, 5),
-      bottom5: sorted.slice(-5).reverse(),
-      all: sorted
+    return () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current)
+      subscription.unsubscribe()
     }
-  }, [trades, leaderboardTimeRange, filterByTimeRange])
+  }, [scheduleRefetch])
 
-  // Hot channels — most active in the selected time range
-  const hotChannels = useMemo(() => {
-    const filteredTrades = filterByTimeRange(trades, leaderboardTimeRange)
-    const channelActivity = {}
-
-    filteredTrades.forEach(trade => {
-      const channelId = trade.channel_id || 'unknown'
-      const channelName = trade.channel_name || 'Unknown'
-      if (!channelActivity[channelId]) {
-        channelActivity[channelId] = {
-          channelId,
-          channelName,
-          trades: 0,
-          wins: 0,
-          losses: 0,
-          pnl: 0,
-        }
-      }
-      channelActivity[channelId].trades++
-      if (trade.outcome === 'profit') channelActivity[channelId].wins++
-      if (trade.outcome === 'loss') channelActivity[channelId].losses++
-      channelActivity[channelId].pnl += trade.profit_loss || 0
-    })
-
-    Object.values(channelActivity).forEach(ch => {
-      const totalWL = ch.wins + ch.losses
-      ch.winRate = totalWL > 0 ? (ch.wins / totalWL) * 100 : 0
-    })
-
-    return Object.values(channelActivity)
-      .sort((a, b) => b.trades - a.trades)
-      .slice(0, 5)
-  }, [trades, leaderboardTimeRange, filterByTimeRange])
+  // Derive leaderboards from the server-side aggregate. These are O(n_channels),
+  // not O(n_trades) — for any reasonable channel count it's free.
+  const { top5, bottom5, hot5 } = useMemo(() => {
+    const byScore = [...channels].sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses))
+    const byActivity = [...channels].sort((a, b) => b.trades - a.trades)
+    return {
+      top5:    byScore.slice(0, 5),
+      bottom5: byScore.slice(-5).reverse(),
+      hot5:    byActivity.slice(0, 5),
+    }
+  }, [channels])
 
   if (loading) {
     return (
@@ -372,7 +284,6 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Shared time range selector */}
       <div className="flex justify-end mb-4">
         <TimeRangeSelector
           value={leaderboardTimeRange}
@@ -380,7 +291,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Mobile / tablet section selector (hidden on lg+) */}
       <div
         className="lg:hidden flex items-center gap-1.5 mb-4 p-1.5"
         style={{
@@ -413,15 +323,13 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Top 5 / Bottom 5 / Hot Channels — one row on PC, tab-switched on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Top 5 / Gainers */}
         <div className={mobileSection === 'gainers' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
             {sectionHeader(Trophy, 'var(--accent-warm)', 'Top 5')}
           </div>
           <div className="space-y-3">
-            {channelPerformance.top5.map((channel, idx) => (
+            {top5.map((channel, idx) => (
               <ChannelRankCard
                 key={channel.channelId}
                 rank={idx + 1}
@@ -435,19 +343,18 @@ export default function Dashboard() {
                 onClick={() => goToChannel(channel.channelId)}
               />
             ))}
-            {channelPerformance.top5.length === 0 && (
+            {top5.length === 0 && (
               <div className="text-center text-gray-500 py-8">No data for selected period</div>
             )}
           </div>
         </div>
 
-        {/* Bottom 5 / Losers */}
         <div className={mobileSection === 'losers' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
             {sectionHeader(AlertTriangle, 'var(--red)', 'Bottom 5')}
           </div>
           <div className="space-y-3">
-            {channelPerformance.bottom5.map((channel, idx) => (
+            {bottom5.map((channel, idx) => (
               <ChannelRankCard
                 key={channel.channelId}
                 rank={idx + 1}
@@ -461,19 +368,18 @@ export default function Dashboard() {
                 onClick={() => goToChannel(channel.channelId)}
               />
             ))}
-            {channelPerformance.bottom5.length === 0 && (
+            {bottom5.length === 0 && (
               <div className="text-center text-gray-500 py-8">No data for selected period</div>
             )}
           </div>
         </div>
 
-        {/* Hot Channels */}
         <div className={mobileSection === 'hot' ? 'block' : 'hidden lg:block'}>
           <div className="hidden lg:block">
             {sectionHeader(Zap, 'var(--accent-warm)', 'Hot Channels')}
           </div>
           <div className="space-y-3">
-            {hotChannels.map((channel, idx) => (
+            {hot5.map((channel, idx) => (
               <ChannelRankCard
                 key={channel.channelId}
                 rank={idx + 1}
@@ -487,7 +393,7 @@ export default function Dashboard() {
                 onClick={() => goToChannel(channel.channelId)}
               />
             ))}
-            {hotChannels.length === 0 && (
+            {hot5.length === 0 && (
               <div className="text-center text-gray-500 py-8">No data for selected period</div>
             )}
           </div>
