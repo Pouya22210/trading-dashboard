@@ -76,12 +76,16 @@ export async function fetchTradesAnalytics(filters) {
 
 
 // ---------- Trades page: risk-based daily calendar ----------
+// Fetches the *entire* calendar for the filter set (not per-month). The UI
+// paginates through months locally, and uses the dataset's min/max date to
+// decide whether prev/next is allowed. One row per trading day — bounded by
+// how long the user has been trading, not by trade volume.
 
-export async function fetchDailyProfitCalendar(filters, year, month) {
+export async function fetchDailyProfitCalendar(filters) {
   const { data, error } = await supabase.rpc('get_daily_profit_calendar', {
     p_filters: serializeFilters(filters),
-    p_year:    year,
-    p_month:   month + 1, // JS months are 0-indexed; Postgres is 1-indexed
+    p_year:    null,
+    p_month:   null,
   })
   if (error) throw error
   const map = {}

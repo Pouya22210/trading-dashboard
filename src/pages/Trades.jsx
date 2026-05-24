@@ -611,15 +611,17 @@ export default function Trades() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, currentPage])
 
-  // ---------- Calendar fetch (per visible month) ----------
+  // ---------- Calendar fetch (full history for the filter set) ----------
+  // We fetch all months at once so the UI's prev/next month navigation works
+  // without round-trips. Cheap: one row per trading day.
   useEffect(() => {
     let canceled = false
-    fetchDailyProfitCalendar(queryFilters, dailyProfitMonth.year, dailyProfitMonth.month)
+    fetchDailyProfitCalendar(queryFilters)
       .then(d => { if (!canceled) setDailyCalendar(d) })
       .catch(err => console.error('Failed to load calendar:', err))
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, dailyProfitMonth.year, dailyProfitMonth.month])
+  }, [filterKey])
 
   // ---------- Realtime: invalidate and refetch (debounced) ----------
   const refetchTimerRef = useRef(null)
@@ -634,7 +636,7 @@ export default function Trades() {
             offset: (currentPage - 1) * TRADES_PER_PAGE,
           }),
           fetchMaxDrawdown(queryFilters),
-          fetchDailyProfitCalendar(queryFilters, dailyProfitMonth.year, dailyProfitMonth.month),
+          fetchDailyProfitCalendar(queryFilters),
         ])
         setAnalytics(a)
         setPageData(p)
@@ -644,7 +646,7 @@ export default function Trades() {
         console.error('Refetch after realtime event failed:', err)
       }
     }, 1500)
-  }, [queryFilters, currentPage, dailyProfitMonth.year, dailyProfitMonth.month])
+  }, [queryFilters, currentPage])
 
   const handleTradeInsert = useCallback((newTrade) => {
     setToast({

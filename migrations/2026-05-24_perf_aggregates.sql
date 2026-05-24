@@ -570,20 +570,29 @@ BEGIN
       END AS pnl_r
     FROM analysis a
     LEFT JOIN public.channels c ON c.id = a.channel_id
+  ),
+  daily AS (
+    SELECT
+      d,
+      ROUND(SUM(pnl_r * risk_pct)::numeric, 4) AS profit,
+      COUNT(*)                                 AS trades,
+      COUNT(*) FILTER (WHERE outcome = 'profit') AS wins,
+      COUNT(*) FILTER (WHERE outcome = 'loss')   AS losses
+    FROM with_r
+    WHERE pnl_r IS NOT NULL
+    GROUP BY d
   )
   SELECT jsonb_agg(
     jsonb_build_object(
-      'date',    to_char(d, 'YYYY-MM-DD'),
-      'profit',  ROUND(SUM(pnl_r * risk_pct)::numeric, 4),
-      'trades',  COUNT(*),
-      'wins',    COUNT(*) FILTER (WHERE outcome = 'profit'),
-      'losses',  COUNT(*) FILTER (WHERE outcome = 'loss')
+      'date',   to_char(d, 'YYYY-MM-DD'),
+      'profit', profit,
+      'trades', trades,
+      'wins',   wins,
+      'losses', losses
     )
     ORDER BY d
   ) INTO result
-  FROM with_r
-  WHERE pnl_r IS NOT NULL
-  GROUP BY d;
+  FROM daily;
 
   RETURN COALESCE(result, '[]'::jsonb);
 END;
