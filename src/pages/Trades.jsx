@@ -276,6 +276,64 @@ function Toast({ message, type, onClose }) {
 }
 
 
+// ---- Skeleton placeholders used while the trade table page is loading ----
+
+function SkeletonBlock({ width = '100%', height = 12 }) {
+  return (
+    <span
+      className="skeleton-shimmer inline-block align-middle"
+      style={{ width, height, borderRadius: '4px' }}
+    />
+  )
+}
+
+function SkeletonTableRow() {
+  return (
+    <tr>
+      <td><SkeletonBlock width="80%" /></td>
+      <td><SkeletonBlock width="55%" /></td>
+      <td><SkeletonBlock width="40%" /></td>
+      <td><SkeletonBlock width="55%" /></td>
+      <td><SkeletonBlock width="60%" /></td>
+      <td><SkeletonBlock width="55%" /></td>
+      <td><SkeletonBlock width="55%" /></td>
+      <td><SkeletonBlock width="60%" /></td>
+      <td><SkeletonBlock width="70%" /></td>
+      <td><SkeletonBlock width="85%" /></td>
+    </tr>
+  )
+}
+
+function SkeletonMobileCard() {
+  return (
+    <div
+      className="p-3"
+      style={{ background: 'var(--card-flat)', borderRadius: '14px', boxShadow: 'none' }}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2.5">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <SkeletonBlock width={32} height={14} />
+          <SkeletonBlock width="60%" height={12} />
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <SkeletonBlock width={44} height={10} />
+          <SkeletonBlock width={34} height={9} />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-2.5">
+        <SkeletonBlock width="100%" height={28} />
+        <SkeletonBlock width="100%" height={28} />
+        <SkeletonBlock width="100%" height={28} />
+      </div>
+      <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
+        <SkeletonBlock width="55%" height={14} />
+        <SkeletonBlock width="20%" height={10} />
+      </div>
+    </div>
+  )
+}
+
+
 function OutcomeDistributionTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null
   const fullName = payload[0]?.payload?.fullName || label
@@ -548,6 +606,7 @@ export default function Trades() {
   const [dailyCalendar, setDailyCalendar] = useState({})
   const [maxDrawdown,  setMaxDrawdown]  = useState(0)
   const [loading,      setLoading]      = useState(true)
+  const [pageLoading,  setPageLoading]  = useState(false) // toggled while paginating
 
   // ---------- Query filter envelope sent to RPCs ----------
   const queryFilters = useMemo(() => ({
@@ -581,32 +640,45 @@ export default function Trades() {
     setGanttPage(1)
   }, [filterKey])
 
-  // ---------- Primary data fetch (analytics + page + drawdown) ----------
+  // ---------- Analytics + drawdown fetch (per filter set) ----------
+  // These don't change when the user just paginates the table, so they're
+  // scoped to filterKey only — no wasted RPCs on page navigation.
   useEffect(() => {
     let canceled = false
     async function load() {
-      setLoading(true)
       try {
-        const [a, p, dd] = await Promise.all([
+        const [a, dd] = await Promise.all([
           fetchTradesAnalytics(queryFilters),
-          fetchTradesPage(queryFilters, {
-            limit:  TRADES_PER_PAGE,
-            offset: (currentPage - 1) * TRADES_PER_PAGE,
-          }),
           fetchMaxDrawdown(queryFilters),
         ])
         if (!canceled) {
           setAnalytics(a)
-          setPageData(p)
           setMaxDrawdown(dd)
+          setLoading(false)
         }
       } catch (err) {
-        console.error('Failed to load trades data:', err)
-      } finally {
+        console.error('Failed to load trades analytics:', err)
         if (!canceled) setLoading(false)
       }
     }
     load()
+    return () => { canceled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey])
+
+  // ---------- Trade table page fetch ----------
+  // Toggles pageLoading so the table can render skeleton rows during pagination
+  // (a separate signal from the full-page `loading` spinner used on first mount).
+  useEffect(() => {
+    let canceled = false
+    setPageLoading(true)
+    fetchTradesPage(queryFilters, {
+      limit:  TRADES_PER_PAGE,
+      offset: (currentPage - 1) * TRADES_PER_PAGE,
+    })
+      .then(p => { if (!canceled) setPageData(p) })
+      .catch(err => console.error('Failed to load trades page:', err))
+      .finally(() => { if (!canceled) setPageLoading(false) })
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, currentPage])
@@ -1032,6 +1104,27 @@ export default function Trades() {
 
   return (
     <div className="flex min-h-screen relative max-w-full">
+      {/* Shimmer keyframes for skeleton placeholders (table pagination loading). */}
+      <style>{`
+        @keyframes skeletonShimmer {
+          0%   { background-position: -150% 0; }
+          100% { background-position: 250% 0; }
+        }
+        .skeleton-shimmer {
+          background-color: rgba(255, 255, 255, 0.04);
+          background-image: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.14) 50%,
+            transparent 100%
+          );
+          background-size: 50% 100%;
+          background-repeat: no-repeat;
+          background-position: -50% 0;
+          animation: skeletonShimmer 1.4s ease-in-out infinite;
+        }
+      `}</style>
+
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
@@ -1446,61 +1539,69 @@ export default function Trades() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedTrades.map(trade => (
-                      <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
-                        <td>
-                          <span className="truncate max-w-[180px] block" title={getChannelName(trade.channel_id)}>
-                            {getChannelName(trade.channel_id)}
-                          </span>
-                        </td>
-                        <td className="font-semibold">{trade.symbol || '-'}</td>
-                        <td>
-                          <span className={`font-semibold ${trade.direction === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
-                            {trade.direction?.toUpperCase() || '-'}
-                          </span>
-                        </td>
-                        <td>{trade.order_type || '-'}</td>
-                        <td>{trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'}</td>
-                        <td>{trade.executed_tp_price?.toFixed(2) || '-'}</td>
-                        <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
-                        <td>
-                          {(() => {
-                            if (trade.status === 'canceled') return <span className="text-gray-500">-</span>
-                            if (trade.profit_loss != null) {
-                              return (
-                                <span className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                  {trade.profit_loss >= 0 ? '+' : '-'}${Math.abs(trade.profit_loss).toFixed(2)}
-                                </span>
-                              )
-                            }
-                            return <span className="text-gray-500">-</span>
-                          })()}
-                        </td>
-                        <td>
-                          {(() => {
-                            const badgeClass = getStatusBadgeClass(trade)
-                            const textColorClass =
-                              badgeClass === 'badge-success'       ? 'text-green-400' :
-                              badgeClass === 'badge-danger'        ? 'text-red-400' :
-                              badgeClass === 'badge-warning'       ? 'text-orange-400' :
-                              badgeClass === 'badge-cancel-policy' ? 'badge-cancel-policy' :
-                              'text-gray-400'
-                            return (
-                              <span className={`font-medium uppercase ${textColorClass}`} style={{ fontSize: '11px', letterSpacing: '0.04em' }}>
-                                {getStatusDisplay(trade)}
+                    {pageLoading ? (
+                      Array.from({ length: Math.max(1, paginatedTrades.length || TRADES_PER_PAGE) }, (_, i) => (
+                        <SkeletonTableRow key={`skeleton-row-${i}`} />
+                      ))
+                    ) : (
+                      <>
+                        {paginatedTrades.map(trade => (
+                          <tr key={trade.id} className="transition-colors hover:bg-dark-tertiary/50">
+                            <td>
+                              <span className="truncate max-w-[180px] block" title={getChannelName(trade.channel_id)}>
+                                {getChannelName(trade.channel_id)}
                               </span>
-                            )
-                          })()}
-                        </td>
-                        <td className="text-gray-500 text-xs sm:text-sm">
-                          {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                    {paginatedTrades.length === 0 && (
-                      <tr>
-                        <td colSpan={10} className="text-center text-gray-500 py-8">No trades found</td>
-                      </tr>
+                            </td>
+                            <td className="font-semibold">{trade.symbol || '-'}</td>
+                            <td>
+                              <span className={`font-semibold ${trade.direction === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                                {trade.direction?.toUpperCase() || '-'}
+                              </span>
+                            </td>
+                            <td>{trade.order_type || '-'}</td>
+                            <td>{trade.executed_entry_price?.toFixed(2) || trade.signal_entry_price?.toFixed(2) || '-'}</td>
+                            <td>{trade.executed_tp_price?.toFixed(2) || '-'}</td>
+                            <td>{trade.executed_sl_price?.toFixed(2) || trade.signal_sl_price?.toFixed(2) || '-'}</td>
+                            <td>
+                              {(() => {
+                                if (trade.status === 'canceled') return <span className="text-gray-500">-</span>
+                                if (trade.profit_loss != null) {
+                                  return (
+                                    <span className={trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                      {trade.profit_loss >= 0 ? '+' : '-'}${Math.abs(trade.profit_loss).toFixed(2)}
+                                    </span>
+                                  )
+                                }
+                                return <span className="text-gray-500">-</span>
+                              })()}
+                            </td>
+                            <td>
+                              {(() => {
+                                const badgeClass = getStatusBadgeClass(trade)
+                                const textColorClass =
+                                  badgeClass === 'badge-success'       ? 'text-green-400' :
+                                  badgeClass === 'badge-danger'        ? 'text-red-400' :
+                                  badgeClass === 'badge-warning'       ? 'text-orange-400' :
+                                  badgeClass === 'badge-cancel-policy' ? 'badge-cancel-policy' :
+                                  'text-gray-400'
+                                return (
+                                  <span className={`font-medium uppercase ${textColorClass}`} style={{ fontSize: '11px', letterSpacing: '0.04em' }}>
+                                    {getStatusDisplay(trade)}
+                                  </span>
+                                )
+                              })()}
+                            </td>
+                            <td className="text-gray-500 text-xs sm:text-sm">
+                              {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                        {paginatedTrades.length === 0 && (
+                          <tr>
+                            <td colSpan={10} className="text-center text-gray-500 py-8">No trades found</td>
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>
@@ -1508,7 +1609,12 @@ export default function Trades() {
 
               {/* Mobile cards */}
               <div className="md:hidden p-3 space-y-3">
-                {paginatedTrades.map(trade => {
+                {pageLoading && (
+                  Array.from({ length: Math.max(1, paginatedTrades.length || TRADES_PER_PAGE) }, (_, i) => (
+                    <SkeletonMobileCard key={`skeleton-card-${i}`} />
+                  ))
+                )}
+                {!pageLoading && paginatedTrades.map(trade => {
                   const badgeClass = getStatusBadgeClass(trade)
                   const statusColorClass =
                     badgeClass === 'badge-success'       ? 'text-green-400' :
@@ -1600,7 +1706,7 @@ export default function Trades() {
                     </div>
                   )
                 })}
-                {paginatedTrades.length === 0 && (
+                {!pageLoading && paginatedTrades.length === 0 && (
                   <div className="text-center text-gray-500 py-8 text-sm">No trades found</div>
                 )}
               </div>
