@@ -97,9 +97,9 @@ body {
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track {
-  background: var(--neu-bg);
-  box-shadow: var(--neu-pressed-sm);
-  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  border: none;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--neu-bg);
@@ -108,6 +108,8 @@ body {
   border: 2px solid var(--neu-bg);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--neu-bg-soft); }
+
+html { scrollbar-color: var(--neu-bg) transparent; scrollbar-width: thin; }
 
 /* ============================================================
    CARDS — raised neumorphic surfaces
