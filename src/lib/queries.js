@@ -113,6 +113,96 @@ export async function fetchMaxDrawdown(filters) {
 }
 
 
+// ---------- Trades page: per-trade points for the price chart ----------
+// The MT5-style price chart needs raw entry/exit time+price for every trade
+// matching the sidebar filters (not server-side aggregates). We read straight
+// from the `v_trades_with_channels` view — the same proven path as
+// supabase.fetchTrades — selecting full rows and mapping to lean points.
+//
+// Filters that the view supports are applied server-side; `weekdays` is applied
+// by the caller-facing filter here on the trade's signal time (UTC). Rows are
+// pulled in 1000-row batches to bypass Supabase's max-rows cap, and capped so a
+// huge history can't lock up the browser.
+
+const MARKERS_BATCH = 1000
+const MARKERS_CAP    = 20000
+
+export async function fetchTradeMarkers(filters = {}) {
+  const f = filters
+  const channelIds = f.channelIds ?? []
+  const weekdaySet = new Set(f.weekdays ?? [0, 1, 2, 3, 4, 5, 6])
+
+  const markers = []
+  let offset = 0
+  let hasMore = true
+
+  while (hasMore && markers.length < MARKERS_CAP) {
+    let query = supabase
+      .from('v_trades_with_channels')
+      .select('*', { count: 'exact' })
+      .order('signal_time', { ascending: true })
+      .range(offset, offset + MARKERS_BATCH - 1)
+
+    if (channelIds.length > 0)        query = query.in('channel_id', channelIds)
+    if ((f.showOrphaned ?? true) === false) query = query.eq('is_orphaned_channel', false)
+    if (f.startDate)                  query = query.gte('signal_time', f.startDate)
+    if (f.endDate)                    query = query.lte('signal_time', f.endDate)
+    if (f.status)                     query = query.eq('status', f.status)
+    if (f.direction)                  query = query.eq('direction', f.direction)
+    if (f.orderType)                  query = query.eq('order_type', f.orderType)
+
+    const { data, error, count } = await query
+    if (error) throw error
+
+    for (const row of data || []) {
+      const entryTime = toMs(row.execution_time || row.fill_time || row.signal_time)
+      const entryPrice = numOrNull(row.executed_entry_price ?? row.signal_entry_price)
+      if (entryTime == null || entryPrice == null) continue
+      if (!weekdaySet.has(new Date(entryTime).getUTCDay())) continue
+
+      const exitTime  = toMs(row.close_time)
+      const exitPrice = numOrNull(row.close_price)
+      markers.push({
+        id:         row.id,
+        tradeId:    row.trade_id,
+        channelId:  row.channel_id,
+        symbol:     row.symbol,
+        direction:  row.direction,
+        orderType:  row.order_type,
+        status:     row.status,
+        outcome:    row.outcome,
+        profitLoss: numOrNull(row.profit_loss),
+        entryTime,
+        entryPrice,
+        exitTime:   exitTime,
+        exitPrice:  exitTime != null && exitPrice != null ? exitPrice : null,
+      })
+    }
+
+    const fetched = (data || []).length
+    if (fetched < MARKERS_BATCH || (count != null && offset + fetched >= count)) {
+      hasMore = false
+    } else {
+      offset += MARKERS_BATCH
+    }
+  }
+
+  return markers
+}
+
+function toMs(value) {
+  if (!value) return null
+  const ms = new Date(value).getTime()
+  return Number.isFinite(ms) ? ms : null
+}
+
+function numOrNull(value) {
+  if (value == null) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+
 // ---------------------------------------------------------------------
 // Filter serialization — keeps RPC payloads consistent across pages.
 // ---------------------------------------------------------------------

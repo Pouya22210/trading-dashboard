@@ -5,7 +5,7 @@ import {
   Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
-  Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays
+  Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays, CandlestickChart
 } from 'lucide-react'
 
 import {
@@ -20,7 +20,10 @@ import {
   fetchTradesAnalytics,
   fetchDailyProfitCalendar,
   fetchMaxDrawdown,
+  fetchTradeMarkers,
 } from '../lib/queries'
+import { fetchCandles, hasCandleProvider } from '../lib/priceData'
+import TradePriceChart from '../components/TradePriceChart'
 
 
 // Color palette for channels
@@ -584,6 +587,15 @@ export default function Trades() {
   const [outcomePage, setOutcomePage] = useState(1)
   const [activeTab, setActiveTab] = useState('trades')
 
+  // ---------- Price chart (MT5-style) tab state ----------
+  const [chartMarkers, setChartMarkers]   = useState([])
+  const [chartMarkersLoading, setChartMarkersLoading] = useState(false)
+  const [chartSymbol, setChartSymbol]     = useState('')
+  const [chartTimeframe, setChartTimeframe] = useState('1h')
+  const [chartCandles, setChartCandles]   = useState([])
+  const [chartCandlesLoading, setChartCandlesLoading] = useState(false)
+  const [chartCandleNote, setChartCandleNote] = useState(null)
+
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() }
@@ -694,6 +706,22 @@ export default function Trades() {
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey])
+
+  // ---------- Price-chart markers fetch (only while the chart tab is open) ----------
+  // Pulls raw per-trade entry/exit points for the current filter set. Gated on
+  // the active tab so the heavier raw-row fetch never runs for users who don't
+  // open the chart.
+  useEffect(() => {
+    if (activeTab !== 'chart') return
+    let canceled = false
+    setChartMarkersLoading(true)
+    fetchTradeMarkers(queryFilters)
+      .then(m => { if (!canceled) setChartMarkers(m) })
+      .catch(err => { console.error('Failed to load chart markers:', err); if (!canceled) setChartMarkers([]) })
+      .finally(() => { if (!canceled) setChartMarkersLoading(false) })
+    return () => { canceled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey, activeTab])
 
   // ---------- Realtime: invalidate and refetch (debounced) ----------
   // The realtime subscription must be set up exactly once for the page's
@@ -987,6 +1015,78 @@ export default function Trades() {
       max: { year: ly, month: lm - 1 },
     }
   }, [dailyCalendar])
+
+  // ---------- Price chart derived data ----------
+  // Distinct symbols (with counts) present in the filtered marker set, busiest
+  // first — drives the symbol picker.
+  const chartSymbolOptions = useMemo(() => {
+    const counts = new Map()
+    for (const m of chartMarkers) {
+      if (!m.symbol) continue
+      counts.set(m.symbol, (counts.get(m.symbol) || 0) + 1)
+    }
+    return [...counts.entries()]
+      .map(([symbol, count]) => ({ symbol, count }))
+      .sort((a, b) => b.count - a.count || a.symbol.localeCompare(b.symbol))
+  }, [chartMarkers])
+
+  // Keep the selected symbol valid: default to the busiest one whenever the
+  // current selection isn't in the (re-filtered) option list.
+  useEffect(() => {
+    if (chartSymbolOptions.length === 0) {
+      if (chartSymbol !== '') setChartSymbol('')
+      return
+    }
+    if (!chartSymbolOptions.some(s => s.symbol === chartSymbol)) {
+      setChartSymbol(chartSymbolOptions[0].symbol)
+    }
+  }, [chartSymbolOptions, chartSymbol])
+
+  const chartTrades = useMemo(
+    () => chartMarkers.filter(m => m.symbol === chartSymbol),
+    [chartMarkers, chartSymbol]
+  )
+
+  // Time window the candles must cover (entry of first trade → exit of last).
+  const chartCandleRange = useMemo(() => {
+    if (chartTrades.length === 0) return null
+    let lo = Infinity, hi = -Infinity
+    for (const t of chartTrades) {
+      lo = Math.min(lo, t.entryTime)
+      hi = Math.max(hi, t.exitTime ?? t.entryTime)
+    }
+    const pad = Math.max((hi - lo) * 0.1, 6 * 3600_000)
+    return { startMs: lo - pad, endMs: hi + pad }
+  }, [chartTrades])
+
+  // Fetch background candles for the chosen symbol/timeframe/time-window.
+  useEffect(() => {
+    if (activeTab !== 'chart' || !chartSymbol || !chartCandleRange) {
+      setChartCandles([])
+      setChartCandleNote(null)
+      return
+    }
+    if (!hasCandleProvider()) {
+      setChartCandles([])
+      setChartCandleNote('no-key')
+      return
+    }
+    const ctrl = new AbortController()
+    setChartCandlesLoading(true)
+    fetchCandles({
+      symbol:    chartSymbol,
+      timeframe: chartTimeframe,
+      startMs:   chartCandleRange.startMs,
+      endMs:     chartCandleRange.endMs,
+      signal:    ctrl.signal,
+    })
+      .then(({ candles, reason }) => {
+        setChartCandles(candles)
+        setChartCandleNote(candles.length === 0 ? (reason || 'no-data') : null)
+      })
+      .finally(() => setChartCandlesLoading(false))
+    return () => ctrl.abort()
+  }, [activeTab, chartSymbol, chartTimeframe, chartCandleRange])
 
   // ---------- Pagination from server ----------
   const totalPages      = Math.max(1, Math.ceil(pageData.total / TRADES_PER_PAGE))
@@ -1469,6 +1569,7 @@ export default function Trades() {
           {(() => {
             const tabs = [
               { key: 'trades',               label: 'Trades',               icon: BarChart3   },
+              { key: 'chart',                label: 'Price Chart',          icon: CandlestickChart },
               { key: 'cumulative',           label: 'Cumulative P/L',       icon: TrendingUp  },
               { key: 'channel-activity',     label: 'Channel Activity',     icon: Calendar    },
               { key: 'market-sessions',      label: 'Market Sessions',      icon: Globe       },
@@ -1733,6 +1834,30 @@ export default function Trades() {
                 onPageChange={handlePageChange}
               />
             </div>
+          )}
+
+          {/* ============ Price Chart (MT5-style) ============ */}
+          {activeTab === 'chart' && (
+            <ChartCard title="Trades on Price Chart" icon={CandlestickChart} className="mb-6">
+              {chartMarkersLoading && chartMarkers.length === 0 ? (
+                <div className="flex items-center justify-center h-[460px] text-gray-500 text-sm">
+                  Loading trades…
+                </div>
+              ) : (
+                <TradePriceChart
+                  trades={chartTrades}
+                  candles={chartCandles}
+                  candlesLoading={chartCandlesLoading}
+                  candleNote={chartCandleNote}
+                  providerEnabled={hasCandleProvider()}
+                  symbolOptions={chartSymbolOptions}
+                  selectedSymbol={chartSymbol}
+                  onSelectSymbol={setChartSymbol}
+                  timeframe={chartTimeframe}
+                  onTimeframe={setChartTimeframe}
+                />
+              )}
+            </ChartCard>
           )}
 
           {/* ============ Cumulative P&L ============ */}
