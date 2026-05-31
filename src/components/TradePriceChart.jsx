@@ -121,7 +121,7 @@ export default function TradePriceChart({
   rangeCbRef.current = onVisibleRange
   useEffect(() => {
     if (!domain) return
-    const id = setTimeout(() => rangeCbRef.current(domain.t0, domain.t1), 350)
+    const id = setTimeout(() => rangeCbRef.current(domain.t0, domain.t1), 450)
     return () => clearTimeout(id)
   }, [domain])
 
@@ -513,7 +513,10 @@ export default function TradePriceChart({
       )}
       {providerEnabled && candleNote && !candlesLoading && trades.length > 0 && (
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500">
-          <Info className="w-3.5 h-3.5" /> No candles for this symbol/timeframe ({candleNote}). Trades are shown on a price grid.
+          <Info className="w-3.5 h-3.5" />
+          {candleNote === 'rate-limit'
+            ? 'Twelve Data rate limit reached (8 calls/min on the free plan) — candles will load in a moment. Trades are still shown.'
+            : `No candles for this symbol/timeframe (${candleNote}). Trades are shown on a price grid.`}
         </div>
       )}
 

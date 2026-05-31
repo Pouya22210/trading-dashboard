@@ -67,6 +67,38 @@ const tdDate = (ms) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ')
  * Always resolves (never throws to the caller) so a flaky price feed can't
  * blank out the trade overlay. Returns { candles, reason, tdSymbol }.
  */
+// In-memory candle cache, keyed by `${tdSymbol}|${interval}`. The free tier
+// allows only 8 calls/minute, so we remember the bars we've already pulled (and
+// which time windows we've already covered) and serve those without a network
+// call. This is what keeps panning/zooming and revisiting views from tripping
+// HTTP 429. Lives for the page session only.
+const candleCache = new Map()
+
+function mergeCandles(existing, incoming) {
+  const byTime = new Map()
+  for (const c of existing) byTime.set(c.t, c)
+  for (const c of incoming) byTime.set(c.t, c)
+  return [...byTime.values()].sort((a, b) => a.t - b.t)
+}
+
+// Covered windows are stored as merged [s, e] intervals so we can tell whether
+// a requested window has already been fetched (even across weekend gaps where
+// the data itself is empty).
+function addCovered(covered, s, e) {
+  const out = [...covered, [s, e]].sort((a, b) => a[0] - b[0])
+  const merged = [out[0]]
+  for (let i = 1; i < out.length; i++) {
+    const last = merged[merged.length - 1]
+    if (out[i][0] <= last[1]) last[1] = Math.max(last[1], out[i][1])
+    else merged.push(out[i])
+  }
+  return merged
+}
+
+function isCovered(covered, s, e) {
+  return covered.some(([cs, ce]) => s >= cs && e <= ce)
+}
+
 export async function fetchCandles({ symbol, timeframe, startMs, endMs, signal } = {}) {
   const tdSymbol = toProviderSymbol(symbol)
   if (!TD_KEY) return { candles: [], reason: 'no-key', tdSymbol }
@@ -83,6 +115,13 @@ export async function fetchCandles({ symbol, timeframe, startMs, endMs, signal }
     startMs = endMs - MAX_BARS * tf.ms
   }
 
+  // ---- cache hit: window already fetched -> no API call ----
+  const cacheKey = `${tdSymbol}|${tf.tdInterval}`
+  const entry = candleCache.get(cacheKey) || { candles: [], covered: [] }
+  if (startMs && endMs && isCovered(entry.covered, startMs, endMs)) {
+    return { candles: entry.candles, reason: entry.candles.length ? null : 'no-data', tdSymbol, cached: true }
+  }
+
   const params = new URLSearchParams({
     symbol:     tdSymbol,
     interval:   tf.tdInterval,
@@ -94,12 +133,20 @@ export async function fetchCandles({ symbol, timeframe, startMs, endMs, signal }
   if (startMs) params.set('start_date', tdDate(startMs))
   if (endMs)   params.set('end_date',   tdDate(endMs))
 
+  // On any failure we keep showing whatever we already have cached for this
+  // symbol/timeframe rather than blanking the chart.
+  const fallback = (reason) => ({ candles: entry.candles, reason: entry.candles.length ? 'rate-limit-cached' : reason, tdSymbol })
+
   try {
     const res = await fetch(`https://api.twelvedata.com/time_series?${params.toString()}`, { signal })
-    if (!res.ok) return { candles: [], reason: `http-${res.status}`, tdSymbol }
+    if (res.status === 429) return fallback('rate-limit')
+    if (!res.ok) return fallback(`http-${res.status}`)
     const json = await res.json()
-    if (json.status === 'error') return { candles: [], reason: json.message || 'provider-error', tdSymbol }
-    const candles = (json.values || [])
+    // TD also signals rate limiting with a 429 code inside a 200 body.
+    if (json.status === 'error') {
+      return fallback(json.code === 429 ? 'rate-limit' : (json.message || 'provider-error'))
+    }
+    const fresh = (json.values || [])
       .map(v => ({
         t: parseTdDatetime(v.datetime),
         o: parseFloat(v.open),
@@ -108,11 +155,17 @@ export async function fetchCandles({ symbol, timeframe, startMs, endMs, signal }
         c: parseFloat(v.close),
       }))
       .filter(c => Number.isFinite(c.t) && Number.isFinite(c.o))
-      .sort((a, b) => a.t - b.t)
-    return { candles, reason: null, tdSymbol }
+
+    // merge into cache + record the window we just covered
+    const candles = mergeCandles(entry.candles, fresh)
+    candleCache.set(cacheKey, {
+      candles,
+      covered: startMs && endMs ? addCovered(entry.covered, startMs, endMs) : entry.covered,
+    })
+    return { candles, reason: candles.length ? null : 'no-data', tdSymbol }
   } catch (err) {
-    if (err?.name === 'AbortError') return { candles: [], reason: 'aborted', tdSymbol }
+    if (err?.name === 'AbortError') return { candles: entry.candles, reason: 'aborted', tdSymbol }
     console.warn('[priceData] candle fetch failed:', err?.message || err)
-    return { candles: [], reason: 'fetch-failed', tdSymbol }
+    return fallback('fetch-failed')
   }
 }
