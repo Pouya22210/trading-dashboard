@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Maximize2, Loader2, Info } from 'lucide-react'
+import { ChevronsRight, Loader2, Info } from 'lucide-react'
 import { CHART_TIMEFRAMES } from '../lib/priceData'
 
 // MT5-style price chart: candlestick background + every trade drawn from its
@@ -8,12 +8,13 @@ import { CHART_TIMEFRAMES } from '../lib/priceData'
 
 const BUY_COLOR  = '#4DA8FF'
 const SELL_COLOR = '#FF5C5C'
-const UP_COLOR   = '#3fb950'
-const DOWN_COLOR = '#f85149'
+const UP_COLOR   = '#0ECB81' // CoinEx-style green/teal candle
+const DOWN_COLOR = '#F6465D' // CoinEx-style red candle
 const GRID_COLOR = 'rgba(255,255,255,0.06)'
 const AXIS_COLOR = '#6e7681'
 
-const MARGIN = { top: 14, right: 64, bottom: 26, left: 10 }
+const MARGIN        = { top: 14, right: 64, bottom: 26, left: 10 } // desktop/tablet
+const MOBILE_MARGIN = { top: 14, right: 0,  bottom: 22, left: 0 }  // full-bleed, labels overlay
 
 const dirColor = (d) => (d === 'sell' ? SELL_COLOR : BUY_COLOR)
 
@@ -106,10 +107,20 @@ export default function TradePriceChart({
     return { lo: lo - pad, hi: hi + pad }
   }, [trades, candles])
 
+  // Jump to the latest candle/trade, keeping the current zoom level, and pin the
+  // newest data near the right edge (like hitting "go to realtime" on a broker).
   const fit = useCallback(() => {
-    setDomain({ t0: dataRange.lo, t1: dataRange.hi })
-    setPriceDomain(null) // back to auto price-fit
-  }, [dataRange])
+    const tfMs = CHART_TIMEFRAMES.find(t => t.key === timeframe)?.ms || 3600_000
+    let latest = -Infinity
+    for (const t of trades) latest = Math.max(latest, t.exitTime ?? t.entryTime)
+    for (const c of candles) latest = Math.max(latest, c.t)
+    if (!Number.isFinite(latest)) latest = Date.now()
+    // keep the current zoom if already zoomed in, otherwise show ~100 recent bars
+    const span = Math.min(domain ? (domain.t1 - domain.t0) : tfMs * 100, tfMs * 100)
+    const rightPad = span * 0.06
+    setDomain({ t0: latest + rightPad - span, t1: latest + rightPad })
+    setPriceDomain(null) // let price auto-fit to the latest region
+  }, [trades, candles, timeframe, domain])
 
   // Reset the view whenever the symbol changes (new price scale & range).
   useEffect(() => { setDomain({ t0: dataRange.lo, t1: dataRange.hi }); setPriceDomain(null) }, [selectedSymbol]) // eslint-disable-line
@@ -127,12 +138,18 @@ export default function TradePriceChart({
     return () => clearTimeout(id)
   }, [domain])
 
-  const plot = useMemo(() => ({
-    x: MARGIN.left,
-    y: MARGIN.top,
-    w: Math.max(0, dims.w - MARGIN.left - MARGIN.right),
-    h: Math.max(0, dims.h - MARGIN.top - MARGIN.bottom),
-  }), [dims])
+  const isMobile = dims.w > 0 && dims.w < 640
+
+  const plot = useMemo(() => {
+    const m = dims.w > 0 && dims.w < 640 ? MOBILE_MARGIN : MARGIN
+    return {
+      x: m.left,
+      y: m.top,
+      w: Math.max(0, dims.w - m.left - m.right),
+      h: Math.max(0, dims.h - m.top - m.bottom),
+      m,
+    }
+  }, [dims])
 
   // ---- scales (price domain derived from what's visible) ----
   const view = useMemo(() => {
@@ -329,20 +346,30 @@ export default function TradePriceChart({
     }
   }
 
-  // ---- axis ticks ----
+  // ---- axis ticks (fewer gridlines on mobile) ----
   const priceTicks = useMemo(() => {
     if (!view) return { out: [], step: 1 }
-    return ticks(view.pMin, view.pMax, 5)
-  }, [view])
+    return ticks(view.pMin, view.pMax, isMobile ? 4 : 5)
+  }, [view, isMobile])
   const timeTickVals = useMemo(() => {
     if (!view) return []
-    const approx = 6
+    const approx = isMobile ? 4 : 6
     const step = niceStep(view.span / approx)
     const start = Math.ceil(view.t0 / step) * step
     const out = []
     for (let v = start; v <= view.t1; v += step) out.push(v)
     return out
-  }, [view])
+  }, [view, isMobile])
+
+  // Compact "MM-DD HH:mm" date formatter used for the mobile time axis.
+  const fmtTimeAxis = (ms) => {
+    if (!isMobile) return fmtTime(ms, view.span)
+    const d = new Date(ms)
+    const p = (n) => String(n).padStart(2, '0')
+    return view.span <= 5 * 24 * 3600_000
+      ? `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+      : `${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }
 
   const pFmt = priceFormatter(priceTicks.step || 1)
 
@@ -397,9 +424,9 @@ export default function TradePriceChart({
         <button
           onClick={fit}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs rounded-lg bg-dark-tertiary text-gray-300 hover:text-white transition-colors"
-          title="Fit all trades into view"
+          title="Jump to the latest candle"
         >
-          <Maximize2 className="w-3.5 h-3.5" /> Fit
+          <ChevronsRight className="w-3.5 h-3.5" /> Latest
         </button>
 
         {/* legend */}
@@ -431,14 +458,19 @@ export default function TradePriceChart({
       >
         {dims.w > 0 && view && (
           <svg width={dims.w} height={dims.h} style={{ display: 'block' }}>
-            {/* grid + price axis (right) */}
+            {/* grid + price axis. On mobile the label sits above the gridline at the
+                right edge (no right margin); on desktop it's in the right gutter. */}
             {priceTicks.out.map((p, i) => {
               const y = view.yOf(p)
               if (y < plot.y - 1 || y > plot.y + plot.h + 1) return null
               return (
                 <g key={`py-${i}`}>
                   <line x1={plot.x} x2={plot.x + plot.w} y1={y} y2={y} stroke={GRID_COLOR} />
-                  <text x={plot.x + plot.w + 6} y={y + 3} fontSize={10} fill={AXIS_COLOR}>{pFmt(p)}</text>
+                  {isMobile ? (
+                    <text x={plot.x + plot.w - 3} y={y - 4} fontSize={10} fill={AXIS_COLOR} textAnchor="end">{pFmt(p)}</text>
+                  ) : (
+                    <text x={plot.x + plot.w + 6} y={y + 3} fontSize={10} fill={AXIS_COLOR}>{pFmt(p)}</text>
+                  )}
                 </g>
               )
             })}
@@ -447,11 +479,14 @@ export default function TradePriceChart({
             {timeTickVals.map((t, i) => {
               const x = view.xOf(t)
               if (x < plot.x - 1 || x > plot.x + plot.w + 1) return null
+              // keep edge labels from being clipped on the full-bleed mobile axis
+              const anchor = x < 30 ? 'start' : x > plot.x + plot.w - 30 ? 'end' : 'middle'
+              const tx = anchor === 'start' ? plot.x + 2 : anchor === 'end' ? plot.x + plot.w - 2 : x
               return (
                 <g key={`tx-${i}`}>
                   <line x1={x} x2={x} y1={plot.y} y2={plot.y + plot.h} stroke={GRID_COLOR} />
-                  <text x={x} y={plot.y + plot.h + 16} fontSize={10} fill={AXIS_COLOR} textAnchor="middle">
-                    {fmtTime(t, view.span)}
+                  <text x={tx} y={plot.y + plot.h + 15} fontSize={10} fill={AXIS_COLOR} textAnchor={anchor}>
+                    {fmtTimeAxis(t)}
                   </text>
                 </g>
               )
@@ -467,8 +502,8 @@ export default function TradePriceChart({
               const bodyH = Math.max(1, Math.abs(yC - yO))
               return (
                 <g key={`c-${i}`}>
-                  <line x1={x} x2={x} y1={view.yOf(c.h)} y2={view.yOf(c.l)} stroke={col} strokeWidth={1} opacity={0.55} />
-                  <rect x={x - candleW / 2} y={bodyTop} width={candleW} height={bodyH} fill={col} opacity={0.45} />
+                  <line x1={x} x2={x} y1={view.yOf(c.h)} y2={view.yOf(c.l)} stroke={col} strokeWidth={1} />
+                  <rect x={x - candleW / 2} y={bodyTop} width={candleW} height={bodyH} fill={col} />
                 </g>
               )
             })}
@@ -507,8 +542,17 @@ export default function TradePriceChart({
               <g pointerEvents="none">
                 <line x1={hover.px} x2={hover.px} y1={plot.y} y2={plot.y + plot.h} stroke="rgba(255,255,255,0.25)" strokeDasharray="3 3" />
                 <line x1={plot.x} x2={plot.x + plot.w} y1={hover.py} y2={hover.py} stroke="rgba(255,255,255,0.25)" strokeDasharray="3 3" />
-                <rect x={plot.x + plot.w} y={hover.py - 8} width={MARGIN.right} height={16} fill="#0d1117" />
-                <text x={plot.x + plot.w + 6} y={hover.py + 3} fontSize={10} fill="#fff">{pFmt(hover.price)}</text>
+                {isMobile ? (
+                  <>
+                    <rect x={plot.x + plot.w - 52} y={hover.py - 8} width={52} height={16} fill="#0d1117" rx={2} />
+                    <text x={plot.x + plot.w - 3} y={hover.py + 3} fontSize={10} fill="#fff" textAnchor="end">{pFmt(hover.price)}</text>
+                  </>
+                ) : (
+                  <>
+                    <rect x={plot.x + plot.w} y={hover.py - 8} width={plot.m.right} height={16} fill="#0d1117" />
+                    <text x={plot.x + plot.w + 6} y={hover.py + 3} fontSize={10} fill="#fff">{pFmt(hover.price)}</text>
+                  </>
+                )}
               </g>
             )}
           </svg>
