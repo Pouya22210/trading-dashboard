@@ -72,6 +72,7 @@ export default function TradePriceChart({
   const wrapRef = useRef(null)
   const [dims, setDims] = useState({ w: 0, h: 460 })
   const [domain, setDomain] = useState(null) // { t0, t1 } visible time window in ms
+  const [priceDomain, setPriceDomain] = useState(null) // { min, max } when the price scale is locked; null = auto-fit
   const [hover, setHover] = useState(null)
   const dragRef = useRef(null)
   const touchRef = useRef(null)
@@ -107,10 +108,11 @@ export default function TradePriceChart({
 
   const fit = useCallback(() => {
     setDomain({ t0: dataRange.lo, t1: dataRange.hi })
+    setPriceDomain(null) // back to auto price-fit
   }, [dataRange])
 
   // Reset the view whenever the symbol changes (new price scale & range).
-  useEffect(() => { setDomain({ t0: dataRange.lo, t1: dataRange.hi }) }, [selectedSymbol]) // eslint-disable-line
+  useEffect(() => { setDomain({ t0: dataRange.lo, t1: dataRange.hi }); setPriceDomain(null) }, [selectedSymbol]) // eslint-disable-line
   // First mount / when a window doesn't exist yet.
   useEffect(() => { if (!domain) setDomain({ t0: dataRange.lo, t1: dataRange.hi }) }, [domain, dataRange])
 
@@ -153,13 +155,16 @@ export default function TradePriceChart({
     const pPad = (pMax - pMin) * 0.08
     pMin -= pPad; pMax += pPad
 
+    // Locked (manually dragged) price scale overrides the auto-fit.
+    if (priceDomain) { pMin = priceDomain.min; pMax = priceDomain.max }
+
     const xOf = (t) => plot.x + ((t - t0) / span) * plot.w
     const yOf = (p) => plot.y + (1 - (p - pMin) / (pMax - pMin)) * plot.h
     const tOf = (px) => t0 + ((px - plot.x) / plot.w) * span
     const pOf = (py) => pMin + (1 - (py - plot.y) / plot.h) * (pMax - pMin)
 
     return { t0, t1, span, pMin, pMax, visCandles, xOf, yOf, tOf, pOf }
-  }, [domain, plot, candles, trades])
+  }, [domain, plot, candles, trades, priceDomain])
 
   // ---- interaction: wheel zoom (native listener so we can preventDefault) ----
   useEffect(() => {
@@ -214,30 +219,63 @@ export default function TradePriceChart({
     return Math.min(maxSpan, Math.max(minSpan, span))
   }
 
+  // Pointer is over the right-hand price-axis strip (drag here to rescale price).
+  const inPriceAxis = (px) => px >= plot.x + plot.w
+
+  // Vertical drag distance -> new locked price scale, centered on the old range.
+  const scalePrice = (startMin, startMax, dy) => {
+    const factor = Math.max(0.1, 1 + dy * 0.005) // drag down = zoom out, up = zoom in
+    const center = (startMin + startMax) / 2
+    const half = ((startMax - startMin) / 2) * factor
+    if (half > 0) setPriceDomain({ min: center - half, max: center + half })
+  }
+
   // ---- mouse ----
-  const onMouseDown = (e) => { dragRef.current = { x: e.clientX, t0: domain?.t0, t1: domain?.t1 } }
+  const onMouseDown = (e) => {
+    if (!view) return
+    const { px } = localPos(e.clientX, e.clientY)
+    if (inPriceAxis(px)) {
+      dragRef.current = { mode: 'price', y: e.clientY, min: view.pMin, max: view.pMax }
+    } else {
+      dragRef.current = { mode: 'time', x: e.clientX, t0: domain?.t0, t1: domain?.t1 }
+    }
+  }
   const onMouseUp = () => { dragRef.current = null }
   const onMouseLeave = () => { dragRef.current = null; setHover(null) }
 
   const onMouseMove = (e) => {
     if (!wrapRef.current || !view) return
-    const { px, py } = localPos(e.clientX, e.clientY)
-    if (dragRef.current && (e.buttons & 1)) {
-      const span = dragRef.current.t1 - dragRef.current.t0
-      const shift = ((e.clientX - dragRef.current.x) / plot.w) * span
-      setDomain({ t0: dragRef.current.t0 - shift, t1: dragRef.current.t1 - shift })
+    const d = dragRef.current
+    if (d && (e.buttons & 1)) {
+      if (d.mode === 'price') { scalePrice(d.min, d.max, e.clientY - d.y); return }
+      const span = d.t1 - d.t0
+      const shift = ((e.clientX - d.x) / plot.w) * span
+      setDomain({ t0: d.t0 - shift, t1: d.t1 - shift })
       return
     }
+    const { px, py } = localPos(e.clientX, e.clientY)
     setHover(hoverAt(px, py, 12))
+  }
+
+  // Double-click the price axis resets it to auto-fit; elsewhere fits everything.
+  const onDoubleClick = (e) => {
+    const { px } = localPos(e.clientX, e.clientY)
+    if (inPriceAxis(px)) setPriceDomain(null)
+    else fit()
   }
 
   // ---- touch (one finger = pan + crosshair, two fingers = pinch zoom) ----
   const onTouchStart = (e) => {
-    if (!domain || !wrapRef.current) return
+    if (!domain || !wrapRef.current || !view) return
     if (e.touches.length === 1) {
       const t = e.touches[0]
-      touchRef.current = { mode: 'pan', x: t.clientX, t0: domain.t0, t1: domain.t1 }
       const { px, py } = localPos(t.clientX, t.clientY)
+      if (inPriceAxis(px)) {
+        touchRef.current = { mode: 'price', y: t.clientY, min: view.pMin, max: view.pMax }
+        setHover(null)
+        return
+      }
+      touchRef.current = { mode: 'pan', x: t.clientX, t0: domain.t0, t1: domain.t1 }
       setHover(hoverAt(px, py, 18))
     } else if (e.touches.length >= 2) {
       const [a, b] = [e.touches[0], e.touches[1]]
@@ -253,6 +291,10 @@ export default function TradePriceChart({
   const onTouchMove = (e) => {
     const st = touchRef.current
     if (!st || !view) return
+    if (st.mode === 'price' && e.touches.length === 1) {
+      scalePrice(st.min, st.max, e.touches[0].clientY - st.y)
+      return
+    }
     if (st.mode === 'pan' && e.touches.length === 1) {
       const t = e.touches[0]
       const span = st.t1 - st.t0
@@ -360,11 +402,16 @@ export default function TradePriceChart({
       <div
         ref={wrapRef}
         className="relative w-full select-none"
-        style={{ height: dims.h, cursor: dragRef.current ? 'grabbing' : 'crosshair', touchAction: 'none' }}
+        style={{
+          height: dims.h,
+          cursor: dragRef.current?.mode === 'price' ? 'ns-resize' : dragRef.current ? 'grabbing' : 'crosshair',
+          touchAction: 'none',
+        }}
         onMouseDown={onMouseDown}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
+        onDoubleClick={onDoubleClick}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -455,6 +502,19 @@ export default function TradePriceChart({
           </svg>
         )}
 
+        {/* manual price-scale indicator / reset */}
+        {priceDomain && (
+          <button
+            onClick={() => setPriceDomain(null)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className="absolute top-2 right-2 z-10 text-[10px] px-2 py-1 rounded-md bg-dark-tertiary text-gray-300 hover:text-white transition-colors"
+            title="Reset price scale to auto-fit"
+          >
+            Auto scale
+          </button>
+        )}
+
         {/* empty / no-symbol states */}
         {noData && (
           <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
@@ -521,7 +581,7 @@ export default function TradePriceChart({
       )}
 
       <div className="mt-2 text-[10px] text-gray-600">
-        Scroll or pinch to zoom · drag/swipe to pan · tap or hover a point for trade details.
+        Scroll or pinch to zoom · drag/swipe to pan · drag the price axis (right) to rescale, double-click it to auto-fit · tap or hover a point for details.
       </div>
     </div>
   )
