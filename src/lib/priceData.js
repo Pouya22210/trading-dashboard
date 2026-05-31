@@ -73,6 +73,16 @@ export async function fetchCandles({ symbol, timeframe, startMs, endMs, signal }
   if (!tdSymbol) return { candles: [], reason: 'no-symbol', tdSymbol }
 
   const tf = CHART_TIMEFRAMES.find(t => t.key === timeframe) || CHART_TIMEFRAMES[4]
+
+  // Twelve Data caps each response at 5000 bars. If the requested window holds
+  // more bars than that (common for M1/M5 over a wide range), pull the most
+  // recent slice that fits so we always return candles for the visible area
+  // instead of an empty/mismatched page.
+  const MAX_BARS = 5000
+  if (startMs && endMs && (endMs - startMs) / tf.ms > MAX_BARS) {
+    startMs = endMs - MAX_BARS * tf.ms
+  }
+
   const params = new URLSearchParams({
     symbol:     tdSymbol,
     interval:   tf.tdInterval,

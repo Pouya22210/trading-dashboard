@@ -595,6 +595,7 @@ export default function Trades() {
   const [chartCandles, setChartCandles]   = useState([])
   const [chartCandlesLoading, setChartCandlesLoading] = useState(false)
   const [chartCandleNote, setChartCandleNote] = useState(null)
+  const [chartView, setChartView]         = useState(null) // visible {t0,t1}, reported by the chart
 
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
@@ -1047,21 +1048,13 @@ export default function Trades() {
     [chartMarkers, chartSymbol]
   )
 
-  // Time window the candles must cover (entry of first trade → exit of last).
-  const chartCandleRange = useMemo(() => {
-    if (chartTrades.length === 0) return null
-    let lo = Infinity, hi = -Infinity
-    for (const t of chartTrades) {
-      lo = Math.min(lo, t.entryTime)
-      hi = Math.max(hi, t.exitTime ?? t.entryTime)
-    }
-    const pad = Math.max((hi - lo) * 0.1, 6 * 3600_000)
-    return { startMs: lo - pad, endMs: hi + pad }
-  }, [chartTrades])
-
-  // Fetch background candles for the chosen symbol/timeframe/time-window.
+  // Fetch background candles for whatever time window the chart is showing.
+  // The chart reports its visible range (debounced); we pad it a little and ask
+  // the provider for that slice. Driving off the *view* — not the full trade
+  // history — is what lets M1/M5 work, since the provider caps each response at
+  // 5000 bars and can't span months of minute data at once.
   useEffect(() => {
-    if (activeTab !== 'chart' || !chartSymbol || !chartCandleRange) {
+    if (activeTab !== 'chart' || !chartSymbol || !chartView) {
       setChartCandles([])
       setChartCandleNote(null)
       return
@@ -1071,13 +1064,15 @@ export default function Trades() {
       setChartCandleNote('no-key')
       return
     }
+    const span = Math.max(chartView.t1 - chartView.t0, 60_000)
+    const pad  = span * 0.3
     const ctrl = new AbortController()
     setChartCandlesLoading(true)
     fetchCandles({
       symbol:    chartSymbol,
       timeframe: chartTimeframe,
-      startMs:   chartCandleRange.startMs,
-      endMs:     chartCandleRange.endMs,
+      startMs:   chartView.t0 - pad,
+      endMs:     chartView.t1 + pad,
       signal:    ctrl.signal,
     })
       .then(({ candles, reason }) => {
@@ -1086,7 +1081,7 @@ export default function Trades() {
       })
       .finally(() => setChartCandlesLoading(false))
     return () => ctrl.abort()
-  }, [activeTab, chartSymbol, chartTimeframe, chartCandleRange])
+  }, [activeTab, chartSymbol, chartTimeframe, chartView])
 
   // ---------- Pagination from server ----------
   const totalPages      = Math.max(1, Math.ceil(pageData.total / TRADES_PER_PAGE))
@@ -1855,6 +1850,7 @@ export default function Trades() {
                   onSelectSymbol={setChartSymbol}
                   timeframe={chartTimeframe}
                   onTimeframe={setChartTimeframe}
+                  onVisibleRange={(t0, t1) => setChartView({ t0, t1 })}
                 />
               )}
             </ChartCard>

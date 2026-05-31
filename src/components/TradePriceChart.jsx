@@ -67,20 +67,22 @@ export default function TradePriceChart({
   onSelectSymbol = () => {},
   timeframe = '1h',
   onTimeframe = () => {},
+  onVisibleRange = () => {},  // (t0, t1) debounced — lets the parent fetch candles for the view
 }) {
   const wrapRef = useRef(null)
   const [dims, setDims] = useState({ w: 0, h: 460 })
   const [domain, setDomain] = useState(null) // { t0, t1 } visible time window in ms
   const [hover, setHover] = useState(null)
   const dragRef = useRef(null)
+  const touchRef = useRef(null)
 
-  // ---- responsive sizing ----
+  // ---- responsive sizing (shorter on phones so it doesn't swallow the screen) ----
   useLayoutEffect(() => {
     const el = wrapRef.current
     if (!el) return
     const ro = new ResizeObserver(entries => {
-      const cr = entries[0].contentRect
-      setDims({ w: Math.max(0, cr.width), h: 460 })
+      const w = Math.max(0, entries[0].contentRect.width)
+      setDims({ w, h: w < 640 ? 340 : 460 })
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -111,6 +113,17 @@ export default function TradePriceChart({
   useEffect(() => { setDomain({ t0: dataRange.lo, t1: dataRange.hi }) }, [selectedSymbol]) // eslint-disable-line
   // First mount / when a window doesn't exist yet.
   useEffect(() => { if (!domain) setDomain({ t0: dataRange.lo, t1: dataRange.hi }) }, [domain, dataRange])
+
+  // Report the visible time window to the parent (debounced) so it can fetch
+  // candles that cover exactly what's on screen — essential for M1/M5 where the
+  // provider's 5000-bar cap can't span the whole history at once.
+  const rangeCbRef = useRef(onVisibleRange)
+  rangeCbRef.current = onVisibleRange
+  useEffect(() => {
+    if (!domain) return
+    const id = setTimeout(() => rangeCbRef.current(domain.t0, domain.t1), 350)
+    return () => clearTimeout(id)
+  }, [domain])
 
   const plot = useMemo(() => ({
     x: MARGIN.left,
@@ -170,28 +183,11 @@ export default function TradePriceChart({
     return () => el.removeEventListener('wheel', onWheel)
   }, [domain, plot, timeframe, dataRange])
 
-  const onMouseDown = (e) => { dragRef.current = { x: e.clientX, t0: domain?.t0, t1: domain?.t1 } }
-  const onMouseUp = () => { dragRef.current = null }
-  const onMouseLeave = () => { dragRef.current = null; setHover(null) }
-
-  const onMouseMove = (e) => {
-    const el = wrapRef.current
-    if (!el || !view) return
-    const rect = el.getBoundingClientRect()
-    const px = e.clientX - rect.left
-    const py = e.clientY - rect.top
-
-    // panning
-    if (dragRef.current && (e.buttons & 1)) {
-      const dx = e.clientX - dragRef.current.x
-      const span = dragRef.current.t1 - dragRef.current.t0
-      const shift = (dx / plot.w) * span
-      setDomain({ t0: dragRef.current.t0 - shift, t1: dragRef.current.t1 - shift })
-      return
-    }
-
-    // crosshair + nearest trade point
-    let nearest = null, nearestDist = 12 * 12
+  // crosshair + nearest trade point for a pixel position (shared by mouse & touch)
+  const hoverAt = (px, py, hitRadius) => {
+    if (!view) return null
+    const r2 = hitRadius * hitRadius
+    let nearest = null, nearestDist = r2
     for (const tr of trades) {
       const points = [
         { kind: 'entry', t: tr.entryTime, p: tr.entryPrice },
@@ -204,7 +200,79 @@ export default function TradePriceChart({
         if (d < nearestDist) { nearestDist = d; nearest = { tr, ...pt } }
       }
     }
-    setHover({ px, py, time: view.tOf(px), price: view.pOf(py), nearest })
+    return { px, py, time: view.tOf(px), price: view.pOf(py), nearest }
+  }
+
+  const localPos = (clientX, clientY) => {
+    const rect = wrapRef.current.getBoundingClientRect()
+    return { px: clientX - rect.left, py: clientY - rect.top }
+  }
+
+  const spanClamp = (span) => {
+    const minSpan = (CHART_TIMEFRAMES.find(t => t.key === timeframe)?.ms || 3600_000) * 6
+    const maxSpan = Math.max((dataRange.hi - dataRange.lo) * 4, minSpan * 10)
+    return Math.min(maxSpan, Math.max(minSpan, span))
+  }
+
+  // ---- mouse ----
+  const onMouseDown = (e) => { dragRef.current = { x: e.clientX, t0: domain?.t0, t1: domain?.t1 } }
+  const onMouseUp = () => { dragRef.current = null }
+  const onMouseLeave = () => { dragRef.current = null; setHover(null) }
+
+  const onMouseMove = (e) => {
+    if (!wrapRef.current || !view) return
+    const { px, py } = localPos(e.clientX, e.clientY)
+    if (dragRef.current && (e.buttons & 1)) {
+      const span = dragRef.current.t1 - dragRef.current.t0
+      const shift = ((e.clientX - dragRef.current.x) / plot.w) * span
+      setDomain({ t0: dragRef.current.t0 - shift, t1: dragRef.current.t1 - shift })
+      return
+    }
+    setHover(hoverAt(px, py, 12))
+  }
+
+  // ---- touch (one finger = pan + crosshair, two fingers = pinch zoom) ----
+  const onTouchStart = (e) => {
+    if (!domain || !wrapRef.current) return
+    if (e.touches.length === 1) {
+      const t = e.touches[0]
+      touchRef.current = { mode: 'pan', x: t.clientX, t0: domain.t0, t1: domain.t1 }
+      const { px, py } = localPos(t.clientX, t.clientY)
+      setHover(hoverAt(px, py, 18))
+    } else if (e.touches.length >= 2) {
+      const [a, b] = [e.touches[0], e.touches[1]]
+      const dist = Math.max(1, Math.abs(a.clientX - b.clientX))
+      const { px } = localPos((a.clientX + b.clientX) / 2, 0)
+      const span = domain.t1 - domain.t0
+      const centerTime = domain.t0 + ((px - plot.x) / plot.w) * span
+      touchRef.current = { mode: 'pinch', dist, span, centerTime, leftFrac: (centerTime - domain.t0) / span }
+      setHover(null)
+    }
+  }
+
+  const onTouchMove = (e) => {
+    const st = touchRef.current
+    if (!st || !view) return
+    if (st.mode === 'pan' && e.touches.length === 1) {
+      const t = e.touches[0]
+      const span = st.t1 - st.t0
+      const shift = ((t.clientX - st.x) / plot.w) * span
+      setDomain({ t0: st.t0 - shift, t1: st.t1 - shift })
+      const { px, py } = localPos(t.clientX, t.clientY)
+      setHover(hoverAt(px, py, 18))
+    } else if (st.mode === 'pinch' && e.touches.length >= 2) {
+      const dist = Math.max(1, Math.abs(e.touches[0].clientX - e.touches[1].clientX))
+      const newSpan = spanClamp(st.span * (st.dist / dist))
+      setDomain({ t0: st.centerTime - st.leftFrac * newSpan, t1: st.centerTime + (1 - st.leftFrac) * newSpan })
+    }
+  }
+
+  const onTouchEnd = (e) => {
+    if (e.touches.length === 0) { touchRef.current = null; return }
+    // dropped from two fingers to one → continue panning from the remaining touch
+    if (e.touches.length === 1 && domain) {
+      touchRef.current = { mode: 'pan', x: e.touches[0].clientX, t0: domain.t0, t1: domain.t1 }
+    }
   }
 
   // ---- axis ticks ----
@@ -297,6 +365,10 @@ export default function TradePriceChart({
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
       >
         {dims.w > 0 && view && (
           <svg width={dims.w} height={dims.h} style={{ display: 'block' }}>
@@ -446,7 +518,7 @@ export default function TradePriceChart({
       )}
 
       <div className="mt-2 text-[10px] text-gray-600">
-        Scroll to zoom · drag to pan · hover a point for trade details.
+        Scroll or pinch to zoom · drag/swipe to pan · tap or hover a point for trade details.
       </div>
     </div>
   )
