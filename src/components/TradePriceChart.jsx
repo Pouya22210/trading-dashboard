@@ -230,6 +230,13 @@ export default function TradePriceChart({
     if (half > 0) setPriceDomain({ min: center - half, max: center + half })
   }
 
+  // Vertical body drag -> pan the price view up/down (locks the scale while panning).
+  const panPrice = (startMin, startMax, dy) => {
+    const span = startMax - startMin
+    const shift = (dy / plot.h) * span
+    setPriceDomain({ min: startMin + shift, max: startMax + shift })
+  }
+
   // ---- mouse ----
   const onMouseDown = (e) => {
     if (!view) return
@@ -237,7 +244,7 @@ export default function TradePriceChart({
     if (inPriceAxis(px)) {
       dragRef.current = { mode: 'price', y: e.clientY, min: view.pMin, max: view.pMax }
     } else {
-      dragRef.current = { mode: 'time', x: e.clientX, t0: domain?.t0, t1: domain?.t1 }
+      dragRef.current = { mode: 'time', x: e.clientX, y: e.clientY, t0: domain?.t0, t1: domain?.t1, pMin: view.pMin, pMax: view.pMax }
     }
   }
   const onMouseUp = () => { dragRef.current = null }
@@ -251,6 +258,8 @@ export default function TradePriceChart({
       const span = d.t1 - d.t0
       const shift = ((e.clientX - d.x) / plot.w) * span
       setDomain({ t0: d.t0 - shift, t1: d.t1 - shift })
+      const dy = e.clientY - d.y
+      if (priceDomain || Math.abs(dy) > 6) panPrice(d.pMin, d.pMax, dy)
       return
     }
     const { px, py } = localPos(e.clientX, e.clientY)
@@ -275,7 +284,7 @@ export default function TradePriceChart({
         setHover(null)
         return
       }
-      touchRef.current = { mode: 'pan', x: t.clientX, t0: domain.t0, t1: domain.t1 }
+      touchRef.current = { mode: 'pan', x: t.clientX, y: t.clientY, t0: domain.t0, t1: domain.t1, pMin: view.pMin, pMax: view.pMax }
       setHover(hoverAt(px, py, 18))
     } else if (e.touches.length >= 2) {
       const [a, b] = [e.touches[0], e.touches[1]]
@@ -300,6 +309,8 @@ export default function TradePriceChart({
       const span = st.t1 - st.t0
       const shift = ((t.clientX - st.x) / plot.w) * span
       setDomain({ t0: st.t0 - shift, t1: st.t1 - shift })
+      const dy = t.clientY - st.y
+      if (priceDomain || Math.abs(dy) > 6) panPrice(st.pMin, st.pMax, dy)
       const { px, py } = localPos(t.clientX, t.clientY)
       setHover(hoverAt(px, py, 18))
     } else if (st.mode === 'pinch' && e.touches.length >= 2) {
@@ -312,8 +323,9 @@ export default function TradePriceChart({
   const onTouchEnd = (e) => {
     if (e.touches.length === 0) { touchRef.current = null; return }
     // dropped from two fingers to one → continue panning from the remaining touch
-    if (e.touches.length === 1 && domain) {
-      touchRef.current = { mode: 'pan', x: e.touches[0].clientX, t0: domain.t0, t1: domain.t1 }
+    if (e.touches.length === 1 && domain && view) {
+      const t = e.touches[0]
+      touchRef.current = { mode: 'pan', x: t.clientX, y: t.clientY, t0: domain.t0, t1: domain.t1, pMin: view.pMin, pMax: view.pMax }
     }
   }
 
