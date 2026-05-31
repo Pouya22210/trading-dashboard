@@ -237,7 +237,8 @@ export default function TradePriceChart({
   }
 
   // Pointer is over the right-hand price-axis strip (drag here to rescale price).
-  const inPriceAxis = (px) => px >= plot.x + plot.w
+  // On mobile there's no right gutter, so reserve the rightmost ~44px of the plot.
+  const inPriceAxis = (px) => px >= plot.x + plot.w - (plot.m.right > 0 ? 0 : 44)
 
   // Vertical drag distance -> new locked price scale, centered on the old range.
   const scalePrice = (startMin, startMax, dy) => {
@@ -387,24 +388,20 @@ export default function TradePriceChart({
   return (
     <div className="w-full">
       {/* ---- controls ---- */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 px-3 sm:px-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] sm:text-xs text-gray-400">Symbol</span>
-          <select
-            value={selectedSymbol}
-            onChange={e => onSelectSymbol(e.target.value)}
-            className="flat-input text-[11px] sm:text-xs py-1.5 px-2 rounded-lg bg-dark-secondary border border-dark-border text-white"
-            style={{ minWidth: 120 }}
-          >
-            {symbolOptions.length === 0 && <option value="">No symbols</option>}
-            {symbolOptions.map(s => (
-              <option key={s.symbol} value={s.symbol}>{s.symbol} ({s.count})</option>
-            ))}
-          </select>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 mb-3 px-3 sm:px-0">
+        <select
+          value={selectedSymbol}
+          onChange={e => onSelectSymbol(e.target.value)}
+          className="flat-input text-[11px] sm:text-xs py-1.5 px-2 rounded-lg bg-dark-secondary border border-dark-border text-white self-start"
+          style={{ minWidth: 120 }}
+        >
+          {symbolOptions.length === 0 && <option value="">No symbols</option>}
+          {symbolOptions.map(s => (
+            <option key={s.symbol} value={s.symbol}>{s.symbol} ({s.count})</option>
+          ))}
+        </select>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] sm:text-xs text-gray-400 hidden sm:inline">Timeframe</span>
+        <div className="flex items-center gap-2 self-start">
           <div className="flex bg-dark-tertiary rounded-lg p-1">
             {CHART_TIMEFRAMES.map(tf => (
               <button
@@ -419,21 +416,20 @@ export default function TradePriceChart({
               </button>
             ))}
           </div>
-        </div>
 
-        <button
-          onClick={fit}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs rounded-lg bg-dark-tertiary text-gray-300 hover:text-white transition-colors"
-          title="Jump to the latest candle"
-        >
-          <ChevronsRight className="w-3.5 h-3.5" /> Latest
-        </button>
+          <button
+            onClick={fit}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-dark-tertiary text-gray-300 hover:text-white transition-colors"
+            title="Jump to the latest candle"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
 
-        {/* legend */}
-        <div className="ml-auto flex items-center gap-3 text-[10px] sm:text-xs text-gray-400">
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: BUY_COLOR }} /> Buy</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: SELL_COLOR }} /> Sell</span>
-          {candlesLoading && <span className="flex items-center gap-1 text-gray-500"><Loader2 className="w-3 h-3 animate-spin" /> candles</span>}
+          {candlesLoading && (
+            <span className="flex items-center gap-1 text-[10px] sm:text-xs text-gray-500">
+              <Loader2 className="w-3 h-3 animate-spin" /> candles
+            </span>
+          )}
         </div>
       </div>
 
