@@ -360,13 +360,13 @@ export default function TradePriceChart({
   return (
     <div className="w-full">
       {/* ---- controls ---- */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 px-3 sm:px-0">
         <div className="flex items-center gap-2">
           <span className="text-[11px] sm:text-xs text-gray-400">Symbol</span>
           <select
             value={selectedSymbol}
             onChange={e => onSelectSymbol(e.target.value)}
-            className="flat-input text-sm py-1.5 px-2 rounded-lg bg-dark-secondary border border-dark-border text-white"
+            className="flat-input text-[11px] sm:text-xs py-1.5 px-2 rounded-lg bg-dark-secondary border border-dark-border text-white"
             style={{ minWidth: 120 }}
           >
             {symbolOptions.length === 0 && <option value="">No symbols</option>}
@@ -514,19 +514,6 @@ export default function TradePriceChart({
           </svg>
         )}
 
-        {/* manual price-scale indicator / reset */}
-        {priceDomain && (
-          <button
-            onClick={() => setPriceDomain(null)}
-            onMouseDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            className="absolute top-2 right-2 z-10 text-[10px] px-2 py-1 rounded-md bg-dark-tertiary text-gray-300 hover:text-white transition-colors"
-            title="Reset price scale to auto-fit"
-          >
-            Auto scale
-          </button>
-        )}
-
         {/* empty / no-symbol states */}
         {noData && (
           <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
@@ -578,23 +565,19 @@ export default function TradePriceChart({
 
       {/* candle provider hint */}
       {!providerEnabled && (
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500">
+        <div className="mt-2 px-3 sm:px-0 flex items-center gap-1.5 text-[11px] text-gray-500">
           <Info className="w-3.5 h-3.5" />
           Background candles are off — set <code className="text-gray-400">VITE_TWELVEDATA_API_KEY</code> to enable them. Trades are still plotted by exact time &amp; price.
         </div>
       )}
       {providerEnabled && candleNote && !candlesLoading && trades.length > 0 && (
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500">
+        <div className="mt-2 px-3 sm:px-0 flex items-center gap-1.5 text-[11px] text-gray-500">
           <Info className="w-3.5 h-3.5" />
           {candleNote === 'rate-limit'
             ? 'Twelve Data rate limit reached (8 calls/min on the free plan) — candles will load in a moment. Trades are still shown.'
             : `No candles for this symbol/timeframe (${candleNote}). Trades are shown on a price grid.`}
         </div>
       )}
-
-      <div className="mt-2 text-[10px] text-gray-600">
-        Scroll or pinch to zoom · drag/swipe to pan · drag the price axis (right) to rescale, double-click it to auto-fit · tap or hover a point for details.
-      </div>
     </div>
   )
 }

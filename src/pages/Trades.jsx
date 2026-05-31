@@ -165,7 +165,7 @@ function ConnectionStatus({ status }) {
 }
 
 
-function ChartCard({ title, icon: Icon, children, className = '' }) {
+function ChartCard({ title, icon: Icon, children, className = '', bodyClassName = 'p-3 sm:p-5' }) {
   return (
     <div className={`chart-card overflow-hidden ${className}`} style={{ willChange: 'transform' }}>
       <div
@@ -186,7 +186,7 @@ function ChartCard({ title, icon: Icon, children, className = '' }) {
         </div>
         <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider truncate">{title}</span>
       </div>
-      <div className="p-3 sm:p-5 overflow-x-auto">{children}</div>
+      <div className={`${bodyClassName} overflow-x-auto`}>{children}</div>
     </div>
   )
 }
@@ -1083,6 +1083,19 @@ export default function Trades() {
     return () => ctrl.abort()
   }, [activeTab, chartSymbol, chartTimeframe, chartView])
 
+  // Count of active sidebar filters — shown as a badge on the mobile filter button.
+  const activeFilterCount = useMemo(() => {
+    let n = 0
+    if (filters.startDate) n++
+    if (filters.endDate) n++
+    if (filters.status) n++
+    if (filters.side) n++
+    if (filters.orderType) n++
+    if (selectedChannelIds.length > 0) n++
+    if (selectedWeekdays.length !== 7) n++
+    return n
+  }, [filters, selectedChannelIds, selectedWeekdays])
+
   // ---------- Pagination from server ----------
   const totalPages      = Math.max(1, Math.ceil(pageData.total / TRADES_PER_PAGE))
   const startIndex      = (currentPage - 1) * TRADES_PER_PAGE
@@ -1431,6 +1444,14 @@ export default function Trades() {
           }}
         >
           <Filter className="w-6 h-6" />
+          {activeFilterCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 flex items-center justify-center text-[11px] font-bold rounded-full"
+              style={{ background: '#ADFF2F', color: '#0d1117', boxShadow: '0 0 0 2px var(--neu-bg)' }}
+            >
+              {activeFilterCount}
+            </span>
+          )}
         </button>
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-full">
@@ -1833,7 +1854,12 @@ export default function Trades() {
 
           {/* ============ Price Chart (MT5-style) ============ */}
           {activeTab === 'chart' && (
-            <ChartCard title="Trades on Price Chart" icon={CandlestickChart} className="mb-6">
+            <ChartCard
+              title="Trades on Price Chart"
+              icon={CandlestickChart}
+              className="mb-6 -mx-4 sm:mx-0 rounded-none sm:rounded-2xl"
+              bodyClassName="px-0 py-3 sm:p-5"
+            >
               {chartMarkersLoading && chartMarkers.length === 0 ? (
                 <div className="flex items-center justify-center h-[460px] text-gray-500 text-sm">
                   Loading trades…
