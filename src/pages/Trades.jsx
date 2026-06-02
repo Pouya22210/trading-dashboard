@@ -1884,8 +1884,22 @@ export default function Trades() {
 
           {/* ============ Cumulative P&L ============ */}
           {activeTab === 'cumulative' && (
-            <ChartCard title="Cumulative Profit/Loss by Channel Over Time" icon={TrendingUp} className="mb-6">
+            <ChartCard
+              title="Cumulative Profit/Loss by Channel Over Time"
+              icon={TrendingUp}
+              className="mb-6 -mx-4 sm:mx-0 rounded-none sm:rounded-2xl"
+              bodyClassName="px-0 py-3 sm:p-5"
+            >
               {cumulativePnLData.length > 0 ? (() => {
+                // Show at most 5 evenly-spaced date ticks on the x-axis.
+                const xTicks = (() => {
+                  const n = cumulativePnLData.length
+                  if (n <= 5) return cumulativePnLData.map(d => d.date)
+                  const step = (n - 1) / 4
+                  const idxs = [0, 1, 2, 3, 4].map(i => Math.round(i * step))
+                  return [...new Set(idxs)].map(i => cumulativePnLData[i].date)
+                })()
+
                 const channelExtremes = chartChannelIds.map((channelId) => {
                   const points = cumulativePnLData
                     .map(d => ({ date: d.date, value: d[channelId] }))
@@ -1904,7 +1918,7 @@ export default function Trades() {
                 return (
                   <div className="w-full min-w-[300px] h-[360px] sm:h-[480px] lg:h-[600px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={cumulativePnLData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                      <AreaChart data={cumulativePnLData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                         <defs>
                           {chartChannelIds.map((channelId) => {
                             const color = channelId === 'all' ? '#ADFF2F' : getChannelColor(channelId)
@@ -1917,10 +1931,10 @@ export default function Trades() {
                           })}
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
-                        <XAxis dataKey="date" stroke="#6e7681" fontSize={11} tickMargin={6} angle={-45} textAnchor="end" height={50} />
-                        <YAxis stroke="#6e7681" fontSize={11}
+                        <XAxis dataKey="date" stroke="#6e7681" fontSize={11} tickMargin={6} angle={-45} textAnchor="end" height={50} ticks={xTicks} interval={0} />
+                        <YAxis stroke="#6e7681" fontSize={11} orientation="right"
                           tickFormatter={(value) => `$${value.toFixed(0)}`}
-                          scale="linear" domain={['auto', 'auto']} allowDataOverflow={false} width={56} />
+                          scale="linear" domain={['auto', 'auto']} allowDataOverflow={false} width={48} />
                         <Tooltip
                           cursor={{ stroke: '#6e7681', strokeDasharray: '3 3', strokeWidth: 1 }}
                           content={({ active, payload, label }) => {
