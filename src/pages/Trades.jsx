@@ -1973,18 +1973,28 @@ export default function Trades() {
                             isAnimationActive={false}
                           />
                         ))}
-                        {channelExtremes.map(({ channelId, color, minP, maxP }) => (
+                        {channelExtremes.map(({ channelId, color, minP, maxP }) => {
+                          // Anchor edge labels inward so they don't clip against the
+                          // chart's flush left/right edges (margin is 0 on mobile).
+                          const firstDate = cumulativePnLData[0]?.date
+                          const lastDate  = cumulativePnLData[cumulativePnLData.length - 1]?.date
+                          const labelPos = (p, edge) =>
+                            p.date === firstDate ? (edge === 'top' ? 'insideTopRight' : 'insideBottomRight')
+                            : p.date === lastDate ? (edge === 'top' ? 'insideTopLeft' : 'insideBottomLeft')
+                            : edge
+                          return (
                           <React.Fragment key={`anno-${channelId}`}>
                             <ReferenceDot
                               x={maxP.date} y={maxP.value} r={3} fill={color} stroke="#0d1117" strokeWidth={1}
-                              label={{ value: `$${maxP.value.toFixed(2)}`, position: 'top', fill: '#c9d1d9', fontSize: 10 }}
+                              label={{ value: `$${maxP.value.toFixed(2)}`, position: labelPos(maxP, 'top'), fill: '#c9d1d9', fontSize: 10 }}
                             />
                             <ReferenceDot
                               x={minP.date} y={minP.value} r={3} fill={color} stroke="#0d1117" strokeWidth={1}
-                              label={{ value: `$${minP.value.toFixed(2)}`, position: 'bottom', fill: '#c9d1d9', fontSize: 10 }}
+                              label={{ value: `$${minP.value.toFixed(2)}`, position: labelPos(minP, 'bottom'), fill: '#c9d1d9', fontSize: 10 }}
                             />
                           </React.Fragment>
-                        ))}
+                          )
+                        })}
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
