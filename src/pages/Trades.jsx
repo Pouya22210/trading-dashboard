@@ -1900,6 +1900,19 @@ export default function Trades() {
                   return [...new Set(idxs)].map(i => cumulativePnLData[i].date)
                 })()
 
+                // Horizontal date labels; anchor the first/last inward so they
+                // don't clip against the flush left edge / right Y-axis.
+                const renderXTick = ({ x, y, payload, index }) => {
+                  const anchor = index === 0 ? 'start'
+                    : index === xTicks.length - 1 ? 'end'
+                    : 'middle'
+                  return (
+                    <text x={x} y={y + 12} fill="#6e7681" fontSize={11} textAnchor={anchor}>
+                      {payload.value}
+                    </text>
+                  )
+                }
+
                 const channelExtremes = chartChannelIds.map((channelId) => {
                   const points = cumulativePnLData
                     .map(d => ({ date: d.date, value: d[channelId] }))
@@ -1931,7 +1944,7 @@ export default function Trades() {
                           })}
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
-                        <XAxis dataKey="date" stroke="#6e7681" fontSize={11} tickMargin={6} angle={-45} textAnchor="end" height={50} ticks={xTicks} interval={0} />
+                        <XAxis dataKey="date" stroke="#6e7681" fontSize={11} tickMargin={8} height={28} ticks={xTicks} interval={0} tick={renderXTick} padding={{ left: 12, right: 8 }} />
                         <YAxis stroke="#6e7681" fontSize={11} orientation="right"
                           tickFormatter={(value) => `$${value.toFixed(0)}`}
                           scale="linear" domain={['auto', 'auto']} allowDataOverflow={false} width={48} />
@@ -1979,8 +1992,8 @@ export default function Trades() {
                           const firstDate = cumulativePnLData[0]?.date
                           const lastDate  = cumulativePnLData[cumulativePnLData.length - 1]?.date
                           const labelPos = (p, edge) =>
-                            p.date === firstDate ? (edge === 'top' ? 'insideTopRight' : 'insideBottomRight')
-                            : p.date === lastDate ? (edge === 'top' ? 'insideTopLeft' : 'insideBottomLeft')
+                            p.date === firstDate ? 'right'
+                            : p.date === lastDate ? 'left'
                             : edge
                           return (
                           <React.Fragment key={`anno-${channelId}`}>
