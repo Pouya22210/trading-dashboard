@@ -1888,7 +1888,7 @@ export default function Trades() {
               title="Cumulative Profit/Loss by Channel Over Time"
               icon={TrendingUp}
               className="mb-6 -mx-4 sm:mx-0 rounded-none sm:rounded-2xl"
-              bodyClassName="px-0 py-3 sm:p-5"
+              bodyClassName="pl-3 pr-0 py-3 sm:p-5"
             >
               {cumulativePnLData.length > 0 ? (() => {
                 // Show at most 5 evenly-spaced date ticks on the x-axis.
