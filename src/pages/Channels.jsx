@@ -114,7 +114,7 @@ function NewsBlackoutSlider({ daysBefore, daysAfter, onChange, disabled }) {
         <div style={{
           position: 'absolute', top: '50%', left: 0, right: 0, height: 6,
           transform: 'translateY(-50%)', borderRadius: 999,
-          background: 'var(--neu-bg, #1f2937)', boxShadow: 'var(--neu-pressed-sm)',
+          background: 'var(--card-recess)',
         }} />
         {/* highlighted blackout span */}
         <div style={{
@@ -452,11 +452,11 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
               <div
                 className="flex items-center justify-between p-4"
                 style={{
-                  background: 'var(--neu-bg)',
+                  background: 'var(--card-flat)',
                   borderRadius: '14px',
-                  boxShadow: formData.is_reversed
-                    ? 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(255,179,92,0.30)'
-                    : 'var(--neu-pressed-sm)',
+                  border: formData.is_reversed
+                    ? '2px solid rgba(255,179,92,0.40)'
+                    : '1px solid rgba(255,255,255,0.06)',
                 }}
               >
                 <div className="flex-1">
@@ -828,11 +828,11 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
                     key={cat.id}
                     className="p-4"
                     style={{
-                      background: 'var(--neu-bg)',
+                      background: 'var(--card-flat)',
                       borderRadius: '14px',
-                      boxShadow: cfg.is_enabled
-                        ? 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(239,68,68,0.30)'
-                        : 'var(--neu-pressed-sm)',
+                      border: cfg.is_enabled
+                        ? '2px solid rgba(239,68,68,0.40)'
+                        : '1px solid rgba(255,255,255,0.06)',
                     }}
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -1140,9 +1140,9 @@ export default function Channels() {
       <div
         className="flex items-center gap-1.5 sm:gap-2 mb-6 p-1.5 overflow-x-auto"
         style={{
-          background: 'var(--neu-bg)',
+          background: 'var(--card-recess)',
           borderRadius: '14px',
-          boxShadow: 'var(--neu-pressed-sm)',
+          border: '1px solid rgba(255,255,255,0.06)',
           scrollbarWidth: 'none',
         }}
       >
@@ -1159,8 +1159,7 @@ export default function Channels() {
               className="flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap transition-all flex-shrink-0"
               style={{
                 borderRadius: '10px',
-                background: isActive ? 'var(--neu-bg)' : 'transparent',
-                boxShadow: isActive ? 'var(--neu-raised-sm)' : 'none',
+                background: isActive ? 'rgba(173,255,47,0.12)' : 'transparent',
                 color: isActive ? '#ADFF2F' : '#9ca3af',
                 cursor: 'pointer',
               }}
@@ -1243,11 +1242,11 @@ export default function Channels() {
             key={channel.id}
             className="p-5"
             style={{
-              background: 'var(--neu-bg)',
+              background: 'var(--card-flat)',
               borderRadius: '20px',
-              boxShadow: channel.is_reversed
-                ? 'var(--neu-raised-md), inset 0 0 0 2px rgba(255,179,92,0.30)'
-                : 'var(--neu-raised-md)',
+              border: channel.is_reversed
+                ? '2px solid rgba(255,179,92,0.40)'
+                : '1px solid rgba(255,255,255,0.06)',
             }}
           >
             <div className="flex items-start justify-between mb-4">

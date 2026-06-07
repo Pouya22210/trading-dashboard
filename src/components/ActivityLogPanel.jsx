@@ -8,7 +8,7 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { fetchChannelEvents, subscribeToChannelEvents } from '../lib/channelEvents'
 
 // Event type configurations — accent colors kept; backgrounds and
-// borders are handled via neumorphism (raised/pressed surfaces).
+// borders use flat surfaces (solid fills + thin borders, no raised/pressed shadows).
 const EVENT_CONFIG = {
   channel_created:       { icon: Plus,       color: '#ADFF2F',          label: 'Channel Created' },
   channel_updated:       { icon: Edit3,      color: 'var(--blue)',      label: 'Settings Updated' },
@@ -60,9 +60,9 @@ function ChangeRow({ field, oldValue, newValue }) {
     <div
       className="flex items-center gap-2 py-2 px-3 text-sm"
       style={{
-        background: 'var(--neu-bg)',
+        background: 'var(--card-recess)',
         borderRadius: '12px',
-        boxShadow: 'var(--neu-pressed-sm)',
+        border: '1px solid rgba(255,255,255,0.05)',
       }}
     >
       <span className="text-gray-400 min-w-[100px] text-xs font-medium">
@@ -172,7 +172,7 @@ function EventCard({ event, isExpanded, onToggle }) {
       style={{
         background: 'var(--card-flat)',
         borderRadius: '18px',
-        boxShadow: 'none',
+        border: '1px solid rgba(255,255,255,0.06)',
       }}
     >
       {/* Header - always visible */}
@@ -188,8 +188,8 @@ function EventCard({ event, isExpanded, onToggle }) {
               width: '36px',
               height: '36px',
               borderRadius: '12px',
-              background: 'var(--neu-bg)',
-              boxShadow: 'var(--neu-pressed-sm)',
+              background: 'var(--card-recess)',
+              border: '1px solid rgba(255,255,255,0.05)',
             }}
           >
             <Icon className="w-4 h-4" style={{ color: config.color }} />
@@ -202,9 +202,9 @@ function EventCard({ event, isExpanded, onToggle }) {
                 className="text-xs font-semibold px-2.5 py-1"
                 style={{
                   color: config.color,
-                  background: 'var(--neu-bg)',
+                  background: 'var(--card-recess)',
                   borderRadius: '9999px',
-                  boxShadow: 'var(--neu-pressed-sm)',
+                  border: '1px solid rgba(255,255,255,0.05)',
                 }}
               >
                 {config.label}
@@ -241,10 +241,9 @@ function EventCard({ event, isExpanded, onToggle }) {
                 width: '28px',
                 height: '28px',
                 color: config.color,
-                background: 'var(--neu-bg)',
-                border: 'none',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: '9px',
-                boxShadow: 'var(--neu-raised-sm)',
                 cursor: 'pointer',
               }}
             >
@@ -262,7 +261,7 @@ function EventCard({ event, isExpanded, onToggle }) {
       {isExpanded && hasChanges && (
         <div
           className="px-4 pb-4 space-y-2 pt-3"
-          style={{ boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.25)' }}
+          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
         >
           <div className="text-xs text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
             <span>Changes</span>
@@ -356,7 +355,7 @@ export default function ActivityLogPanel({ className = '' }) {
         className="flex items-center justify-between gap-3 px-5 py-4"
         style={{
           background: 'var(--neu-bg)',
-          boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35), inset 0 -2px 0 rgba(255,255,255,0.02)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
         }}
       >
         <div className="flex items-center gap-3">
@@ -366,8 +365,8 @@ export default function ActivityLogPanel({ className = '' }) {
               width: '32px',
               height: '32px',
               borderRadius: '10px',
-              background: 'var(--neu-bg)',
-              boxShadow: 'var(--neu-pressed-sm)',
+              background: 'var(--card-recess)',
+              border: '1px solid rgba(255,255,255,0.05)',
             }}
           >
             <History className="w-4 h-4" style={{ color: 'var(--purple)' }} />
@@ -384,10 +383,9 @@ export default function ActivityLogPanel({ className = '' }) {
             style={{
               width: '30px',
               height: '30px',
-              background: 'var(--neu-bg)',
-              border: 'none',
+              background: (showFilters || filter !== 'all') ? 'rgba(197,137,242,0.15)' : 'rgba(255,255,255,0.04)',
+              border: (showFilters || filter !== 'all') ? '1px solid rgba(197,137,242,0.40)' : '1px solid rgba(255,255,255,0.06)',
               borderRadius: '10px',
-              boxShadow: (showFilters || filter !== 'all') ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
               color: (showFilters || filter !== 'all') ? 'var(--purple)' : 'rgba(232,234,239,0.45)',
               cursor: 'pointer',
             }}
@@ -402,10 +400,9 @@ export default function ActivityLogPanel({ className = '' }) {
             style={{
               width: '30px',
               height: '30px',
-              background: 'var(--neu-bg)',
-              border: 'none',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.06)',
               borderRadius: '10px',
-              boxShadow: 'var(--neu-raised-sm)',
               color: 'rgba(232,234,239,0.45)',
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.5 : 1,
@@ -421,7 +418,7 @@ export default function ActivityLogPanel({ className = '' }) {
       {showFilters && (
         <div
           className="px-5 py-3 flex flex-wrap gap-2"
-          style={{ boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.25)' }}
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         >
           {FILTER_OPTIONS.map(opt => (
             <button
@@ -429,10 +426,9 @@ export default function ActivityLogPanel({ className = '' }) {
               onClick={() => setFilter(opt.key)}
               className="px-3 py-1.5 text-xs font-medium transition-all"
               style={{
-                background: 'var(--neu-bg)',
-                border: 'none',
+                background: filter === opt.key ? 'rgba(197,137,242,0.15)' : 'rgba(255,255,255,0.04)',
+                border: filter === opt.key ? '1px solid rgba(197,137,242,0.40)' : '1px solid rgba(255,255,255,0.06)',
                 borderRadius: '9999px',
-                boxShadow: filter === opt.key ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
                 color: filter === opt.key ? 'var(--purple)' : 'rgba(232,234,239,0.58)',
                 cursor: 'pointer',
               }}
@@ -485,7 +481,7 @@ export default function ActivityLogPanel({ className = '' }) {
       {events.length > 0 && (
         <div
           className="px-5 py-3 text-xs text-gray-500 text-center"
-          style={{ boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.25)' }}
+          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
         >
           Showing {filteredEvents.length} of {events.length} events
         </div>
