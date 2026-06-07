@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap,
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
   Save, X, Check, RefreshCw, Shuffle, Search,
-  Users
+  Users, Newspaper
 } from 'lucide-react'
 import {
   fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels,
-  fetchAppSetting, updateAppSetting
+  fetchAppSetting, updateAppSetting,
+  fetchNewsCategories, fetchNewsBlackouts, saveChannelNewsBlackouts
 } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 import VisitorsTab from '../components/VisitorsTab'
@@ -22,6 +23,140 @@ function Toggle({ checked, onChange, label }) {
       <span className="text-sm text-gray-300">{label}</span>
     </label>
   )
+}
+
+// Dual-handle slider for a news blackout window.
+// Track runs from -7 (days before) ... 0 (today / event day) ... +7 (days after).
+// Left handle controls days-before, right handle controls days-after.
+const NEWS_SLIDER_STOPS = 7
+function NewsBlackoutSlider({ daysBefore, daysAfter, onChange, disabled }) {
+  const trackRef = useRef(null)
+  const draggingRef = useRef(null) // 'left' | 'right' | null
+
+  const pct = (v) => ((v + NEWS_SLIDER_STOPS) / (NEWS_SLIDER_STOPS * 2)) * 100
+  const leftVal = -Math.abs(daysBefore)   // -7..0
+  const rightVal = Math.abs(daysAfter)    // 0..7
+
+  const valueFromClientX = (clientX) => {
+    const el = trackRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    const ratio = rect.width ? (clientX - rect.left) / rect.width : 0
+    const v = Math.round(ratio * (NEWS_SLIDER_STOPS * 2)) - NEWS_SLIDER_STOPS
+    return Math.max(-NEWS_SLIDER_STOPS, Math.min(NEWS_SLIDER_STOPS, v))
+  }
+
+  const applyMove = (which, clientX) => {
+    const v = valueFromClientX(clientX)
+    if (which === 'left') {
+      onChange(Math.max(0, -Math.min(0, v)), daysAfter)        // clamp to left half
+    } else {
+      onChange(daysBefore, Math.max(0, Math.max(0, v)))        // clamp to right half
+    }
+  }
+
+  // All dragging is handled on the track (thumbs are visual only). On press we
+  // pick which handle to move from the click side, capture the pointer, and
+  // follow it until release.
+  const onTrackPointerDown = (e) => {
+    if (disabled) return
+    e.preventDefault()
+    const v = valueFromClientX(e.clientX)
+    const which = v < 0 ? 'left' : v > 0 ? 'right' : (daysBefore <= daysAfter ? 'left' : 'right')
+    draggingRef.current = which
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    applyMove(which, e.clientX)
+  }
+  const onTrackPointerMove = (e) => {
+    if (!draggingRef.current) return
+    applyMove(draggingRef.current, e.clientX)
+  }
+  const onTrackPointerUp = (e) => {
+    if (!draggingRef.current) return
+    draggingRef.current = null
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+  }
+
+  const ticks = []
+  for (let i = -NEWS_SLIDER_STOPS; i <= NEWS_SLIDER_STOPS; i++) ticks.push(i)
+
+  const thumbStyle = (active) => ({
+    position: 'absolute',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 18,
+    height: 18,
+    borderRadius: '50%',
+    background: disabled ? '#4b5563' : '#fff',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+    border: `2px solid ${disabled ? '#6b7280' : '#ef4444'}`,
+    cursor: disabled ? 'not-allowed' : 'grab',
+    touchAction: 'none',
+    zIndex: active ? 3 : 2,
+  })
+
+  return (
+    <div style={{ opacity: disabled ? 0.5 : 1, userSelect: 'none' }}>
+      <div className="flex items-center justify-between mb-2 text-xs">
+        <span className="text-red-300 font-medium">{daysBefore} day{daysBefore === 1 ? '' : 's'} before</span>
+        <span className="text-gray-400">news day (0)</span>
+        <span className="text-red-300 font-medium">{daysAfter} day{daysAfter === 1 ? '' : 's'} after</span>
+      </div>
+
+      <div
+        ref={trackRef}
+        onPointerDown={onTrackPointerDown}
+        onPointerMove={onTrackPointerMove}
+        onPointerUp={onTrackPointerUp}
+        style={{ position: 'relative', height: 28, cursor: disabled ? 'not-allowed' : 'pointer', touchAction: 'none' }}
+      >
+        {/* base rail */}
+        <div style={{
+          position: 'absolute', top: '50%', left: 0, right: 0, height: 6,
+          transform: 'translateY(-50%)', borderRadius: 999,
+          background: 'var(--neu-bg, #1f2937)', boxShadow: 'var(--neu-pressed-sm)',
+        }} />
+        {/* highlighted blackout span */}
+        <div style={{
+          position: 'absolute', top: '50%', height: 6, transform: 'translateY(-50%)',
+          left: `${pct(leftVal)}%`, width: `${pct(rightVal) - pct(leftVal)}%`,
+          borderRadius: 999,
+          background: disabled ? '#4b5563' : 'linear-gradient(90deg,#f87171,#ef4444)',
+        }} />
+        {/* center (today) marker */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', width: 2, height: 16,
+          transform: 'translate(-50%, -50%)', background: '#9ca3af', borderRadius: 2,
+        }} />
+        {/* handles (visual only; dragging is handled on the track) */}
+        <div style={{ ...thumbStyle(false), left: `${pct(leftVal)}%`, pointerEvents: 'none' }} />
+        <div style={{ ...thumbStyle(false), left: `${pct(rightVal)}%`, pointerEvents: 'none' }} />
+      </div>
+
+      {/* tick labels */}
+      <div className="flex justify-between mt-1 px-0">
+        {ticks.map((t) => (
+          <span key={t} className="text-[10px] text-gray-500" style={{ width: 12, textAlign: 'center' }}>
+            {Math.abs(t)}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Build the per-category blackout map for the form from a channel's saved rows.
+function buildNewsBlackout(categories, existing) {
+  const map = {}
+  for (const c of categories || []) {
+    const e = existing?.[c.id]
+    map[c.id] = {
+      is_enabled: e?.is_enabled ?? false,
+      days_before: e?.days_before ?? 0,
+      days_after: e?.days_after ?? 0,
+    }
+  }
+  return map
 }
 
 function FormField({ label, children, hint }) {
@@ -62,7 +197,7 @@ function generateUniqueMagicNumber(existingChannels) {
   return magic
 }
 
-function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
+function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCategories }) {
   const [activeTab, setActiveTab] = useState('basic')
   const [saving, setSaving] = useState(false)
   const [validationErrors, setValidationErrors] = useState({})
@@ -82,6 +217,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
     commands: { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, enable_sl_update: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [], sl_update_phrases: ['\\bstop\\b.*\\bupdat'] },
     circuit_breaker: { enabled: true, max_daily_trades: 20, max_daily_loss_pct: 10 },
     trend_filter: { enabled: false, swing_strength: 2, min_swings_required: 2, ema_period: 50, candles_to_fetch: 100, require_all_three: false, log_details: true },
+    news_blackout: {},  // { [category_id]: { is_enabled, days_before, days_after } }
   })
 
   useEffect(() => {
@@ -102,9 +238,19 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
         commands: channel.commands || { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, enable_sl_update: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [], sl_update_phrases: ['\\bstop\\b.*\\bupdat'] },
         circuit_breaker: channel.circuit_breaker || { enabled: true, max_daily_trades: 20, max_daily_loss_pct: 10 },
         trend_filter: channel.trend_filter || { enabled: false, swing_strength: 2, min_swings_required: 2, ema_period: 50, candles_to_fetch: 100, require_all_three: false, log_details: true },
+        news_blackout: buildNewsBlackout(newsCategories, channel.news_blackouts),
       })
     }
   }, [channel])
+
+  // Rebuild the news-blackout map when the category catalogue loads (or changes),
+  // preserving any other in-progress edits. Adds defaults for new categories.
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      news_blackout: buildNewsBlackout(newsCategories, channel?.news_blackouts ?? prev.news_blackout),
+    }))
+  }, [newsCategories, channel])
 
   function validateForm() {
     const errors = {}
@@ -168,6 +314,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
     { id: 'riskfree', icon: Shield, label: 'Risk-Free' },
     { id: 'cancel', icon: X, label: 'Cancel' },
     { id: 'trend', icon: TrendingUp, label: 'Trend Filter' },
+    { id: 'news', icon: Newspaper, label: 'News Blackout' },
     { id: 'commands', icon: MessageSquare, label: 'Commands' },
     { id: 'circuit', icon: Zap, label: 'Circuit Breaker' },
   ]
@@ -649,6 +796,67 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
             </div>
           )}
 
+          {/* News Blackout Tab */}
+          {activeTab === 'news' && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-400">
+                Suspend trading around high-impact news. For each category, enable it and
+                drag the two handles to choose how many days <span className="text-red-300">before</span> and{' '}
+                <span className="text-red-300">after</span> the event to block. The center (0) is the
+                news day itself. While inside a window, new signals are blocked and any unfilled
+                pending orders are canceled.
+              </p>
+
+              {(!newsCategories || newsCategories.length === 0) ? (
+                <div className="text-center text-gray-500 py-8 text-sm">
+                  No news categories found. Run the database migration
+                  (<code className="text-gray-400">migrations/0001_news_blackout.sql</code>) to enable this feature.
+                </div>
+              ) : newsCategories.map(cat => {
+                const cfg = formData.news_blackout?.[cat.id] || { is_enabled: false, days_before: 0, days_after: 0 }
+                const setCfg = (patch) => setFormData(prev => ({
+                  ...prev,
+                  news_blackout: {
+                    ...prev.news_blackout,
+                    [cat.id]: { ...prev.news_blackout?.[cat.id], ...patch },
+                  },
+                }))
+                return (
+                  <div
+                    key={cat.id}
+                    className="p-4"
+                    style={{
+                      background: 'var(--neu-bg)',
+                      borderRadius: '14px',
+                      boxShadow: cfg.is_enabled
+                        ? 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(239,68,68,0.30)'
+                        : 'var(--neu-pressed-sm)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Newspaper className={`w-4 h-4 ${cfg.is_enabled ? 'text-red-400' : 'text-gray-500'}`} />
+                        <span className={`text-sm font-medium ${cfg.is_enabled ? 'text-red-300' : 'text-gray-300'}`}>
+                          {cat.label}
+                        </span>
+                      </div>
+                      <Toggle
+                        checked={cfg.is_enabled}
+                        onChange={checked => setCfg({ is_enabled: checked })}
+                      />
+                    </div>
+                    <NewsBlackoutSlider
+                      daysBefore={cfg.days_before}
+                      daysAfter={cfg.days_after}
+                      disabled={!cfg.is_enabled}
+                      onChange={(b, a) => setCfg({ days_before: b, days_after: a })}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Commands Tab */}
           {activeTab === 'commands' && (
             <div className="space-y-4">
@@ -794,6 +1002,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels }) {
 
 export default function Channels() {
   const [channels, setChannels] = useState([])
+  const [newsCategories, setNewsCategories] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [editingChannel, setEditingChannel] = useState(null)
@@ -815,8 +1024,18 @@ export default function Channels() {
 
   async function loadChannels() {
     try {
-      const data = await fetchChannels()
-      setChannels(data)
+      const [data, categories, blackouts] = await Promise.all([
+        fetchChannels(),
+        fetchNewsCategories(),
+        fetchNewsBlackouts(),
+      ])
+      // Attach each channel's saved blackout map for the editor + card badge.
+      const withBlackouts = (data || []).map(ch => ({
+        ...ch,
+        news_blackouts: blackouts[ch.id] || {},
+      }))
+      setChannels(withBlackouts)
+      setNewsCategories(categories || [])
     } catch (err) {
       console.error('Failed to load channels:', err)
     } finally {
@@ -846,10 +1065,21 @@ export default function Channels() {
   }
 
   async function handleSave(formData) {
+    let channelId
     if (editingChannel) {
       await updateChannel(editingChannel.id, formData)
+      channelId = editingChannel.id
     } else {
-      await createChannel(formData)
+      const created = await createChannel(formData)
+      channelId = created?.id
+    }
+    // Persist per-channel news blackout settings (no-op if migration not applied)
+    if (channelId && formData.news_blackout) {
+      try {
+        await saveChannelNewsBlackouts(channelId, formData.news_blackout)
+      } catch (err) {
+        console.error('Failed to save news blackout settings:', err)
+      }
     }
     await loadChannels()
   }
@@ -1030,6 +1260,11 @@ export default function Channels() {
                       <RefreshCw className="w-3 h-3 inline mr-1" />Reversed
                     </span>
                   )}
+                  {Object.values(channel.news_blackouts || {}).some(b => b.is_enabled) && (
+                    <span className="badge" style={{ color: '#f87171' }} title="News blackout active">
+                      <Newspaper className="w-3 h-3 inline mr-1" />News
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-1">Magic: {channel.magic_number}</p>
               </div>
@@ -1082,6 +1317,7 @@ export default function Channels() {
           onSave={handleSave}
           onClose={() => setShowModal(false)}
           existingChannels={channels}
+          newsCategories={newsCategories}
         />
       )}
 

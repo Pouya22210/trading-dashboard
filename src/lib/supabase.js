@@ -227,6 +227,77 @@ export async function deleteChannel(id) {
 }
 
 // ============================================================================
+// NEWS BLACKOUT
+// ============================================================================
+
+/**
+ * Fetch the catalogue of news categories (FOMC, CPI, NFP, ...).
+ * Extensible: add a row to `news_categories` and it appears here automatically.
+ */
+export async function fetchNewsCategories() {
+  const { data, error } = await supabase
+    .from('news_categories')
+    .select('id, key, label, display_order, is_active')
+    .eq('is_active', true)
+    .order('display_order')
+
+  if (error) {
+    // Degrade gracefully if the migration hasn't been applied yet.
+    console.warn('fetchNewsCategories failed (migration applied?):', error.message)
+    return []
+  }
+  return data || []
+}
+
+/**
+ * Fetch every channel's news-blackout rows, grouped by channel id:
+ *   { [channel_id]: { [category_id]: { is_enabled, days_before, days_after } } }
+ */
+export async function fetchNewsBlackouts() {
+  const { data, error } = await supabase
+    .from('channel_news_blackouts')
+    .select('channel_id, category_id, is_enabled, days_before, days_after')
+
+  if (error) {
+    console.warn('fetchNewsBlackouts failed (migration applied?):', error.message)
+    return {}
+  }
+  const byChannel = {}
+  for (const row of data || []) {
+    if (!byChannel[row.channel_id]) byChannel[row.channel_id] = {}
+    byChannel[row.channel_id][row.category_id] = {
+      is_enabled: row.is_enabled,
+      days_before: row.days_before,
+      days_after: row.days_after,
+    }
+  }
+  return byChannel
+}
+
+/**
+ * Persist a channel's news-blackout settings.
+ * @param {string} channelId
+ * @param {Object} blackoutByCategory - { [category_id]: { is_enabled, days_before, days_after } }
+ */
+export async function saveChannelNewsBlackouts(channelId, blackoutByCategory) {
+  const rows = Object.entries(blackoutByCategory || {}).map(([category_id, cfg]) => ({
+    channel_id: channelId,
+    category_id,
+    is_enabled: !!cfg.is_enabled,
+    days_before: Math.max(0, Math.min(7, parseInt(cfg.days_before) || 0)),
+    days_after: Math.max(0, Math.min(7, parseInt(cfg.days_after) || 0)),
+  }))
+  if (rows.length === 0) return true
+
+  const { error } = await supabase
+    .from('channel_news_blackouts')
+    .upsert(rows, { onConflict: 'channel_id,category_id' })
+
+  if (error) throw error
+  return true
+}
+
+// ============================================================================
 // CRITICAL FIX: Fetch ALL trades using pagination to bypass 1000-row limit
 // UPDATED: Use v_trades_with_channels view for current channel info
 // ============================================================================
