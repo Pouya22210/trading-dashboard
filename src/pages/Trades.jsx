@@ -1199,29 +1199,8 @@ export default function Trades() {
   // ---------- Render ----------
   if (loading && !analytics) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <style>{`
-          @keyframes tradeBarPulse {
-            0%, 100% { transform: scaleY(0.25); }
-            50% { transform: scaleY(1); }
-          }
-        `}</style>
-        <div className="flex items-end gap-1.5 h-16">
-          {[
-            { color: 'bg-emerald-500', delay: '0ms' },
-            { color: 'bg-rose-500',    delay: '120ms' },
-            { color: 'bg-emerald-500', delay: '240ms' },
-            { color: 'bg-emerald-500', delay: '360ms' },
-            { color: 'bg-rose-500',    delay: '480ms' },
-            { color: 'bg-emerald-500', delay: '600ms' },
-          ].map((bar, i) => (
-            <div
-              key={i}
-              className={`w-2 h-full rounded-sm origin-bottom ${bar.color}`}
-              style={{ animation: 'tradeBarPulse 1.1s ease-in-out infinite', animationDelay: bar.delay }}
-            />
-          ))}
-        </div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-primary/60 backdrop-blur-md">
+        <span className="w-10 h-10 border-2 border-gray-700 border-t-accent-cyan rounded-full animate-spin" />
       </div>
     )
   }
