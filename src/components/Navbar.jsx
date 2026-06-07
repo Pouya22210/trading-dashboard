@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Sparkles, Clock, Menu, X, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ActivityLogPanel from './ActivityLogPanel'
+import UpcomingNews from './UpcomingNews'
 
 export default function Navbar() {
   const location = useLocation()
@@ -169,6 +170,9 @@ export default function Navbar() {
                 <Clock style={{ width: '13px', height: '13px' }} />
                 <span className="font-mono" style={{ fontSize: '12px' }}>{currentTime}</span>
               </div>
+
+              {/* Upcoming News */}
+              <UpcomingNews />
 
               {/* Activity Log Toggle */}
               <button

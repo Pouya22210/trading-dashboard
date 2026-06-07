@@ -297,6 +297,30 @@ export async function saveChannelNewsBlackouts(channelId, blackoutByCategory) {
   return true
 }
 
+/**
+ * Fetch the nearest upcoming economic-calendar events (for the navbar popover).
+ * Returns rows with: event_time, event_date, currency, title, impact, forecast, previous.
+ * @param {number} limit
+ */
+export async function fetchUpcomingNews(limit = 25) {
+  // Include events from the start of today so an event earlier today still shows.
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('economic_calendar')
+    .select('event_time, event_date, currency, title, impact, forecast, previous')
+    .gte('event_time', startOfToday.toISOString())
+    .order('event_time', { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    console.warn('fetchUpcomingNews failed (migration applied?):', error.message)
+    return []
+  }
+  return data || []
+}
+
 // ============================================================================
 // CRITICAL FIX: Fetch ALL trades using pagination to bypass 1000-row limit
 // UPDATED: Use v_trades_with_channels view for current channel info
