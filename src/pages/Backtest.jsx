@@ -99,7 +99,12 @@ export default function Backtest() {
 
       const response = await fetch(`${API_BASE_URL}/api/backtest/run`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // ngrok free tier serves an HTML interstitial unless this is set,
+          // which would otherwise surface as "Failed to fetch".
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify(payload)
       })
 

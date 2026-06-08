@@ -26,7 +26,12 @@ export async function fetchTradeInsights(filters = {}) {
 
   const res = await fetch(`${BACKTEST_API_URL}/api/insights/distances`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // ngrok free tier serves an HTML interstitial unless this is set,
+      // which would otherwise surface as "Failed to fetch".
+      'ngrok-skip-browser-warning': 'true',
+    },
     body:    JSON.stringify(payload),
   })
 
