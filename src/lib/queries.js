@@ -217,5 +217,8 @@ function serializeFilters(f = {}) {
     order_type:             f.orderType || null,
     weekdays:               f.weekdays  ?? [0, 1, 2, 3, 4, 5, 6],
     exclude_manual_cancel:  f.excludeManualCancel ?? false,
+    // News what-if exclusion: array of { category_id, days_before, days_after }.
+    // The RPC drops trades whose signal day falls in any of these windows.
+    news_blackouts:         f.newsBlackouts ?? [],
   }
 }

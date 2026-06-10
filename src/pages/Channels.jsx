@@ -153,7 +153,7 @@ function buildNewsBlackout(categories, existing) {
   for (const c of categories || []) {
     const e = existing?.[c.id]
     map[c.id] = {
-      is_enabled: e?.is_enabled ?? true,
+      is_enabled: e?.is_enabled ?? false,
       days_before: e?.days_before ?? 0,
       days_after: e?.days_after ?? 0,
     }
@@ -803,9 +803,9 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
             <div className="space-y-4">
               <p className="text-sm text-gray-400">
                 Suspend trading around high-impact news. <span className="text-gray-300">By default every
-                channel is blocked on the event day</span> for each category below — drag the two handles to
-                widen the window (<span className="text-red-300">before</span> / <span className="text-red-300">after</span>,
-                center 0 = the news day), or toggle a category off to let this channel trade through it.
+                channel trades through news</span> — toggle a category on to block this channel around it, then
+                drag the two handles to widen the window (<span className="text-red-300">before</span> / <span className="text-red-300">after</span>,
+                center 0 = the news day).
                 While inside a window, new signals are blocked and any unfilled pending orders are canceled.
               </p>
 
@@ -1262,7 +1262,7 @@ export default function Channels() {
                     </span>
                   )}
                   {newsCategories.length > 0 &&
-                    newsCategories.some(c => (channel.news_blackouts?.[c.id]?.is_enabled ?? true)) && (
+                    newsCategories.some(c => (channel.news_blackouts?.[c.id]?.is_enabled ?? false)) && (
                     <span className="badge" style={{ color: '#f87171' }} title="News blackout active">
                       <Newspaper className="w-3 h-3 inline mr-1" />News
                     </span>

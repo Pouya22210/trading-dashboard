@@ -6,7 +6,7 @@ import {
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
   Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays, CandlestickChart,
-  Lightbulb, Play, Loader2, AlertCircle, Shield
+  Lightbulb, Play, Loader2, AlertCircle, Shield, Newspaper
 } from 'lucide-react'
 
 import {
@@ -15,7 +15,7 @@ import {
   AreaChart, ReferenceLine, ReferenceDot, CartesianGrid
 } from 'recharts'
 
-import { subscribeToTrades } from '../lib/supabase'
+import { subscribeToTrades, fetchNewsCategories } from '../lib/supabase'
 import {
   fetchTradesPage,
   fetchTradesAnalytics,
@@ -609,6 +609,145 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
 }
 
 
+// Dual-handle slider for a news blackout window — ported from the Channels
+// editor. Track runs -7 (days before) ... 0 (event day) ... +7 (days after).
+const NEWS_SLIDER_STOPS = 7
+function NewsWindowSlider({ daysBefore, daysAfter, onChange, disabled }) {
+  const trackRef = useRef(null)
+  const draggingRef = useRef(null)
+
+  const pct = (v) => ((v + NEWS_SLIDER_STOPS) / (NEWS_SLIDER_STOPS * 2)) * 100
+  const leftVal = -Math.abs(daysBefore)
+  const rightVal = Math.abs(daysAfter)
+
+  const valueFromClientX = (clientX) => {
+    const el = trackRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    const ratio = rect.width ? (clientX - rect.left) / rect.width : 0
+    const v = Math.round(ratio * (NEWS_SLIDER_STOPS * 2)) - NEWS_SLIDER_STOPS
+    return Math.max(-NEWS_SLIDER_STOPS, Math.min(NEWS_SLIDER_STOPS, v))
+  }
+
+  const applyMove = (which, clientX) => {
+    const v = valueFromClientX(clientX)
+    if (which === 'left') onChange(Math.max(0, -Math.min(0, v)), daysAfter)
+    else                  onChange(daysBefore, Math.max(0, v))
+  }
+
+  const onTrackPointerDown = (e) => {
+    if (disabled) return
+    e.preventDefault()
+    const v = valueFromClientX(e.clientX)
+    const which = v < 0 ? 'left' : v > 0 ? 'right' : (daysBefore <= daysAfter ? 'left' : 'right')
+    draggingRef.current = which
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    applyMove(which, e.clientX)
+  }
+  const onTrackPointerMove = (e) => {
+    if (!draggingRef.current) return
+    applyMove(draggingRef.current, e.clientX)
+  }
+  const onTrackPointerUp = (e) => {
+    if (!draggingRef.current) return
+    draggingRef.current = null
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+  }
+
+  const thumbStyle = () => ({
+    position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)',
+    width: 16, height: 16, borderRadius: '50%',
+    background: disabled ? '#4b5563' : '#fff',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+    border: `2px solid ${disabled ? '#6b7280' : '#ef4444'}`,
+    cursor: disabled ? 'not-allowed' : 'grab', touchAction: 'none', zIndex: 2,
+  })
+
+  return (
+    <div style={{ opacity: disabled ? 0.45 : 1, userSelect: 'none' }}>
+      <div className="flex items-center justify-between mb-1.5 text-[11px]">
+        <span className="text-red-300 font-medium">{daysBefore}d before</span>
+        <span className="text-gray-500">news (0)</span>
+        <span className="text-red-300 font-medium">{daysAfter}d after</span>
+      </div>
+      <div
+        ref={trackRef}
+        onPointerDown={onTrackPointerDown}
+        onPointerMove={onTrackPointerMove}
+        onPointerUp={onTrackPointerUp}
+        style={{ position: 'relative', height: 24, cursor: disabled ? 'not-allowed' : 'pointer', touchAction: 'none' }}
+      >
+        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 6, transform: 'translateY(-50%)', borderRadius: 999, background: 'var(--card-recess)' }} />
+        <div style={{ position: 'absolute', top: '50%', height: 6, transform: 'translateY(-50%)', left: `${pct(leftVal)}%`, width: `${pct(rightVal) - pct(leftVal)}%`, borderRadius: 999, background: disabled ? '#4b5563' : 'linear-gradient(90deg,#f87171,#ef4444)' }} />
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 2, height: 14, transform: 'translate(-50%, -50%)', background: '#9ca3af', borderRadius: 2 }} />
+        <div style={{ ...thumbStyle(), left: `${pct(leftVal)}%`, pointerEvents: 'none' }} />
+        <div style={{ ...thumbStyle(), left: `${pct(rightVal)}%`, pointerEvents: 'none' }} />
+      </div>
+    </div>
+  )
+}
+
+// News what-if filter: toggle a category on to exclude trades whose signal day
+// falls within [event_date - daysBefore, event_date + daysAfter] of any event in
+// that category. Used to see how avoiding news days changes the results.
+function NewsFilterSection({ categories, value, onChange }) {
+  if (!categories || categories.length === 0) return null
+
+  const setCat = (catId, patch) => onChange({
+    ...value,
+    [catId]: { is_enabled: false, days_before: 0, days_after: 0, ...value[catId], ...patch },
+  })
+
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        <Newspaper className="w-3 h-3 text-accent-cyan" /> Exclude News Days
+      </label>
+      <div className="space-y-2">
+        {categories.map(cat => {
+          const cfg = value[cat.id] || { is_enabled: false, days_before: 0, days_after: 0 }
+          return (
+            <div
+              key={cat.id}
+              className="p-2.5 rounded-lg"
+              style={{
+                background: 'var(--card-flat)',
+                border: cfg.is_enabled ? '1px solid rgba(239,68,68,0.40)' : '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCat(cat.id, { is_enabled: !cfg.is_enabled })}
+                className="w-full flex items-center justify-between gap-2 mb-1.5"
+              >
+                <span className={`text-xs font-medium ${cfg.is_enabled ? 'text-red-300' : 'text-gray-400'}`}>
+                  {cat.label}
+                </span>
+                <span
+                  className="relative inline-block w-8 h-4 rounded-full transition-colors flex-shrink-0"
+                  style={{ background: cfg.is_enabled ? '#ef4444' : 'var(--card-recess)' }}
+                >
+                  <span
+                    className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all"
+                    style={{ left: cfg.is_enabled ? '18px' : '2px' }}
+                  />
+                </span>
+              </button>
+              <NewsWindowSlider
+                daysBefore={cfg.days_before}
+                daysAfter={cfg.days_after}
+                disabled={!cfg.is_enabled}
+                onChange={(b, a) => setCat(cat.id, { days_before: b, days_after: a })}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
 // =====================================================================
 // Trades page — server-driven via RPCs
 // =====================================================================
@@ -660,6 +799,21 @@ export default function Trades() {
   const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
   const [selectedWeekdays, setSelectedWeekdays] = useState([0, 1, 2, 3, 4, 5, 6])
 
+  // ---------- News what-if filter ----------
+  // Catalogue of news categories + per-category exclusion window. All OFF by
+  // default — the page shows real results until the user opts into excluding
+  // trades around a category's events.
+  const [newsCategories, setNewsCategories] = useState([])
+  const [newsFilter, setNewsFilter] = useState({}) // { [cat_id]: { is_enabled, days_before, days_after } }
+
+  useEffect(() => {
+    let canceled = false
+    fetchNewsCategories()
+      .then(cats => { if (!canceled) setNewsCategories(cats || []) })
+      .catch(() => { if (!canceled) setNewsCategories([]) })
+    return () => { canceled = true }
+  }, [])
+
   const [filters, setFilters] = useState({
     orderType: '',
     side:      '',
@@ -687,7 +841,16 @@ export default function Trades() {
     orderType:    filters.orderType || null,
     weekdays:     selectedWeekdays,
     excludeManualCancel: false,
-  }), [filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays])
+    // Only enabled categories are sent; the server excludes trades whose signal
+    // day falls inside any of these news windows.
+    newsBlackouts: Object.entries(newsFilter)
+      .filter(([, cfg]) => cfg?.is_enabled)
+      .map(([category_id, cfg]) => ({
+        category_id,
+        days_before: Math.max(0, Math.min(7, cfg.days_before || 0)),
+        days_after:  Math.max(0, Math.min(7, cfg.days_after  || 0)),
+      })),
+  }), [filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, newsFilter])
 
   const filterKey = useMemo(() => JSON.stringify(queryFilters), [queryFilters])
 
@@ -1167,8 +1330,9 @@ export default function Trades() {
     if (filters.orderType) n++
     if (selectedChannelIds.length > 0) n++
     if (selectedWeekdays.length !== 7) n++
+    if (Object.values(newsFilter).some(cfg => cfg?.is_enabled)) n++
     return n
-  }, [filters, selectedChannelIds, selectedWeekdays])
+  }, [filters, selectedChannelIds, selectedWeekdays, newsFilter])
 
   // ---------- Pagination from server ----------
   const totalPages      = Math.max(1, Math.ceil(pageData.total / TRADES_PER_PAGE))
@@ -1183,6 +1347,7 @@ export default function Trades() {
     setSelectedChannelIds([])
     setCurrentPage(1)
     setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])
+    setNewsFilter({})
     setOutcomePage(1)
     setGanttPage(1)
   }
@@ -1461,6 +1626,12 @@ export default function Trades() {
                 </button>
               )}
             </div>
+
+            <NewsFilterSection
+              categories={newsCategories}
+              value={newsFilter}
+              onChange={setNewsFilter}
+            />
 
             <button
               onClick={clearFilters}
