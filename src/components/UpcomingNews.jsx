@@ -111,12 +111,10 @@ export default function UpcomingNews() {
 
         {/* legend */}
         <div className="flex items-center gap-3 px-4 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          {['high', 'medium', 'low'].map(k => (
-            <span key={k} className="flex items-center gap-1">
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: IMPACT[k].color, display: 'inline-block' }} />
-              {IMPACT[k].label}
-            </span>
-          ))}
+          <span className="flex items-center gap-1">
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: IMPACT.high.color, display: 'inline-block' }} />
+            High impact · next 7 days
+          </span>
         </div>
 
         {/* body */}

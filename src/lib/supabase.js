@@ -307,10 +307,17 @@ export async function fetchUpcomingNews(limit = 25) {
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
 
+  // Only look ahead 7 days (through the end of the 7th day from today).
+  const endOfWindow = new Date(startOfToday)
+  endOfWindow.setDate(endOfWindow.getDate() + 7)
+  endOfWindow.setHours(23, 59, 59, 999)
+
   const { data, error } = await supabase
     .from('economic_calendar')
     .select('event_time, event_date, currency, title, impact, forecast, previous')
+    .eq('impact', 'high')                       // only red / high-impact news
     .gte('event_time', startOfToday.toISOString())
+    .lte('event_time', endOfWindow.toISOString())
     .order('event_time', { ascending: true })
     .limit(limit)
 
