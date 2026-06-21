@@ -800,6 +800,23 @@ export default function Trades() {
 
   const filterKey = useMemo(() => JSON.stringify(queryFilters), [queryFilters])
 
+  // Count of active sidebar filters — shown as a badge on the mobile filter button,
+  // and used to gate the (heavy) price-chart marker fetch.
+  const activeFilterCount = useMemo(() => {
+    let n = 0
+    if (filters.startDate) n++
+    if (filters.endDate) n++
+    if (filters.status) n++
+    if (filters.side) n++
+    if (filters.orderType) n++
+    if (selectedChannelIds.length > 0) n++
+    if (selectedWeekdays.length !== 7) n++
+    if (Object.values(newsFilter).some(cfg => cfg?.is_enabled)) n++
+    return n
+  }, [filters, selectedChannelIds, selectedWeekdays, newsFilter])
+
+  const hasActiveFilters = activeFilterCount > 0
+
   // ---------- Outcome filter callbacks ----------
   const toggleOutcome = useCallback((outcomeKey) => {
     setSelectedOutcomes(prev => prev.includes(outcomeKey)
@@ -875,9 +892,12 @@ export default function Trades() {
   // ---------- Price-chart markers fetch (only while the chart tab is open) ----------
   // Pulls raw per-trade entry/exit points for the current filter set. Gated on
   // the active tab so the heavier raw-row fetch never runs for users who don't
-  // open the chart.
+  // open the chart. Also gated on there being at least one active filter — with
+  // no filters the marker set is every trade ever, which is slow to load and not
+  // useful, so the chart renders empty until the user narrows down with a filter.
   useEffect(() => {
     if (activeTab !== 'chart') return
+    if (!hasActiveFilters) { setChartMarkers([]); return }
     let canceled = false
     setChartMarkersLoading(true)
     fetchTradeMarkers(queryFilters)
@@ -886,7 +906,7 @@ export default function Trades() {
       .finally(() => { if (!canceled) setChartMarkersLoading(false) })
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, activeTab])
+  }, [filterKey, activeTab, hasActiveFilters])
 
   // ---------- Realtime: invalidate and refetch (debounced) ----------
   // The realtime subscription must be set up exactly once for the page's
@@ -1246,20 +1266,6 @@ export default function Trades() {
       .finally(() => setChartCandlesLoading(false))
     return () => ctrl.abort()
   }, [activeTab, chartSymbol, chartTimeframe, chartView])
-
-  // Count of active sidebar filters — shown as a badge on the mobile filter button.
-  const activeFilterCount = useMemo(() => {
-    let n = 0
-    if (filters.startDate) n++
-    if (filters.endDate) n++
-    if (filters.status) n++
-    if (filters.side) n++
-    if (filters.orderType) n++
-    if (selectedChannelIds.length > 0) n++
-    if (selectedWeekdays.length !== 7) n++
-    if (Object.values(newsFilter).some(cfg => cfg?.is_enabled)) n++
-    return n
-  }, [filters, selectedChannelIds, selectedWeekdays, newsFilter])
 
   // ---------- Pagination from server ----------
   const totalPages      = Math.max(1, Math.ceil(pageData.total / TRADES_PER_PAGE))
@@ -2011,6 +2017,12 @@ export default function Trades() {
               className="mb-6 -mx-4 sm:mx-0 rounded-none sm:rounded-2xl"
               bodyClassName="px-0 py-3 sm:p-5"
             >
+              {!hasActiveFilters && (
+                <div className="flex items-center gap-2 mb-3 px-4 sm:px-0 text-xs text-gray-500">
+                  <Filter className="w-3.5 h-3.5 flex-shrink-0" />
+                  Apply a filter to load trades onto the chart.
+                </div>
+              )}
               {chartMarkersLoading && chartMarkers.length === 0 ? (
                 <div className="flex items-center justify-center h-[460px] text-gray-500 text-sm">
                   Loading trades…
