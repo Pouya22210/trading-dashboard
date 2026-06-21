@@ -6,7 +6,7 @@ import {
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
   Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays, CandlestickChart,
-  Lightbulb, Play, Loader2, AlertCircle, Shield, Newspaper
+  Newspaper
 } from 'lucide-react'
 
 import {
@@ -24,7 +24,6 @@ import {
   fetchTradeMarkers,
 } from '../lib/queries'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
-import { fetchTradeInsights } from '../lib/insightsApi'
 import TradePriceChart from '../components/TradePriceChart'
 
 
@@ -189,54 +188,6 @@ function ChartCard({ title, icon: Icon, children, className = '', bodyClassName 
         <span className="text-sm font-semibold text-gray-300 uppercase tracking-wider truncate">{title}</span>
       </div>
       <div className={`${bodyClassName} overflow-x-auto`}>{children}</div>
-    </div>
-  )
-}
-
-
-// One histogram of "closest-approach %" buckets for the Insights tab.
-// `highlight(lo)` decides which buckets are the actionable ones (painted green).
-function InsightsDistribution({ data, color, highlight, emptyHint }) {
-  const histogram = data?.histogram || []
-  const stats = data?.stats || { count: 0, mean_pct: 0, median_pct: 0 }
-
-  if (!stats.count) {
-    return (
-      <div className="flex items-center justify-center h-[300px] text-gray-500 text-sm px-4 text-center">
-        {emptyHint || 'No qualifying trades in this filter set.'}
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mb-4 text-xs">
-        <span className="text-gray-400">Trades: <span className="text-white font-mono font-semibold">{stats.count}</span></span>
-        <span className="text-gray-400">Median: <span className="text-white font-mono font-semibold">{stats.median_pct}%</span></span>
-        <span className="text-gray-400">Mean: <span className="text-white font-mono font-semibold">{stats.mean_pct}%</span></span>
-        {data?.truncated && (
-          <span className="text-orange-400">⚠ capped — narrow the date range for full coverage</span>
-        )}
-      </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={histogram} margin={{ top: 8, right: 12, left: -8, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
-          <XAxis dataKey="bucket" tick={{ fill: '#8b949e', fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={48} />
-          <YAxis allowDecimals={false} tick={{ fill: '#8b949e', fontSize: 11 }} />
-          <Tooltip
-            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-            contentStyle={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 8 }}
-            labelStyle={{ color: '#c9d1d9' }}
-            formatter={(value) => [`${value} trades`, 'Count']}
-            labelFormatter={(label) => `${label}% from level`}
-          />
-          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-            {histogram.map((b, i) => (
-              <Cell key={i} fill={highlight && highlight(b.lo) ? COLORS.green : color} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   )
 }
@@ -786,11 +737,6 @@ export default function Trades() {
   const [chartCandleNote, setChartCandleNote] = useState(null)
   const [chartView, setChartView]         = useState(null) // visible {t0,t1}, reported by the chart
 
-  // ---------- Insights tab state (on-demand, tick-driven via the MT5 backend) ----------
-  const [insightsData,    setInsightsData]    = useState(null)
-  const [insightsLoading, setInsightsLoading] = useState(false)
-  const [insightsError,   setInsightsError]   = useState(null)
-
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() }
@@ -869,26 +815,7 @@ export default function Trades() {
     setCurrentPage(1)
     setOutcomePage(1)
     setGanttPage(1)
-    // Insights are an expensive on-demand computation; clear stale results so
-    // they can't be read against a filter set they weren't computed for.
-    setInsightsData(null)
-    setInsightsError(null)
   }, [filterKey])
-
-  // ---------- Insights: run the tick-driven analysis for the current filters ----------
-  const runInsights = useCallback(async () => {
-    setInsightsLoading(true)
-    setInsightsError(null)
-    setInsightsData(null)
-    try {
-      const result = await fetchTradeInsights(queryFilters)
-      setInsightsData(result)
-    } catch (err) {
-      setInsightsError(`${err.message}. Make sure the MT5 backtest API server is running.`)
-    } finally {
-      setInsightsLoading(false)
-    }
-  }, [queryFilters])
 
   // ---------- Analytics + drawdown fetch (per filter set) ----------
   // These don't change when the user just paginates the table, so they're
@@ -1810,7 +1737,6 @@ export default function Trades() {
             const tabs = [
               { key: 'trades',               label: 'Trades',               icon: BarChart3   },
               { key: 'chart',                label: 'Price Chart',          icon: CandlestickChart },
-              { key: 'insights',             label: 'Insights',             icon: Lightbulb   },
               { key: 'cumulative',           label: 'Cumulative P/L',       icon: TrendingUp  },
               { key: 'channel-activity',     label: 'Channel Activity',     icon: Calendar    },
               { key: 'market-sessions',      label: 'Market Sessions',      icon: Globe       },
@@ -2105,100 +2031,6 @@ export default function Trades() {
                 />
               )}
             </ChartCard>
-          )}
-
-          {/* ============ Insights (tick-driven near-miss distributions) ============ */}
-          {activeTab === 'insights' && (
-            <div className="mb-6">
-              {/* Run panel */}
-              <div
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 mb-6"
-                style={{ background: 'var(--neu-bg)', borderRadius: '16px', boxShadow: 'var(--neu-pressed-sm)' }}
-              >
-                <div className="flex items-start gap-3 flex-1">
-                  <div
-                    className="flex-shrink-0 flex items-center justify-center"
-                    style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'var(--neu-bg)', boxShadow: 'var(--neu-pressed-sm)' }}
-                  >
-                    <Lightbulb className="w-4 h-4 text-accent-cyan" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Near-miss Insights</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Walks MT5 tick history for the current sidebar filters (requires the backtest API server running).
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={runInsights}
-                  disabled={insightsLoading}
-                  className="flex items-center justify-center gap-2 px-6 py-3 font-semibold text-sm transition-all flex-shrink-0"
-                  style={{
-                    background: 'var(--neu-bg)',
-                    border: 'none',
-                    borderRadius: '14px',
-                    boxShadow: insightsLoading ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-md)',
-                    color: insightsLoading ? 'rgba(232,234,239,0.30)' : '#ADFF2F',
-                    cursor: insightsLoading ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {insightsLoading ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>
-                  ) : (
-                    <><Play className="w-4 h-4" /> Run analysis</>
-                  )}
-                </button>
-              </div>
-
-              {/* Error */}
-              {insightsError && (
-                <div
-                  className="flex items-center gap-3 p-4 mb-6"
-                  style={{ background: 'var(--neu-bg)', borderRadius: '14px', boxShadow: 'var(--neu-pressed-sm), inset 0 0 0 2px rgba(255,92,92,0.25)' }}
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--red)' }} />
-                  <p className="text-sm" style={{ color: 'var(--red)' }}>{insightsError}</p>
-                </div>
-              )}
-
-              {/* Idle prompt */}
-              {!insightsData && !insightsLoading && !insightsError && (
-                <div className="flex items-center justify-center h-[200px] text-gray-500 text-sm text-center px-4">
-                  Click <span className="text-accent-cyan font-medium mx-1">Run analysis</span> to compute near-miss distributions for the selected trades.
-                </div>
-              )}
-
-              {/* Results */}
-              {insightsData && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <ChartCard title="Cancelled before entry — closest approach to entry" icon={Target}>
-                    <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-                      Cancelled orders where price hit the TP without filling. Bars near <span className="text-accent-green font-medium">0%</span> are
-                      near-misses — price almost reached your entry — so nudging the entry toward the market could capture these.
-                    </p>
-                    <InsightsDistribution
-                      data={insightsData.entry_near_miss}
-                      color={COLORS.cyan}
-                      highlight={(lo) => lo < 30}
-                      emptyHint="No cancelled-before-entry trades that reached TP in this filter set."
-                    />
-                  </ChartCard>
-
-                  <ChartCard title="Winning trades — closest approach to stop loss" icon={Shield}>
-                    <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-                      Profit (TP) wins. Bars near <span className="text-accent-green font-medium">100%</span> mean price never went near the SL — unused
-                      room you could reclaim by moving the entry toward SL to improve R:R.
-                    </p>
-                    <InsightsDistribution
-                      data={insightsData.sl_room}
-                      color={COLORS.purple}
-                      highlight={(lo) => lo >= 70}
-                      emptyHint="No profit trades in this filter set."
-                    />
-                  </ChartCard>
-                </div>
-              )}
-            </div>
           )}
 
           {/* ============ Cumulative P&L ============ */}
