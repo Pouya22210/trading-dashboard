@@ -183,6 +183,32 @@ export default function TradePriceChart({
     return { t0, t1, span, pMin, pMax, visCandles, xOf, yOf, tOf, pOf }
   }, [domain, plot, candles, trades, priceDomain])
 
+  // Pre-project only the on-screen trades, recomputed solely when the data or
+  // the view changes. The render used to map over every trade (up to 20k) on
+  // EVERY render, and `hover` updates on each mousemove — so moving the cursor
+  // re-iterated and re-reconciled the full marker set each frame. `view` does
+  // not depend on `hover`, so this memo stays cached while hovering and the
+  // render only walks the (typically small) visible subset.
+  const visibleMarkers = useMemo(() => {
+    if (!view) return []
+    const out = []
+    for (const tr of trades) {
+      const onScreen = (tr.entryTime <= view.t1 && (tr.exitTime ?? tr.entryTime) >= view.t0)
+      if (!onScreen) continue
+      const hasExit = tr.exitTime != null && tr.exitPrice != null
+      out.push({
+        id: tr.id,
+        col: dirColor(tr.direction),
+        ex: view.xOf(tr.entryTime),
+        ey: view.yOf(tr.entryPrice),
+        hasExit,
+        xx: hasExit ? view.xOf(tr.exitTime) : null,
+        yy: hasExit ? view.yOf(tr.exitPrice) : null,
+      })
+    }
+    return out
+  }, [trades, view])
+
   // ---- interaction: wheel zoom (native listener so we can preventDefault) ----
   useEffect(() => {
     const el = wrapRef.current
@@ -505,16 +531,8 @@ export default function TradePriceChart({
             })}
 
             {/* trades: entry -> exit line + endpoint dots */}
-            {trades.map((tr) => {
-              const ex = view.xOf(tr.entryTime)
-              const ey = view.yOf(tr.entryPrice)
-              const col = dirColor(tr.direction)
-              const hasExit = tr.exitTime != null && tr.exitPrice != null
-              // skip if entirely off-screen
-              const onScreen = (tr.entryTime <= view.t1 && (tr.exitTime ?? tr.entryTime) >= view.t0)
-              if (!onScreen) return null
-              const xx = hasExit ? view.xOf(tr.exitTime) : null
-              const yy = hasExit ? view.yOf(tr.exitPrice) : null
+            {visibleMarkers.map((tr) => {
+              const { ex, ey, xx, yy, col, hasExit } = tr
               const isHover = hover?.nearest?.tr?.id === tr.id
               return (
                 <g key={tr.id}>
