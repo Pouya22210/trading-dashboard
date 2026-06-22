@@ -385,23 +385,27 @@ function MarketSessionsTooltip({ active, payload, label }) {
 // AI signal-grader verdict chip (accept / neutral / reject). Tooltip shows the
 // model's one-line summary; "-" when the trade has no AI label.
 function AILabelChip({ label, confidence, summary }) {
-  if (!label) return <span className="text-gray-600">-</span>
-  const map = {
-    accept:  { bg: 'rgba(34,197,94,0.15)',  color: '#22c55e' },
-    neutral: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-    reject:  { bg: 'rgba(239,68,68,0.15)',  color: '#ef4444' },
+  // `label` now holds the AI agreement score 0..10 (as text). Fall back to
+  // win_probability*10 if it's missing for older rows.
+  let score = Number(label)
+  if (Number.isNaN(score) && confidence != null && !Number.isNaN(Number(confidence))) {
+    score = Math.round(Number(confidence) * 10)
   }
-  const key = String(label).toLowerCase()
-  const s = map[key] || { bg: 'rgba(110,118,129,0.15)', color: '#9ca3af' }
-  const pct = (confidence != null && !Number.isNaN(Number(confidence)))
-    ? ` ${Math.round(Number(confidence) * 100)}%` : ''
+  if (Number.isNaN(score)) return <span className="text-gray-600">-</span>
+  score = Math.max(0, Math.min(10, score))
+  // 0-3 red, 4-6 amber, 7-10 green.
+  const s = score >= 7
+    ? { bg: 'rgba(34,197,94,0.15)',  color: '#22c55e' }
+    : score >= 4
+    ? { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
+    : { bg: 'rgba(239,68,68,0.15)',  color: '#ef4444' }
   return (
     <span
-      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold tracking-wider"
       style={{ background: s.bg, color: s.color, borderRadius: '6px' }}
       title={summary || ''}
     >
-      {key}{pct}
+      {score}/10
     </span>
   )
 }
