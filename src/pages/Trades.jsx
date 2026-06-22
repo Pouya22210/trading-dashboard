@@ -303,6 +303,7 @@ function SkeletonTableRow() {
       <td><SkeletonBlock width="55%" /></td>
       <td><SkeletonBlock width="60%" /></td>
       <td><SkeletonBlock width="70%" /></td>
+      <td><SkeletonBlock width="60%" /></td>
       <td><SkeletonBlock width="85%" /></td>
     </tr>
   )
@@ -380,6 +381,30 @@ function MarketSessionsTooltip({ active, payload, label }) {
   )
 }
 
+
+// AI signal-grader verdict chip (accept / neutral / reject). Tooltip shows the
+// model's one-line summary; "-" when the trade has no AI label.
+function AILabelChip({ label, confidence, summary }) {
+  if (!label) return <span className="text-gray-600">-</span>
+  const map = {
+    accept:  { bg: 'rgba(34,197,94,0.15)',  color: '#22c55e' },
+    neutral: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
+    reject:  { bg: 'rgba(239,68,68,0.15)',  color: '#ef4444' },
+  }
+  const key = String(label).toLowerCase()
+  const s = map[key] || { bg: 'rgba(110,118,129,0.15)', color: '#9ca3af' }
+  const pct = (confidence != null && !Number.isNaN(Number(confidence)))
+    ? ` ${Math.round(Number(confidence) * 100)}%` : ''
+  return (
+    <span
+      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+      style={{ background: s.bg, color: s.color, borderRadius: '6px' }}
+      title={summary || ''}
+    >
+      {key}{pct}
+    </span>
+  )
+}
 
 function OutcomeCheckbox({ outcome, checked, onChange }) {
   return (
@@ -1294,7 +1319,7 @@ export default function Trades() {
   // For huge result sets this is unavoidably slow — same cost as the old
   // page load was. Consider a dedicated server-streamed CSV endpoint later.
   async function exportCSV() {
-    const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'Cancel Reason', 'Time']
+    const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'AI Label', 'AI Confidence', 'Cancel Reason', 'Time']
     const rows  = []
     const PAGE  = 500
     let offset  = 0
@@ -1306,7 +1331,9 @@ export default function Trades() {
         res.rows.forEach(t => rows.push([
           t.trade_id, t.channel_name, t.symbol, t.direction, t.order_type,
           t.executed_entry_price, t.executed_tp_price, t.executed_sl_price,
-          t.profit_loss, t.status, t.outcome, t.cancel_reason || '', t.signal_time,
+          t.profit_loss, t.status, t.outcome, t.ai_label || '',
+          t.win_probability != null ? t.win_probability : '',
+          t.cancel_reason || '', t.signal_time,
         ]))
         offset += PAGE
       } while (offset < total)
@@ -1825,6 +1852,7 @@ export default function Trades() {
                       <th className="min-w-[70px]">SL</th>
                       <th className="min-w-[80px]">P&L</th>
                       <th className="min-w-[120px]">Status</th>
+                      <th className="min-w-[110px]">AI</th>
                       <th className="min-w-[150px]">Time</th>
                     </tr>
                   </thead>
@@ -1881,6 +1909,13 @@ export default function Trades() {
                                 )
                               })()}
                             </td>
+                            <td>
+                              <AILabelChip
+                                label={trade.ai_label}
+                                confidence={trade.win_probability}
+                                summary={trade.llm_analysis?.summary}
+                              />
+                            </td>
                             <td className="text-gray-500 text-xs sm:text-sm">
                               {trade.signal_time ? new Date(trade.signal_time).toLocaleString() : '-'}
                             </td>
@@ -1888,7 +1923,7 @@ export default function Trades() {
                         ))}
                         {paginatedTrades.length === 0 && (
                           <tr>
-                            <td colSpan={10} className="text-center text-gray-500 py-8">No trades found</td>
+                            <td colSpan={11} className="text-center text-gray-500 py-8">No trades found</td>
                           </tr>
                         )}
                       </>
@@ -1970,6 +2005,13 @@ export default function Trades() {
 
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
                         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          {trade.ai_label && (
+                            <AILabelChip
+                              label={trade.ai_label}
+                              confidence={trade.win_probability}
+                              summary={trade.llm_analysis?.summary}
+                            />
+                          )}
                           <span
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${statusColorClass}`}
                             style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '6px' }}

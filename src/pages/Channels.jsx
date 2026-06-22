@@ -3,7 +3,7 @@ import {
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap,
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
   Save, X, Check, RefreshCw, Shuffle, Search,
-  Users, Newspaper
+  Users, Newspaper, Brain
 } from 'lucide-react'
 import {
   fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels,
@@ -212,6 +212,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
     trade_monitor_interval_sec: 0.5,
     is_active: true,
     is_reversed: false,  // v11.0: Reverse trade feature
+    ai_analysis_enabled: false,  // AI signal analysis (label only)
     instruments: [{ logical_symbol: 'XAUUSD', broker_symbol: 'XAUUSD', pip_tolerance_pips: 1.5 }],
     final_tp_policy: { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
     riskfree_policy: { enabled: true, kind: '%path', percent: 50, pips: 10, tp_index: 1 },
@@ -233,6 +234,7 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
         trade_monitor_interval_sec: channel.trade_monitor_interval_sec || 0.5,
         is_active: channel.is_active ?? true,
         is_reversed: channel.is_reversed ?? false,  // v11.0: Reverse trade feature
+        ai_analysis_enabled: channel.ai_analysis_enabled ?? false,  // AI signal analysis (label only)
         instruments: channel.instruments || [{ logical_symbol: 'XAUUSD', broker_symbol: 'XAUUSD', pip_tolerance_pips: 1.5 }],
         final_tp_policy: channel.final_tp_policy || { kind: 'rr', rr_ratio: 1.0, tp_index: 1 },
         riskfree_policy: channel.riskfree_policy || { enabled: false, kind: '%path', percent: 50 },
@@ -471,6 +473,32 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
                 <Toggle
                   checked={formData.is_reversed}
                   onChange={checked => setFormData({ ...formData, is_reversed: checked })}
+                />
+              </div>
+
+              {/* AI Signal Analysis Toggle (label only — does not block trades) */}
+              <div
+                className="flex items-center justify-between p-4"
+                style={{
+                  background: 'var(--card-flat)',
+                  borderRadius: '14px',
+                  border: formData.ai_analysis_enabled
+                    ? '2px solid rgba(139,92,246,0.40)'
+                    : '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Brain className={`w-4 h-4 ${formData.ai_analysis_enabled ? 'text-violet-400' : 'text-gray-500'}`} />
+                    <label className={`text-sm font-medium ${formData.ai_analysis_enabled ? 'text-violet-300' : 'text-gray-300'}`}>
+                      AI Signal Analysis
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">AI analyses each signal and labels it accept / neutral / reject. Label only — does not block trades.</p>
+                </div>
+                <Toggle
+                  checked={formData.ai_analysis_enabled}
+                  onChange={checked => setFormData({ ...formData, ai_analysis_enabled: checked })}
                 />
               </div>
             </div>
@@ -1259,6 +1287,11 @@ export default function Channels() {
                   {channel.is_reversed && (
                     <span className="badge" style={{ color: 'var(--orange)' }}>
                       <RefreshCw className="w-3 h-3 inline mr-1" />Reversed
+                    </span>
+                  )}
+                  {channel.ai_analysis_enabled && (
+                    <span className="badge" style={{ color: '#a78bfa' }} title="AI signal analysis enabled">
+                      <Brain className="w-3 h-3 inline mr-1" />AI
                     </span>
                   )}
                   {newsCategories.length > 0 &&

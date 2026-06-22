@@ -18,9 +18,14 @@ export async function fetchChannels() {
     .from('v_channel_configs')
     .select('*')
     .order('channel_key')
-  
+
   if (error) throw error
-  return data
+
+  // ai_analysis_enabled lives on the channels table but isn't exposed by the
+  // v_channel_configs view, so pull it directly and merge by channel id.
+  const { data: aiFlags } = await supabase.from('channels').select('id, ai_analysis_enabled')
+  const flagMap = Object.fromEntries((aiFlags || []).map(c => [c.id, c.ai_analysis_enabled]))
+  return (data || []).map(ch => ({ ...ch, ai_analysis_enabled: flagMap[ch.id] ?? false }))
 }
 
 export async function fetchChannel(id) {
@@ -29,9 +34,12 @@ export async function fetchChannel(id) {
     .select('*')
     .eq('id', id)
     .single()
-  
+
   if (error) throw error
-  return data
+
+  // ai_analysis_enabled isn't in the view — read it from the channels table.
+  const { data: ch } = await supabase.from('channels').select('ai_analysis_enabled').eq('id', id).single()
+  return { ...data, ai_analysis_enabled: ch?.ai_analysis_enabled ?? false }
 }
 
 export async function createChannel(channelData) {
@@ -46,7 +54,8 @@ export async function createChannel(channelData) {
       max_slippage_points: channelData.max_slippage_points,
       trade_monitor_interval_sec: channelData.trade_monitor_interval_sec,
       is_active: true,
-      is_reversed: channelData.is_reversed || false  // v11.0: Reverse trade support
+      is_reversed: channelData.is_reversed || false,  // v11.0: Reverse trade support
+      ai_analysis_enabled: channelData.ai_analysis_enabled || false  // AI signal analysis (label only)
     })
     .select()
     .single()
@@ -142,7 +151,8 @@ export async function updateChannel(id, channelData) {
       max_slippage_points: channelData.max_slippage_points,
       trade_monitor_interval_sec: channelData.trade_monitor_interval_sec,
       is_active: channelData.is_active,
-      is_reversed: channelData.is_reversed ?? false
+      is_reversed: channelData.is_reversed ?? false,
+      ai_analysis_enabled: channelData.ai_analysis_enabled ?? false  // AI signal analysis (label only)
     })
     .eq('id', id)
 
