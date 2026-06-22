@@ -6,7 +6,6 @@ import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
 import Channels from './pages/Channels'
-import Backtest from './pages/Backtest'
 import { recordSiteVisit } from './lib/supabase'
 
 export default function App() {
@@ -33,7 +32,6 @@ export default function App() {
                   </ProtectedRoute>
                 } 
               />
-              <Route path="/backtest" element={<Backtest />} />
             </Routes>
           </main>
         </div>

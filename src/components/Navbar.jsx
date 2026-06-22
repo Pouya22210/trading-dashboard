@@ -44,7 +44,6 @@ export default function Navbar() {
     { path: '/', label: 'Dashboard' },
     { path: '/trades', label: 'Trades & Analysis' },
     { path: '/channels', label: 'Channels', showCount: true },
-    { path: '/backtest', label: 'Back Test' },
   ]
 
   const handleNavClick = () => setMobileMenuOpen(false)
