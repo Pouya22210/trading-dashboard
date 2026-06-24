@@ -1398,6 +1398,15 @@ export default function Trades() {
     return effectiveStatus || '-'
   }
 
+  // For blocked trades, the reason is mirrored onto trades.notes as
+  // "Trade blocked - {reason}". Surface it as a hover tooltip on the status.
+  function getBlockReason(trade) {
+    if (getTradeEffectiveStatus(trade) !== 'blocked') return null
+    const notes = (trade.notes || '').trim()
+    if (!notes) return null
+    return notes.replace(/^Trade blocked\s*-\s*/i, '').trim() || notes
+  }
+
 
   // ---------- Render ----------
   if (loading && !analytics) {
@@ -1906,8 +1915,13 @@ export default function Trades() {
                                   badgeClass === 'badge-warning'       ? 'text-orange-400' :
                                   badgeClass === 'badge-cancel-policy' ? 'badge-cancel-policy' :
                                   'text-gray-400'
+                                const blockReason = getBlockReason(trade)
                                 return (
-                                  <span className={`font-medium uppercase ${textColorClass}`} style={{ fontSize: '11px', letterSpacing: '0.04em' }}>
+                                  <span
+                                    className={`font-medium uppercase ${textColorClass}${blockReason ? ' cursor-help underline decoration-dotted underline-offset-2' : ''}`}
+                                    style={{ fontSize: '11px', letterSpacing: '0.04em' }}
+                                    title={blockReason || undefined}
+                                  >
                                     {getStatusDisplay(trade)}
                                   </span>
                                 )
@@ -2019,6 +2033,7 @@ export default function Trades() {
                           <span
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${statusColorClass}`}
                             style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '6px' }}
+                            title={getBlockReason(trade) || undefined}
                           >
                             <span className="w-1 h-1 rounded-full" style={{ backgroundColor: statusDotColor }} />
                             {getStatusDisplay(trade)}
