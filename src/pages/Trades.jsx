@@ -6,7 +6,7 @@ import {
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
   Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays, CandlestickChart,
-  Newspaper
+  Newspaper, Sparkles
 } from 'lucide-react'
 
 import {
@@ -384,7 +384,7 @@ function MarketSessionsTooltip({ active, payload, label }) {
 
 // AI signal-grader verdict chip (accept / neutral / reject). Tooltip shows the
 // model's one-line summary; "-" when the trade has no AI label.
-function AILabelChip({ label, confidence, summary }) {
+function AILabelChip({ label, confidence, summary, onClick }) {
   // `label` now holds the AI agreement score 0..10 (as text). Fall back to
   // win_probability*10 if it's missing for older rows.
   let score = Number(label)
@@ -399,14 +399,139 @@ function AILabelChip({ label, confidence, summary }) {
     : score >= 4
     ? { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
     : { bg: 'rgba(239,68,68,0.15)',  color: '#ef4444' }
+  // When an onClick is supplied (i.e. the trade has stored AI analysis), the
+  // chip becomes a button that opens the full-analysis modal.
+  const clickable = typeof onClick === 'function'
   return (
     <span
-      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold tracking-wider"
+      onClick={clickable ? (e) => { e.stopPropagation(); onClick() } : undefined}
+      onKeyDown={clickable ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() }
+      } : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold tracking-wider ${
+        clickable ? 'cursor-pointer hover:brightness-125 transition-all' : ''
+      }`}
       style={{ background: s.bg, color: s.color, borderRadius: '6px' }}
-      title={summary || ''}
+      title={clickable ? 'View AI analysis' : (summary || '')}
     >
       {score}/10
     </span>
+  )
+}
+
+
+// Modal showing the AI signal-grader's full verdict for a trade — opened by
+// clicking the AI score chip. Renders every field the grader saved in the
+// trade's `llm_analysis` column (score, summary, key_factors, full_analysis).
+function AIAnalysisModal({ trade, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  if (!trade) return null
+  const analysis = trade.llm_analysis || {}
+
+  let score = Number(analysis.score)
+  if (Number.isNaN(score) && trade.win_probability != null) {
+    score = Math.round(Number(trade.win_probability) * 10)
+  }
+  const hasScore = !Number.isNaN(score)
+  if (hasScore) score = Math.max(0, Math.min(10, score))
+  const s = !hasScore
+    ? { bg: 'rgba(110,118,129,0.15)', color: '#6e7681' }
+    : score >= 7
+    ? { bg: 'rgba(34,197,94,0.15)',  color: '#22c55e' }
+    : score >= 4
+    ? { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
+    : { bg: 'rgba(239,68,68,0.15)',  color: '#ef4444' }
+
+  const keyFactors = Array.isArray(analysis.key_factors) ? analysis.key_factors : []
+  const hasAnything = analysis.summary || analysis.full_analysis || keyFactors.length > 0
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-dark-primary/60 backdrop-blur-md p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+        style={{ background: 'var(--neu-bg)', borderRadius: '18px', boxShadow: 'var(--neu-raised-md)' }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center gap-3 px-5 py-4 flex-shrink-0"
+          style={{ boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.35)' }}
+        >
+          <Sparkles className="w-5 h-5 text-accent-cyan flex-shrink-0" />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-gray-200 uppercase tracking-wider">AI Analysis</h2>
+            <p className="text-xs text-gray-500 truncate">
+              {trade.symbol || '—'} · {trade.direction?.toUpperCase() || '—'}
+              {trade.signal_time ? ` · ${new Date(trade.signal_time).toLocaleString()}` : ''}
+            </p>
+          </div>
+          {hasScore && (
+            <span
+              className="inline-flex items-center px-2.5 py-1 text-sm font-bold tracking-wider flex-shrink-0"
+              style={{ background: s.bg, color: s.color, borderRadius: '8px' }}
+            >
+              {score}/10
+            </span>
+          )}
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 overflow-y-auto space-y-4">
+          {!hasAnything && (
+            <p className="text-sm text-gray-500 text-center py-8">
+              No AI analysis is available for this trade.
+            </p>
+          )}
+
+          {analysis.summary && (
+            <div>
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Summary</h3>
+              <p className="text-sm text-gray-200 leading-relaxed">{analysis.summary}</p>
+            </div>
+          )}
+
+          {keyFactors.length > 0 && (
+            <div>
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Key Factors</h3>
+              <ul className="space-y-1.5">
+                {keyFactors.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                    <span className="leading-relaxed">{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {analysis.full_analysis && (
+            <div>
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Full Analysis</h3>
+              <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{analysis.full_analysis}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -737,6 +862,8 @@ export default function Trades() {
   const [connectionStatus, setConnectionStatus] = useState('CONNECTING')
   const [toast, setToast] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Trade whose full AI analysis is shown in the modal (null = closed).
+  const [aiModalTrade, setAiModalTrade] = useState(null)
 
   const [selectedOutcomes, setSelectedOutcomes] = useState(OUTCOME_TYPES.map(o => o.key))
 
@@ -1444,6 +1571,10 @@ export default function Trades() {
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
 
+      {aiModalTrade && (
+        <AIAnalysisModal trade={aiModalTrade} onClose={() => setAiModalTrade(null)} />
+      )}
+
       {sidebarOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black/50 z-30"
@@ -1932,6 +2063,7 @@ export default function Trades() {
                                 label={trade.ai_label}
                                 confidence={trade.win_probability}
                                 summary={trade.llm_analysis?.summary}
+                                onClick={trade.llm_analysis ? () => setAiModalTrade(trade) : undefined}
                               />
                             </td>
                             <td className="text-gray-500 text-xs sm:text-sm">
@@ -2028,6 +2160,7 @@ export default function Trades() {
                               label={trade.ai_label}
                               confidence={trade.win_probability}
                               summary={trade.llm_analysis?.summary}
+                              onClick={trade.llm_analysis ? () => setAiModalTrade(trade) : undefined}
                             />
                           )}
                           <span
