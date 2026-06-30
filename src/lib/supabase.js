@@ -125,17 +125,6 @@ export async function createChannel(channelData) {
     max_daily_loss_pct: channelData.circuit_breaker?.max_daily_loss_pct || 10
   })
 
-  await supabase.from('trend_filter_configs').insert({
-    channel_id: channelId,
-    is_enabled: channelData.trend_filter?.enabled ?? false,
-    swing_strength: channelData.trend_filter?.swing_strength || 2,
-    min_swings_required: channelData.trend_filter?.min_swings_required || 2,
-    ema_period: channelData.trend_filter?.ema_period || 50,
-    candles_to_fetch: channelData.trend_filter?.candles_to_fetch || 100,
-    require_all_three: channelData.trend_filter?.require_all_three ?? false,
-    log_details: channelData.trend_filter?.log_details ?? true
-  })
-
   return channel
 }
 
@@ -211,16 +200,6 @@ export async function updateChannel(id, channelData) {
     is_enabled: channelData.circuit_breaker?.enabled ?? true,
     max_daily_trades: channelData.circuit_breaker?.max_daily_trades || 20,
     max_daily_loss_pct: channelData.circuit_breaker?.max_daily_loss_pct || 10
-  }).eq('channel_id', id)
-
-  await supabase.from('trend_filter_configs').update({
-    is_enabled: channelData.trend_filter?.enabled ?? false,
-    swing_strength: channelData.trend_filter?.swing_strength || 2,
-    min_swings_required: channelData.trend_filter?.min_swings_required || 2,
-    ema_period: channelData.trend_filter?.ema_period || 50,
-    candles_to_fetch: channelData.trend_filter?.candles_to_fetch || 100,
-    require_all_three: channelData.trend_filter?.require_all_three ?? false,
-    log_details: channelData.trend_filter?.log_details ?? true
   }).eq('channel_id', id)
 
   return { id }

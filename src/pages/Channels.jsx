@@ -220,7 +220,6 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
     cancel_policy: { enabled: true, kind: 'final_tp', percent: 50, tp_index: 1, enable_for_now: true, enable_for_limit: true, enable_for_auto: true },
     commands: { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, enable_sl_update: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [], sl_update_phrases: ['\\bstop\\b.*\\bupdat'] },
     circuit_breaker: { enabled: true, max_daily_trades: 20, max_daily_loss_pct: 10 },
-    trend_filter: { enabled: false, swing_strength: 2, min_swings_required: 2, ema_period: 50, candles_to_fetch: 100, require_all_three: false, log_details: true },
     news_blackout: {},  // { [category_id]: { is_enabled, days_before, days_after } }
   })
 
@@ -242,7 +241,6 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
         cancel_policy: channel.cancel_policy || { enabled: true, kind: 'final_tp', enable_for_now: true, enable_for_limit: true, enable_for_auto: true },
         commands: channel.commands || { enable_close: true, enable_cancel_limit: true, enable_riskfree: false, enable_sl_update: false, close_phrases: [], cancel_limit_phrases: [], riskfree_phrases: [], sl_update_phrases: ['\\bstop\\b.*\\bupdat'] },
         circuit_breaker: channel.circuit_breaker || { enabled: true, max_daily_trades: 20, max_daily_loss_pct: 10 },
-        trend_filter: channel.trend_filter || { enabled: false, swing_strength: 2, min_swings_required: 2, ema_period: 50, candles_to_fetch: 100, require_all_three: false, log_details: true },
         news_blackout: buildNewsBlackout(newsCategories, channel.news_blackouts),
       })
     }
@@ -318,7 +316,6 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
     { id: 'tp', icon: Target, label: 'TP Policy' },
     { id: 'riskfree', icon: Shield, label: 'Risk-Free' },
     { id: 'cancel', icon: X, label: 'Cancel' },
-    { id: 'trend', icon: TrendingUp, label: 'Trend Filter' },
     { id: 'news', icon: Newspaper, label: 'News Blackout' },
     { id: 'commands', icon: MessageSquare, label: 'Commands' },
     { id: 'circuit', icon: Zap, label: 'Circuit Breaker' },
@@ -748,82 +745,6 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
                   label="For AUTO orders"
                 />
               </div>
-            </div>
-          )}
-
-          {/* Trend Filter Tab */}
-          {activeTab === 'trend' && (
-            <div className="space-y-4">
-              <Toggle
-                checked={formData.trend_filter.enabled}
-                onChange={checked => setFormData({
-                  ...formData,
-                  trend_filter: { ...formData.trend_filter, enabled: checked }
-                })}
-                label="Enable Trend Filter"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Swing Strength">
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.trend_filter.swing_strength}
-                    onChange={e => setFormData({
-                      ...formData,
-                      trend_filter: { ...formData.trend_filter, swing_strength: parseInt(e.target.value) }
-                    })}
-                  />
-                </FormField>
-                <FormField label="Min Swings Required">
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.trend_filter.min_swings_required}
-                    onChange={e => setFormData({
-                      ...formData,
-                      trend_filter: { ...formData.trend_filter, min_swings_required: parseInt(e.target.value) }
-                    })}
-                  />
-                </FormField>
-                <FormField label="EMA Period">
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.trend_filter.ema_period}
-                    onChange={e => setFormData({
-                      ...formData,
-                      trend_filter: { ...formData.trend_filter, ema_period: parseInt(e.target.value) }
-                    })}
-                  />
-                </FormField>
-                <FormField label="Candles to Fetch">
-                  <input
-                    type="number"
-                    min="10"
-                    value={formData.trend_filter.candles_to_fetch}
-                    onChange={e => setFormData({
-                      ...formData,
-                      trend_filter: { ...formData.trend_filter, candles_to_fetch: parseInt(e.target.value) }
-                    })}
-                  />
-                </FormField>
-              </div>
-              <Toggle
-                checked={formData.trend_filter.require_all_three}
-                onChange={checked => setFormData({
-                  ...formData,
-                  trend_filter: { ...formData.trend_filter, require_all_three: checked }
-                })}
-                label="Require All Three Methods to Agree"
-              />
-              <Toggle
-                checked={formData.trend_filter.log_details}
-                onChange={checked => setFormData({
-                  ...formData,
-                  trend_filter: { ...formData.trend_filter, log_details: checked }
-                })}
-                label="Log Detailed Analysis"
-              />
             </div>
           )}
 
@@ -1336,7 +1257,7 @@ export default function Channels() {
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="bg-dark-tertiary rounded-lg p-3">
                 <div className="text-gray-500 text-xs uppercase mb-1">Risk</div>
                 <div className="text-white font-mono">{(channel.risk_per_trade * 100).toFixed(1)}%</div>
@@ -1346,16 +1267,6 @@ export default function Channels() {
                 <div className="text-white font-mono flex items-center gap-2">
                   {channel.riskfree_policy?.enabled ? (
                     <><Check className="w-3 h-3 text-green-400" /> {channel.riskfree_policy.percent}%</>
-                  ) : (
-                    <span className="text-gray-500">Disabled</span>
-                  )}
-                </div>
-              </div>
-              <div className="bg-dark-tertiary rounded-lg p-3">
-                <div className="text-gray-500 text-xs uppercase mb-1">Trend Filter</div>
-                <div className="text-white font-mono flex items-center gap-2">
-                  {channel.trend_filter?.enabled ? (
-                    <><Check className="w-3 h-3 text-green-400" /> Enabled</>
                   ) : (
                     <span className="text-gray-500">Disabled</span>
                   )}
