@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Calendar, Filter, Download, Plus, Trash2, Search, X, WifiOff,
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
-  CheckSquare, Square, ChevronDown, Globe, Eye, EyeOff,
+  CheckSquare, Square, ChevronDown, Globe,
   Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays, CandlestickChart,
   Newspaper, Sparkles
 } from 'lucide-react'
@@ -634,13 +634,6 @@ function ChannelMultiSelect({ channelList, selectedChannelIds, onChange, channel
                   Deselect All
                 </button>
               </div>
-              <button
-                onClick={onToggleOrphaned}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
-              >
-                {showOrphaned ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                <span>{showOrphaned ? 'Hide' : 'Show'} Deleted</span>
-              </button>
             </div>
 
             <div className="px-3 py-2 border-b border-dark-border">
