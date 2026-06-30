@@ -217,16 +217,59 @@ export async function deleteChannel(id) {
 
 /**
  * Delete every trade belonging to a channel. Returns the number of rows removed.
+ *
+ * Trades are READ through the `v_trades_with_channels` view, whose `channel_id`
+ * reflects the *current* (re-mapped) channel and can differ from the value
+ * stored on the base `trades` row when a channel was renamed/re-created and the
+ * old one orphaned. Deleting straight from the base table by `channel_id` then
+ * matches 0 rows even though the dashboard clearly shows trades. To stay in
+ * sync with what the UI displays, we resolve the actual trade ids from the same
+ * view and delete those rows by primary key.
  */
 export async function deleteTradesByChannel(channelId) {
-  const { data, error } = await supabase
-    .from('trades')
-    .delete()
-    .eq('channel_id', channelId)
-    .select('id')
+  // 1. Collect the ids of every trade the dashboard attributes to this channel.
+  const BATCH = 1000
+  const ids = []
+  let offset = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('v_trades_with_channels')
+      .select('id')
+      .eq('channel_id', channelId)
+      .range(offset, offset + BATCH - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    ids.push(...data.map(r => r.id))
+    if (data.length < BATCH) break
+    offset += BATCH
+  }
 
-  if (error) throw error
-  return (data || []).length
+  if (ids.length === 0) return 0
+
+  // 2. Delete the base `trades` rows by primary key, in chunks.
+  let removed = 0
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const chunk = ids.slice(i, i + BATCH)
+    const { data, error } = await supabase
+      .from('trades')
+      .delete()
+      .in('id', chunk)
+      .select('id')
+    if (error) throw error
+    removed += (data || []).length
+  }
+
+  // 3. If we found trades but couldn't remove any, the row-level-security
+  //    policy on `trades` is blocking DELETE for this client (PostgREST returns
+  //    no error, just 0 affected rows). Surface that instead of a silent no-op.
+  if (removed === 0) {
+    throw new Error(
+      `Found ${ids.length} trade(s) but none could be deleted. The 'trades' table ` +
+      `likely has no DELETE row-level-security policy for this key.`
+    )
+  }
+
+  return removed
 }
 
 // ============================================================================
