@@ -231,9 +231,23 @@ export async function deleteChannel(id) {
     .from('channels')
     .delete()
     .eq('id', id)
-  
+
   if (error) throw error
   return true
+}
+
+/**
+ * Delete every trade belonging to a channel. Returns the number of rows removed.
+ */
+export async function deleteTradesByChannel(channelId) {
+  const { data, error } = await supabase
+    .from('trades')
+    .delete()
+    .eq('channel_id', channelId)
+    .select('id')
+
+  if (error) throw error
+  return (data || []).length
 }
 
 // ============================================================================

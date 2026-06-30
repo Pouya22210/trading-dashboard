@@ -3,12 +3,13 @@ import {
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap,
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
   Save, X, Check, RefreshCw, Shuffle, Search,
-  Users, Newspaper, Brain
+  Users, Newspaper, Brain, Eraser
 } from 'lucide-react'
 import {
   fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels,
   fetchAppSetting, updateAppSetting,
-  fetchNewsCategories, fetchNewsBlackouts, saveChannelNewsBlackouts
+  fetchNewsCategories, fetchNewsBlackouts, saveChannelNewsBlackouts,
+  deleteTradesByChannel
 } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 import VisitorsTab from '../components/VisitorsTab'
@@ -1038,6 +1039,8 @@ export default function Channels() {
   const [editingChannel, setEditingChannel] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [clearTradesConfirm, setClearTradesConfirm] = useState(null)  // channel whose trades to clear
+  const [clearingTrades, setClearingTrades] = useState(false)
   const [pageTab, setPageTab] = useState('channels')
   
   // Global settings state (Issue 1: Pending order expiry)
@@ -1122,6 +1125,20 @@ export default function Channels() {
     } catch (err) {
       console.error('Delete failed:', err)
       alert('Failed to delete: ' + err.message)
+    }
+  }
+
+  async function handleClearTrades(channel) {
+    setClearingTrades(true)
+    try {
+      const removed = await deleteTradesByChannel(channel.id)
+      setClearTradesConfirm(null)
+      alert(`Removed ${removed} trade${removed === 1 ? '' : 's'} for "${channel.channel_key}".`)
+    } catch (err) {
+      console.error('Clear trades failed:', err)
+      alert('Failed to clear trades: ' + err.message)
+    } finally {
+      setClearingTrades(false)
     }
   }
 
@@ -1307,6 +1324,13 @@ export default function Channels() {
                 <button onClick={() => openEditModal(channel)} className="text-gray-400 hover:text-accent-cyan">
                   <Edit2 className="w-4 h-4" />
                 </button>
+                <button
+                  onClick={() => setClearTradesConfirm(channel)}
+                  className="text-gray-400 hover:text-amber-400"
+                  title="Remove all trades for this channel"
+                >
+                  <Eraser className="w-4 h-4" />
+                </button>
                 <button onClick={() => setDeleteConfirm(channel.id)} className="text-gray-400 hover:text-red-400">
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -1373,6 +1397,43 @@ export default function Channels() {
               <button onClick={() => setDeleteConfirm(null)} className="btn-secondary">Cancel</button>
               <button onClick={() => handleDelete(deleteConfirm)} className="btn-danger flex items-center gap-2">
                 <Trash2 className="w-4 h-4" /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Trades Confirmation */}
+      {clearTradesConfirm && (
+        <div className="modal-overlay" onClick={() => !clearingTrades && setClearTradesConfirm(null)}>
+          <div className="modal-content max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                Remove All Trades
+              </h2>
+            </div>
+            <div className="modal-body">
+              <p className="text-gray-300">
+                Are you sure you want to remove <span className="font-semibold text-white">all trades</span> for
+                channel <span className="font-semibold text-white">"{clearTradesConfirm.channel_key}"</span>?
+                The channel itself is kept. This action cannot be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                onClick={() => setClearTradesConfirm(null)}
+                className="btn-secondary"
+                disabled={clearingTrades}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleClearTrades(clearTradesConfirm)}
+                className="btn-danger flex items-center gap-2"
+                disabled={clearingTrades}
+              >
+                {clearingTrades ? 'Removing...' : <><Eraser className="w-4 h-4" /> Remove Trades</>}
               </button>
             </div>
           </div>
