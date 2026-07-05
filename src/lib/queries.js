@@ -105,6 +105,28 @@ export async function fetchTradesAnalytics(filters) {
 }
 
 
+// ---------- Trades page: AI grade × win/loss distribution ----------
+// One row per (channel, provider, grade 0-10) cell over closed profit/loss
+// trades, with win/loss counts. Same filter envelope as the analytics RPC,
+// so the AI Grades tab tracks every sidebar filter (incl. news blackouts).
+// SQL: migrations/2026-07-05_grade_outcome_distribution.sql
+
+export async function fetchGradeOutcomeDistribution(filters) {
+  const { data, error } = await supabase.rpc('get_grade_outcome_distribution', {
+    p_filters: serializeFilters(filters),
+  })
+  if (error) throw error
+  return (data || []).map(row => ({
+    channelId:   row.channel_id,
+    channelName: row.channel_name,
+    provider:    row.provider,
+    grade:       Number(row.grade),
+    wins:        Number(row.wins)   || 0,
+    losses:      Number(row.losses) || 0,
+  }))
+}
+
+
 // ---------- Trades page: risk-based daily calendar ----------
 // Fetches the *entire* calendar for the filter set (not per-month). The UI
 // paginates through months locally, and uses the dataset's min/max date to

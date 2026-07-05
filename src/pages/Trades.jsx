@@ -22,6 +22,7 @@ import {
   fetchDailyProfitCalendar,
   fetchMaxDrawdown,
   fetchTradeMarkers,
+  fetchGradeOutcomeDistribution,
 } from '../lib/queries'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
 import TradePriceChart from '../components/TradePriceChart'
@@ -53,6 +54,13 @@ const OUTCOME_TYPES = [
   { key: 'canceled',  label: 'Canceled',     color: COLORS.cyan },
   { key: 'blocked',   label: 'Blocked',      color: COLORS.pink },
   { key: 'unknown',   label: 'Unknown/Null', color: COLORS.yellow },
+]
+
+// AI signal-grader providers shown on the AI Grades tab. Keys match the
+// `provider` values returned by get_grade_outcome_distribution.
+const AI_PROVIDERS = [
+  { key: 'claude', name: 'Claude' },
+  { key: 'gemini', name: 'Gemini' },
 ]
 
 const WEEKDAYS = [
@@ -377,6 +385,37 @@ function MarketSessionsTooltip({ active, payload, label }) {
           <span className="text-white font-mono font-semibold">{entry.value}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+
+// Tooltip for the AI Grades mirrored bar chart — shows win/loss counts and the
+// win rate for the hovered grade bin.
+function GradeDistributionTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null
+  const d = payload[0]?.payload
+  if (!d) return null
+  const total = d.wins + d.lossCount
+  const winRate = total > 0 ? Math.round((d.wins / total) * 100) : null
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[150px]">
+      <p className="text-white text-sm font-semibold mb-2">Grade {d.grade}/10</p>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.green }} />
+        <span className="text-gray-300">Wins:</span>
+        <span className="text-white font-mono ml-auto">{d.wins}</span>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.red }} />
+        <span className="text-gray-300">Losses:</span>
+        <span className="text-white font-mono ml-auto">{d.lossCount}</span>
+      </div>
+      {winRate != null && (
+        <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400">
+          Win rate: <span className="text-white font-mono">{winRate}%</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -934,6 +973,11 @@ export default function Trades() {
   const [chartCandleNote, setChartCandleNote] = useState(null)
   const [chartView, setChartView]         = useState(null) // visible {t0,t1}, reported by the chart
 
+  // ---------- AI Grades tab state ----------
+  // null = never fetched (render the loading state, not the empty state).
+  const [gradeDist, setGradeDist] = useState(null)
+  const [gradeDistLoading, setGradeDistLoading] = useState(false)
+
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() }
@@ -1104,6 +1148,21 @@ export default function Trades() {
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, activeTab, hasActiveFilters])
+
+  // ---------- AI grade distribution fetch (only while the AI Grades tab is open) ----------
+  // Server-aggregated (one row per channel × provider × grade cell), so it's
+  // cheap; gated on the tab like the chart markers to avoid idle RPCs.
+  useEffect(() => {
+    if (activeTab !== 'ai-grades') return
+    let canceled = false
+    setGradeDistLoading(true)
+    fetchGradeOutcomeDistribution(queryFilters)
+      .then(rows => { if (!canceled) setGradeDist(rows) })
+      .catch(err => { console.error('Failed to load grade distribution:', err); if (!canceled) setGradeDist([]) })
+      .finally(() => { if (!canceled) setGradeDistLoading(false) })
+    return () => { canceled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey, activeTab])
 
   // ---------- Realtime: invalidate and refetch (debounced) ----------
   // The realtime subscription must be set up exactly once for the page's
@@ -1279,6 +1338,63 @@ export default function Trades() {
       unknown:   Number(item.unknown)   || 0,
     }))
   }, [analytics])
+
+  // ---------- AI grade × outcome distribution (AI Grades tab) ----------
+  // Pivots the per-cell RPC rows into, per provider: 11 grade bins with win
+  // counts up / loss counts down (mirrored chart), headline stats, and a
+  // per-channel × provider breakdown table. yMax is shared across providers
+  // so Claude and Gemini panels are directly comparable.
+  const gradeDistView = useMemo(() => {
+    const providers = {}
+    for (const p of AI_PROVIDERS) {
+      providers[p.key] = {
+        bins: Array.from({ length: 11 }, (_, g) => ({ grade: g, wins: 0, lossCount: 0, lossesDown: 0 })),
+        graded: 0, wins: 0, losses: 0,
+        winGradeSum: 0, lossGradeSum: 0,
+        hiWins: 0, hiTotal: 0,   // grades 7-10
+        loWins: 0, loTotal: 0,   // grades 0-3
+      }
+    }
+    const channelMap = {}
+    for (const r of (gradeDist || [])) {
+      const p = providers[r.provider]
+      if (!p || r.grade < 0 || r.grade > 10) continue
+      const n = r.wins + r.losses
+      const bin = p.bins[r.grade]
+      bin.wins       += r.wins
+      bin.lossCount  += r.losses
+      bin.lossesDown -= r.losses
+      p.graded += n
+      p.wins   += r.wins
+      p.losses += r.losses
+      p.winGradeSum  += r.grade * r.wins
+      p.lossGradeSum += r.grade * r.losses
+      if (r.grade >= 7) { p.hiWins += r.wins; p.hiTotal += n }
+      if (r.grade <= 3) { p.loWins += r.wins; p.loTotal += n }
+
+      const ck = `${r.channelId}|${r.provider}`
+      if (!channelMap[ck]) {
+        channelMap[ck] = {
+          channelId: r.channelId, channelName: r.channelName, provider: r.provider,
+          graded: 0, wins: 0, losses: 0, winGradeSum: 0, lossGradeSum: 0, hiWins: 0, hiTotal: 0,
+        }
+      }
+      const c = channelMap[ck]
+      c.graded += n
+      c.wins   += r.wins
+      c.losses += r.losses
+      c.winGradeSum  += r.grade * r.wins
+      c.lossGradeSum += r.grade * r.losses
+      if (r.grade >= 7) { c.hiWins += r.wins; c.hiTotal += n }
+    }
+    let yMax = 0
+    for (const p of Object.values(providers)) {
+      for (const bin of p.bins) yMax = Math.max(yMax, bin.wins, bin.lossCount)
+    }
+    const channelRows = Object.values(channelMap).sort((a, b) =>
+      a.channelName.localeCompare(b.channelName) || a.provider.localeCompare(b.provider))
+    return { providers, yMax: Math.max(1, yMax), channelRows }
+  }, [gradeDist])
 
   // ---------- Market sessions ----------
   const marketSessionsData = useMemo(() => {
@@ -1966,6 +2082,7 @@ export default function Trades() {
               { key: 'channel-activity',     label: 'Channel Activity',     icon: Calendar    },
               { key: 'market-sessions',      label: 'Market Sessions',      icon: Globe       },
               { key: 'outcome-distribution', label: 'Outcome Distribution', icon: Target      },
+              { key: 'ai-grades',            label: 'AI Grades',            icon: Sparkles    },
               { key: 'daily-profit',         label: 'Daily Profit',         icon: CalendarDays },
               { key: 'other',                label: 'Other',                icon: LayoutGrid  },
             ]
@@ -2785,6 +2902,147 @@ export default function Trades() {
               )}
             </ChartCard>
           )}
+
+          {/* ============ AI Grades vs Outcome ============ */}
+          {activeTab === 'ai-grades' && (() => {
+            const { providers, yMax, channelRows } = gradeDistView
+            const gradeDistPending = gradeDistLoading || gradeDist === null
+            const fmtAvg = (sum, n) => n > 0 ? (sum / n).toFixed(1) : '—'
+            const fmtRate = (w, n) => n > 0 ? `${Math.round((w / n) * 100)}%` : '—'
+            return (
+              <div className="mb-8 space-y-6">
+                <p className="text-xs text-gray-500 -mt-2">
+                  How each AI grader's 0-10 score lines up with the real outcome of closed trades
+                  (wins above the line, losses below). Only closed trades that ended in profit or
+                  loss and were graded by the model are counted; all sidebar filters apply.
+                </p>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  {AI_PROVIDERS.map(p => {
+                    const pv = providers[p.key]
+                    const winRate = fmtRate(pv.wins, pv.graded)
+                    return (
+                      <ChartCard key={p.key} title={`${p.name} · Grade vs Outcome`} icon={Sparkles}>
+                        {gradeDistPending ? (
+                          <div className="flex items-center justify-center h-72 text-gray-500 text-sm">Loading…</div>
+                        ) : pv.graded === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-72 text-gray-500 text-sm gap-1 px-6 text-center">
+                            <span>No {p.name}-graded closed trades match these filters.</span>
+                            <span className="text-xs text-gray-600">
+                              Trades only appear here after {p.name} graded the signal and the trade closed in profit or loss.
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Headline stats */}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {[
+                                { label: 'Graded trades',      value: pv.graded },
+                                { label: 'Win rate',           value: winRate },
+                                { label: 'Avg grade · wins',   value: fmtAvg(pv.winGradeSum, pv.wins),   color: COLORS.green },
+                                { label: 'Avg grade · losses', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
+                                { label: 'Win rate @ 7-10',    value: `${fmtRate(pv.hiWins, pv.hiTotal)} (${pv.hiTotal})` },
+                                { label: 'Win rate @ 0-3',     value: `${fmtRate(pv.loWins, pv.loTotal)} (${pv.loTotal})` },
+                              ].map(stat => (
+                                <div
+                                  key={stat.label}
+                                  className="px-2.5 py-1.5"
+                                  style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
+                                >
+                                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</div>
+                                  <div className="text-sm font-semibold font-mono" style={{ color: stat.color || '#e5e7eb' }}>
+                                    {stat.value}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <ResponsiveContainer width="100%" height={280}>
+                              <BarChart
+                                data={pv.bins}
+                                stackOffset="sign"
+                                margin={{ left: 0, right: 10, top: 10, bottom: 4 }}
+                                barCategoryGap="25%"
+                              >
+                                <XAxis
+                                  dataKey="grade"
+                                  stroke="#6e7681"
+                                  fontSize={11}
+                                  tickLine={false}
+                                  interval={0}
+                                  label={{ value: 'AI grade', position: 'insideBottom', offset: -2, fill: '#6e7681', fontSize: 10 }}
+                                />
+                                <YAxis
+                                  stroke="#6e7681"
+                                  fontSize={11}
+                                  domain={[-yMax, yMax]}
+                                  allowDecimals={false}
+                                  tickFormatter={(v) => Math.abs(v)}
+                                  width={34}
+                                />
+                                <Tooltip content={<GradeDistributionTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                                <ReferenceLine y={0} stroke="#6e7681" strokeWidth={1} />
+                                <Legend
+                                  wrapperStyle={{ paddingTop: 12 }}
+                                  formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>}
+                                />
+                                <Bar dataKey="wins" name="Wins" stackId="wl" fill={COLORS.green} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                <Bar dataKey="lossesDown" name="Losses" stackId="wl" fill={COLORS.red} radius={[0, 0, 4, 4]} maxBarSize={26} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </>
+                        )}
+                      </ChartCard>
+                    )
+                  })}
+                </div>
+
+                {/* Per-channel × model breakdown */}
+                {!gradeDistPending && channelRows.length > 0 && (
+                  <ChartCard title="Per-Channel Grade Accuracy" icon={Target} bodyClassName="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th className="min-w-[160px]">Channel</th>
+                            <th>Model</th>
+                            <th>Graded</th>
+                            <th>Wins</th>
+                            <th>Losses</th>
+                            <th>Avg Grade · Wins</th>
+                            <th>Avg Grade · Losses</th>
+                            <th>Win Rate @ 7-10</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {channelRows.map(row => (
+                            <tr key={`${row.channelId}|${row.provider}`} className="transition-colors hover:bg-dark-tertiary/50">
+                              <td>
+                                <span className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: getChannelColor(row.channelId) }}
+                                  />
+                                  <span className="truncate max-w-[220px]" title={row.channelName}>{row.channelName}</span>
+                                </span>
+                              </td>
+                              <td>{AI_PROVIDERS.find(p => p.key === row.provider)?.name || row.provider}</td>
+                              <td className="font-mono">{row.graded}</td>
+                              <td className="font-mono" style={{ color: COLORS.green }}>{row.wins}</td>
+                              <td className="font-mono" style={{ color: COLORS.red }}>{row.losses}</td>
+                              <td className="font-mono">{fmtAvg(row.winGradeSum, row.wins)}</td>
+                              <td className="font-mono">{fmtAvg(row.lossGradeSum, row.losses)}</td>
+                              <td className="font-mono">{row.hiTotal > 0 ? `${fmtRate(row.hiWins, row.hiTotal)} (${row.hiTotal})` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </ChartCard>
+                )}
+              </div>
+            )
+          })()}
 
           {/* ============ Daily Profit Calendar ============ */}
           {activeTab === 'daily-profit' && (() => {
