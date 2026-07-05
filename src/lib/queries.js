@@ -60,24 +60,28 @@ export async function fetchTradesPage(filters, { limit = 10, offset = 0 } = {}) 
   if (error) throw error
   const rows = data?.rows || []
 
-  // The AI signal-grader fields (ai_label, win_probability, llm_analysis) and the
-  // block reason (notes) aren't returned by the get_trades_paginated RPC, so fetch
-  // them straight from the trades table by id and merge in. No RPC/view change needed.
+  // The AI signal-grader fields (Claude: ai_label/win_probability/llm_analysis,
+  // Gemini: gemini_label/gemini_win_probability/gemini_llm_analysis) and the block
+  // reason (notes) aren't returned by the get_trades_paginated RPC, so fetch them
+  // straight from the trades table by id and merge in. No RPC/view change needed.
   const ids = rows.map(r => r.id).filter(Boolean)
   if (ids.length) {
     try {
       const { data: extra } = await supabase
         .from('trades')
-        .select('id, ai_label, win_probability, llm_analysis, notes')
+        .select('id, ai_label, win_probability, llm_analysis, gemini_label, gemini_win_probability, gemini_llm_analysis, notes')
         .in('id', ids)
       const extraMap = Object.fromEntries((extra || []).map(a => [a.id, a]))
       for (const r of rows) {
         const a = extraMap[r.id]
         if (a) {
-          r.ai_label        = a.ai_label
-          r.win_probability = a.win_probability
-          r.llm_analysis    = a.llm_analysis
-          r.notes           = a.notes
+          r.ai_label                = a.ai_label
+          r.win_probability         = a.win_probability
+          r.llm_analysis            = a.llm_analysis
+          r.gemini_label            = a.gemini_label
+          r.gemini_win_probability  = a.gemini_win_probability
+          r.gemini_llm_analysis     = a.gemini_llm_analysis
+          r.notes                   = a.notes
         }
       }
     } catch (_) { /* optional — never block the trades page on this */ }

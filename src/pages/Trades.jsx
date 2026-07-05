@@ -382,9 +382,54 @@ function MarketSessionsTooltip({ active, payload, label }) {
 }
 
 
-// AI signal-grader verdict chip (accept / neutral / reject). Tooltip shows the
-// model's one-line summary; "-" when the trade has no AI label.
-function AILabelChip({ label, confidence, summary, onClick }) {
+// Pull one provider's grader fields off a trade row. Claude keeps the original
+// columns; Gemini has its own. Returns { label, confidence, analysis }.
+function providerFields(trade, provider) {
+  if (provider === 'gemini') {
+    return {
+      label: trade.gemini_label,
+      confidence: trade.gemini_win_probability,
+      analysis: trade.gemini_llm_analysis,
+    }
+  }
+  return {
+    label: trade.ai_label,
+    confidence: trade.win_probability,
+    analysis: trade.llm_analysis,
+  }
+}
+
+// Renders every enabled provider's score chip for a trade (Claude "C", Gemini
+// "G"), side by side. Each clickable chip opens the analysis modal for that
+// provider. "-" when the trade has no score from any provider.
+function AIScoreCell({ trade, onOpen }) {
+  const chips = [
+    { key: 'claude', tag: 'C' },
+    { key: 'gemini', tag: 'G' },
+  ].map(p => {
+    const f = providerFields(trade, p.key)
+    if (f.label == null && f.confidence == null) return null
+    return (
+      <AILabelChip
+        key={p.key}
+        label={f.label}
+        confidence={f.confidence}
+        summary={f.analysis?.summary}
+        providerTag={p.tag}
+        onClick={f.analysis ? () => onOpen(trade, p.key) : undefined}
+      />
+    )
+  }).filter(Boolean)
+
+  if (chips.length === 0) return <span className="text-gray-600">-</span>
+  return <div className="inline-flex items-center gap-1 flex-wrap">{chips}</div>
+}
+
+
+// AI signal-grader score chip. Shows an optional provider tag (C/G) then the
+// 0-10 score, colour-coded. Tooltip shows the model's one-line summary; "-" when
+// the trade has no AI label.
+function AILabelChip({ label, confidence, summary, onClick, providerTag }) {
   // `label` now holds the AI agreement score 0..10 (as text). Fall back to
   // win_probability*10 if it's missing for older rows.
   let score = Number(label)
@@ -416,6 +461,7 @@ function AILabelChip({ label, confidence, summary, onClick }) {
       style={{ background: s.bg, color: s.color, borderRadius: '6px' }}
       title={clickable ? 'View AI analysis' : (summary || '')}
     >
+      {providerTag && <span style={{ opacity: 0.65, marginRight: 3 }}>{providerTag}</span>}
       {score}/10
     </span>
   )
@@ -425,7 +471,7 @@ function AILabelChip({ label, confidence, summary, onClick }) {
 // Modal showing the AI signal-grader's full verdict for a trade — opened by
 // clicking the AI score chip. Renders every field the grader saved in the
 // trade's `llm_analysis` column (score, summary, key_factors, full_analysis).
-function AIAnalysisModal({ trade, onClose }) {
+function AIAnalysisModal({ trade, provider = 'claude', onClose }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -433,11 +479,13 @@ function AIAnalysisModal({ trade, onClose }) {
   }, [onClose])
 
   if (!trade) return null
-  const analysis = trade.llm_analysis || {}
+  const fields = providerFields(trade, provider)
+  const analysis = fields.analysis || {}
+  const providerName = provider === 'gemini' ? 'Gemini 2.5 Flash' : 'Claude'
 
   let score = Number(analysis.score)
-  if (Number.isNaN(score) && trade.win_probability != null) {
-    score = Math.round(Number(trade.win_probability) * 10)
+  if (Number.isNaN(score) && fields.confidence != null) {
+    score = Math.round(Number(fields.confidence) * 10)
   }
   const hasScore = !Number.isNaN(score)
   if (hasScore) score = Math.max(0, Math.min(10, score))
@@ -471,7 +519,7 @@ function AIAnalysisModal({ trade, onClose }) {
         >
           <Sparkles className="w-5 h-5 text-accent-cyan flex-shrink-0" />
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-gray-200 uppercase tracking-wider">AI Analysis</h2>
+            <h2 className="text-sm font-semibold text-gray-200 uppercase tracking-wider">AI Analysis · {providerName}</h2>
             <p className="text-xs text-gray-500 truncate">
               {trade.symbol || '—'} · {trade.direction?.toUpperCase() || '—'}
               {trade.signal_time ? ` · ${new Date(trade.signal_time).toLocaleString()}` : ''}
@@ -856,7 +904,7 @@ export default function Trades() {
   const [toast, setToast] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Trade whose full AI analysis is shown in the modal (null = closed).
-  const [aiModalTrade, setAiModalTrade] = useState(null)
+  const [aiModal, setAiModal] = useState(null)  // { trade, provider } | null
 
   const [selectedOutcomes, setSelectedOutcomes] = useState(OUTCOME_TYPES.map(o => o.key))
 
@@ -1443,7 +1491,7 @@ export default function Trades() {
   // For huge result sets this is unavoidably slow — same cost as the old
   // page load was. Consider a dedicated server-streamed CSV endpoint later.
   async function exportCSV() {
-    const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'AI Label', 'AI Confidence', 'Cancel Reason', 'Time']
+    const headers = ['Trade ID', 'Channel', 'Symbol', 'Side', 'Order Type', 'Entry', 'TP', 'SL', 'P&L', 'Status', 'Outcome', 'Claude Score', 'Claude Confidence', 'Gemini Score', 'Gemini Confidence', 'Cancel Reason', 'Time']
     const rows  = []
     const PAGE  = 500
     let offset  = 0
@@ -1455,8 +1503,11 @@ export default function Trades() {
         res.rows.forEach(t => rows.push([
           t.trade_id, t.channel_name, t.symbol, t.direction, t.order_type,
           t.executed_entry_price, t.executed_tp_price, t.executed_sl_price,
-          t.profit_loss, t.status, t.outcome, t.ai_label || '',
+          t.profit_loss, t.status, t.outcome,
+          t.ai_label || '',
           t.win_probability != null ? t.win_probability : '',
+          t.gemini_label || '',
+          t.gemini_win_probability != null ? t.gemini_win_probability : '',
           t.cancel_reason || '', t.signal_time,
         ]))
         offset += PAGE
@@ -1564,8 +1615,12 @@ export default function Trades() {
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
 
-      {aiModalTrade && (
-        <AIAnalysisModal trade={aiModalTrade} onClose={() => setAiModalTrade(null)} />
+      {aiModal && (
+        <AIAnalysisModal
+          trade={aiModal.trade}
+          provider={aiModal.provider}
+          onClose={() => setAiModal(null)}
+        />
       )}
 
       {sidebarOpen && (
@@ -2052,11 +2107,9 @@ export default function Trades() {
                               })()}
                             </td>
                             <td>
-                              <AILabelChip
-                                label={trade.ai_label}
-                                confidence={trade.win_probability}
-                                summary={trade.llm_analysis?.summary}
-                                onClick={trade.llm_analysis ? () => setAiModalTrade(trade) : undefined}
+                              <AIScoreCell
+                                trade={trade}
+                                onOpen={(t, prov) => setAiModal({ trade: t, provider: prov })}
                               />
                             </td>
                             <td className="text-gray-500 text-xs sm:text-sm">
@@ -2148,12 +2201,10 @@ export default function Trades() {
 
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
                         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                          {trade.ai_label && (
-                            <AILabelChip
-                              label={trade.ai_label}
-                              confidence={trade.win_probability}
-                              summary={trade.llm_analysis?.summary}
-                              onClick={trade.llm_analysis ? () => setAiModalTrade(trade) : undefined}
+                          {(trade.ai_label != null || trade.gemini_label != null) && (
+                            <AIScoreCell
+                              trade={trade}
+                              onOpen={(t, prov) => setAiModal({ trade: t, provider: prov })}
                             />
                           )}
                           <span
