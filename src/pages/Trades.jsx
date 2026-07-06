@@ -12,7 +12,7 @@ import {
 import {
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, Legend,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ComposedChart, Area,
-  AreaChart, ReferenceLine, ReferenceDot, CartesianGrid
+  AreaChart, ReferenceLine, ReferenceDot, ReferenceArea, CartesianGrid
 } from 'recharts'
 
 import { subscribeToTrades, fetchNewsCategories } from '../lib/supabase'
@@ -2964,6 +2964,20 @@ export default function Trades() {
                                 margin={{ left: 0, right: 10, top: 10, bottom: 4 }}
                                 barCategoryGap="25%"
                               >
+                                {/* Expected-grade-color backdrop: red (0-3) → amber (4-6) →
+                                    green (7-10), matching the AI score chip thresholds. Kept
+                                    at low opacity so the saturated win/loss bars stay dominant. */}
+                                <defs>
+                                  <linearGradient id={`grade-bg-${p.key}`} x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="0%"   stopColor="#ef4444" stopOpacity={0.18} />
+                                    <stop offset="30%"  stopColor="#ef4444" stopOpacity={0.13} />
+                                    <stop offset="45%"  stopColor="#f59e0b" stopOpacity={0.12} />
+                                    <stop offset="60%"  stopColor="#f59e0b" stopOpacity={0.12} />
+                                    <stop offset="75%"  stopColor="#22c55e" stopOpacity={0.13} />
+                                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.18} />
+                                  </linearGradient>
+                                </defs>
+                                <ReferenceArea fill={`url(#grade-bg-${p.key})`} fillOpacity={1} />
                                 <XAxis
                                   dataKey="grade"
                                   stroke="#6e7681"
