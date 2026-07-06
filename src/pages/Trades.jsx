@@ -2920,7 +2920,6 @@ export default function Trades() {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {AI_PROVIDERS.map(p => {
                     const pv = providers[p.key]
-                    const winRate = fmtRate(pv.wins, pv.graded)
                     return (
                       <ChartCard key={p.key} title={`${p.name} · Grade vs Outcome`} icon={Sparkles}>
                         {gradeDistPending ? (
@@ -2938,7 +2937,6 @@ export default function Trades() {
                             <div className="flex flex-wrap gap-2 mb-4">
                               {[
                                 { label: 'Graded trades',      value: pv.graded },
-                                { label: 'Win rate',           value: winRate },
                                 { label: 'Avg grade · wins',   value: fmtAvg(pv.winGradeSum, pv.wins),   color: COLORS.green },
                                 { label: 'Avg grade · losses', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
                                 { label: 'Win rate @ 7-10',    value: `${fmtRate(pv.hiWins, pv.hiTotal)} (${pv.hiTotal})` },
@@ -2964,20 +2962,15 @@ export default function Trades() {
                                 margin={{ left: 0, right: 10, top: 10, bottom: 4 }}
                                 barCategoryGap="25%"
                               >
-                                {/* Expected-grade-color backdrop: red (0-3) → amber (4-6) →
-                                    green (7-10), matching the AI score chip thresholds. Kept
-                                    at low opacity so the saturated win/loss bars stay dominant. */}
-                                <defs>
-                                  <linearGradient id={`grade-bg-${p.key}`} x1="0" y1="0" x2="1" y2="0">
-                                    <stop offset="0%"   stopColor="#ef4444" stopOpacity={0.18} />
-                                    <stop offset="30%"  stopColor="#ef4444" stopOpacity={0.13} />
-                                    <stop offset="45%"  stopColor="#f59e0b" stopOpacity={0.12} />
-                                    <stop offset="60%"  stopColor="#f59e0b" stopOpacity={0.12} />
-                                    <stop offset="75%"  stopColor="#22c55e" stopOpacity={0.13} />
-                                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.18} />
-                                  </linearGradient>
-                                </defs>
-                                <ReferenceArea fill={`url(#grade-bg-${p.key})`} fillOpacity={1} />
+                                {/* Grade zones (same thresholds as the AI score chips):
+                                    three boxes — 0-3 / 4-6 / 7-10 — with an expectation
+                                    marker strip on top: red above the avoid zone, green
+                                    above the take zone. Fills stay faint so bars dominate. */}
+                                <ReferenceArea x1={0} x2={3}  fill="#ef4444" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
+                                <ReferenceArea x1={4} x2={6}  fill="transparent" fillOpacity={0} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
+                                <ReferenceArea x1={7} x2={10} fill="#22c55e" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
+                                <ReferenceArea x1={0} x2={3}  y1={yMax * 0.94} y2={yMax} fill="#ef4444" fillOpacity={0.9} strokeOpacity={0} />
+                                <ReferenceArea x1={7} x2={10} y1={yMax * 0.94} y2={yMax} fill="#22c55e" fillOpacity={0.9} strokeOpacity={0} />
                                 <XAxis
                                   dataKey="grade"
                                   stroke="#6e7681"
