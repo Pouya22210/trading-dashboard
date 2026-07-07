@@ -2077,12 +2077,12 @@ export default function Trades() {
           {(() => {
             const tabs = [
               { key: 'trades',               label: 'Trades',               icon: BarChart3   },
+              { key: 'ai-grades',            label: 'AI Grades',            icon: Sparkles    },
               { key: 'chart',                label: 'Price Chart',          icon: CandlestickChart },
               { key: 'cumulative',           label: 'Cumulative P/L',       icon: TrendingUp  },
               { key: 'channel-activity',     label: 'Channel Activity',     icon: Calendar    },
               { key: 'market-sessions',      label: 'Market Sessions',      icon: Globe       },
               { key: 'outcome-distribution', label: 'Outcome Distribution', icon: Target      },
-              { key: 'ai-grades',            label: 'AI Grades',            icon: Sparkles    },
               { key: 'daily-profit',         label: 'Daily Profit',         icon: CalendarDays },
               { key: 'other',                label: 'Other',                icon: LayoutGrid  },
             ]
@@ -2913,13 +2913,28 @@ export default function Trades() {
               <div className="mb-8 space-y-6">
                 <p className="text-xs text-gray-500 -mt-2">
                   How each AI grader's 0-10 score lines up with the real outcome of closed trades
-                  (wins above the line, losses below). Only closed trades that ended in profit or
+                  (wins above the line, losses below). Grades 7-10 read as "take it", 0-3 as "avoid":
+                  ✓ TP = graded 7-10 &amp; won, ✓ TN = graded 0-3 &amp; lost, ✗ FP = graded 7-10 &amp; lost,
+                  ✗ FN = graded 0-3 &amp; won. Only closed trades that ended in profit or
                   loss and were graded by the model are counted; all sidebar filters apply.
                 </p>
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {AI_PROVIDERS.map(p => {
                     const pv = providers[p.key]
+                    // Confusion-matrix counts: grade 7-10 = predicted win, 0-3 = predicted loss.
+                    const tp = pv.hiWins
+                    const fp = pv.hiTotal - pv.hiWins
+                    const fn = pv.loWins
+                    const tn = pv.loTotal - pv.loWins
+                    // Net result (wins − losses): all graded trades vs. skipping every 0-3
+                    // graded trade (drops TN and FN alike), under the same sidebar filters.
+                    const netAll   = pv.wins - pv.losses
+                    const winsKept   = pv.wins - fn
+                    const lossesKept = pv.losses - tn
+                    const netExclLow = winsKept - lossesKept
+                    const netDelta   = netExclLow - netAll
+                    const fmtNet = (v) => v > 0 ? `+${v}` : `${v}`
                     return (
                       <ChartCard key={p.key} title={`${p.name} · Grade vs Outcome`} icon={Sparkles}>
                         {gradeDistPending ? (
@@ -2941,6 +2956,10 @@ export default function Trades() {
                                 { label: 'Avg grade · losses', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
                                 { label: 'Win rate @ 7-10',    value: `${fmtRate(pv.hiWins, pv.hiTotal)} (${pv.hiTotal})` },
                                 { label: 'Win rate @ 0-3',     value: `${fmtRate(pv.loWins, pv.loTotal)} (${pv.loTotal})` },
+                                { label: '✓ TP · 7-10 & won',  value: tp, color: COLORS.green },
+                                { label: '✗ FP · 7-10 & lost', value: fp, color: COLORS.red },
+                                { label: '✓ TN · 0-3 & lost',  value: tn, color: COLORS.green },
+                                { label: '✗ FN · 0-3 & won',   value: fn, color: COLORS.red },
                               ].map(stat => (
                                 <div
                                   key={stat.label}
@@ -2953,6 +2972,35 @@ export default function Trades() {
                                   </div>
                                 </div>
                               ))}
+                            </div>
+
+                            {/* Net result (wins − losses): everything the model graded vs.
+                                what you'd get by skipping every 0-3 graded trade (drops the
+                                TN losses but also gives up the FN wins). Same sidebar filters. */}
+                            <div
+                              className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5"
+                              style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
+                            >
+                              <div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · all graded</div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: netAll >= 0 ? COLORS.green : COLORS.red }}>
+                                  {fmtNet(netAll)}{' '}
+                                  <span className="text-gray-500 font-normal">({pv.wins}W − {pv.losses}L)</span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · skipping 0-3 graded</div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: netExclLow >= 0 ? COLORS.green : COLORS.red }}>
+                                  {fmtNet(netExclLow)}{' '}
+                                  <span className="text-gray-500 font-normal">({winsKept}W − {lossesKept}L)</span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge from skipping 0-3</div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: netDelta > 0 ? COLORS.green : netDelta < 0 ? COLORS.red : '#e5e7eb' }}>
+                                  {fmtNet(netDelta)}
+                                </div>
+                              </div>
                             </div>
 
                             <ResponsiveContainer width="100%" height={280}>
@@ -2971,6 +3019,17 @@ export default function Trades() {
                                 <ReferenceArea x1={7} x2={10} fill="#22c55e" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
                                 <ReferenceArea x1={0} x2={3}  y1={yMax * 0.94} y2={yMax} fill="#ef4444" fillOpacity={0.9} strokeOpacity={0} />
                                 <ReferenceArea x1={7} x2={10} y1={yMax * 0.94} y2={yMax} fill="#22c55e" fillOpacity={0.9} strokeOpacity={0} />
+                                {/* Confusion-matrix quadrant labels (7-10 = predicted win, 0-3 =
+                                    predicted loss; above the line = won, below = lost). Text stays
+                                    neutral so it doesn't fight the green/red win-loss bars. */}
+                                <ReferenceArea x1={0} x2={3}  y1={0} y2={yMax * 0.88} fill="transparent" strokeOpacity={0}
+                                  label={{ value: `✗ FN · ${fn}`, position: 'insideTop', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
+                                <ReferenceArea x1={0} x2={3}  y1={-yMax} y2={0} fill="transparent" strokeOpacity={0}
+                                  label={{ value: `✓ TN · ${tn}`, position: 'insideBottom', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
+                                <ReferenceArea x1={7} x2={10} y1={0} y2={yMax * 0.88} fill="transparent" strokeOpacity={0}
+                                  label={{ value: `✓ TP · ${tp}`, position: 'insideTop', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
+                                <ReferenceArea x1={7} x2={10} y1={-yMax} y2={0} fill="transparent" strokeOpacity={0}
+                                  label={{ value: `✗ FP · ${fp}`, position: 'insideBottom', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
                                 <XAxis
                                   dataKey="grade"
                                   stroke="#6e7681"
