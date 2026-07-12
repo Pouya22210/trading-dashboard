@@ -1387,6 +1387,32 @@ export default function Trades() {
       c.lossGradeSum += r.grade * r.losses
       if (r.grade >= 7) { c.hiWins += r.wins; c.hiTotal += n }
     }
+    // Discrimination metrics per provider, from the 0-10 bins.
+    // AUC = probability a random winning trade was graded above a random
+    // losing one (ties count half): 0.5 = no discrimination, 1 = perfect.
+    // Log loss reads each grade as p(win) = grade/10 (clamped so 0 and 10
+    // don't blow up ln): lower is better; a no-skill "always 5" grader
+    // scores ln2 ≈ 0.693.
+    for (const p of Object.values(providers)) {
+      p.auc = null
+      p.logLoss = null
+      if (p.wins > 0 && p.losses > 0) {
+        let winsAboveLosses = 0, lossesBelow = 0
+        for (const bin of p.bins) {
+          winsAboveLosses += bin.wins * (lossesBelow + 0.5 * bin.lossCount)
+          lossesBelow += bin.lossCount
+        }
+        p.auc = winsAboveLosses / (p.wins * p.losses)
+      }
+      if (p.graded > 0) {
+        let sum = 0
+        for (const bin of p.bins) {
+          const prob = Math.min(0.99, Math.max(0.01, bin.grade / 10))
+          sum += bin.wins * -Math.log(prob) + bin.lossCount * -Math.log(1 - prob)
+        }
+        p.logLoss = sum / p.graded
+      }
+    }
     let yMax = 0
     for (const p of Object.values(providers)) {
       for (const bin of p.bins) yMax = Math.max(yMax, bin.wins, bin.lossCount)
@@ -2915,7 +2941,10 @@ export default function Trades() {
                   How each AI grader's 0-10 score lines up with the real outcome of closed trades
                   (wins above the line, losses below). Grades 7-10 read as "take it", 0-3 as "avoid":
                   ✓ TP = graded 7-10 &amp; won, ✓ TN = graded 0-3 &amp; lost, ✗ FP = graded 7-10 &amp; lost,
-                  ✗ FN = graded 0-3 &amp; won. Only closed trades that ended in profit or
+                  ✗ FN = graded 0-3 &amp; won. AUC is the probability a random winning trade was graded
+                  above a random losing one (0.5 = no discrimination, higher is better); log loss
+                  scores the grade read as a win probability (grade/10) — lower is better, and a
+                  no-skill "always 5" grader scores 0.693. Only closed trades that ended in profit or
                   loss and were graded by the model are counted; all sidebar filters apply.
                 </p>
 
@@ -2956,6 +2985,22 @@ export default function Trades() {
                                 { label: 'Avg grade · losses', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
                                 { label: 'Win rate @ 7-10',    value: `${fmtRate(pv.hiWins, pv.hiTotal)} (${pv.hiTotal})` },
                                 { label: 'Win rate @ 0-3',     value: `${fmtRate(pv.loWins, pv.loTotal)} (${pv.loTotal})` },
+                                {
+                                  label: 'AUC · 0.5 = none',
+                                  value: pv.auc != null ? pv.auc.toFixed(3) : '—',
+                                  color: pv.auc == null ? undefined
+                                    : pv.auc >= 0.52 ? COLORS.green
+                                    : pv.auc <= 0.48 ? COLORS.red
+                                    : undefined,
+                                },
+                                {
+                                  label: 'Log loss · 0.693 = none',
+                                  value: pv.logLoss != null ? pv.logLoss.toFixed(3) : '—',
+                                  color: pv.logLoss == null ? undefined
+                                    : pv.logLoss <= Math.LN2 - 0.01 ? COLORS.green
+                                    : pv.logLoss >= Math.LN2 + 0.01 ? COLORS.red
+                                    : undefined,
+                                },
                                 { label: '✓ TP · 7-10 & won',  value: tp, color: COLORS.green },
                                 { label: '✗ FP · 7-10 & lost', value: fp, color: COLORS.red },
                                 { label: '✓ TN · 0-3 & lost',  value: tn, color: COLORS.green },
