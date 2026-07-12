@@ -3001,10 +3001,6 @@ export default function Trades() {
                                     : pv.logLoss >= Math.LN2 + 0.01 ? COLORS.red
                                     : undefined,
                                 },
-                                { label: '✓ TP · 7-10 & won',  value: tp, color: COLORS.green },
-                                { label: '✗ FP · 7-10 & lost', value: fp, color: COLORS.red },
-                                { label: '✓ TN · 0-3 & lost',  value: tn, color: COLORS.green },
-                                { label: '✗ FN · 0-3 & won',   value: fn, color: COLORS.red },
                               ].map(stat => (
                                 <div
                                   key={stat.label}
@@ -3017,6 +3013,28 @@ export default function Trades() {
                                   </div>
                                 </div>
                               ))}
+                              {/* Confusion counts share one box: 7-10 = predicted win, 0-3 = predicted loss. */}
+                              <div
+                                className="px-2.5 py-1.5"
+                                style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
+                              >
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                                  TP · FP · TN · FN
+                                </div>
+                                <div className="flex items-center gap-x-3 text-sm font-semibold font-mono">
+                                  {[
+                                    { tag: '✓ TP', value: tp, color: COLORS.green },
+                                    { tag: '✗ FP', value: fp, color: COLORS.red },
+                                    { tag: '✓ TN', value: tn, color: COLORS.green },
+                                    { tag: '✗ FN', value: fn, color: COLORS.red },
+                                  ].map(cell => (
+                                    <span key={cell.tag} className="whitespace-nowrap">
+                                      <span className="text-[10px] text-gray-500 font-normal">{cell.tag} </span>
+                                      <span style={{ color: cell.color }}>{cell.value}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
 
                             {/* Net result (wins − losses): everything the model graded vs.
@@ -3098,7 +3116,9 @@ export default function Trades() {
                                   formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>}
                                 />
                                 <Bar dataKey="wins" name="Wins" stackId="wl" fill={COLORS.green} radius={[4, 4, 0, 0]} maxBarSize={26} />
-                                <Bar dataKey="lossesDown" name="Losses" stackId="wl" fill={COLORS.red} radius={[0, 0, 4, 4]} maxBarSize={26} />
+                                {/* Negative bars are drawn sign-aware by Recharts, so the same
+                                    radius spec rounds this bar's outer (bottom) tip too. */}
+                                <Bar dataKey="lossesDown" name="Losses" stackId="wl" fill={COLORS.red} radius={[4, 4, 0, 0]} maxBarSize={26} />
                               </BarChart>
                             </ResponsiveContainer>
                           </>
