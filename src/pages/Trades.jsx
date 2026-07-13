@@ -977,6 +977,11 @@ export default function Trades() {
   // null = never fetched (render the loading state, not the empty state).
   const [gradeDist, setGradeDist] = useState(null)
   const [gradeDistLoading, setGradeDistLoading] = useState(false)
+  // Per-provider symmetric grade cutoff: value t means "avoid" = grades 0-t
+  // and "take" = grades (10-t)-10. Default 3 → 0-3 / 7-10.
+  const [gradeCutoffs, setGradeCutoffs] = useState(
+    () => Object.fromEntries(AI_PROVIDERS.map(p => [p.key, 3]))
+  )
 
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
@@ -1342,8 +1347,10 @@ export default function Trades() {
   // ---------- AI grade × outcome distribution (AI Grades tab) ----------
   // Pivots the per-cell RPC rows into, per provider: 11 grade bins with win
   // counts up / loss counts down (mirrored chart), headline stats, and a
-  // per-channel × provider breakdown table. yMax is shared across providers
-  // so Claude and Gemini panels are directly comparable.
+  // per-channel × provider breakdown table. Each provider gets its own yMax
+  // so a low-volume grader's bars aren't dwarfed by the other panel's scale.
+  // Cutoff-dependent stats (TP/FP/TN/FN, win rates, net results) are derived
+  // at render time from the bins, using each chart's slider value.
   const gradeDistView = useMemo(() => {
     const providers = {}
     for (const p of AI_PROVIDERS) {
@@ -1351,8 +1358,6 @@ export default function Trades() {
         bins: Array.from({ length: 11 }, (_, g) => ({ grade: g, wins: 0, lossCount: 0, lossesDown: 0 })),
         graded: 0, wins: 0, losses: 0,
         winGradeSum: 0, lossGradeSum: 0,
-        hiWins: 0, hiTotal: 0,   // grades 7-10
-        loWins: 0, loTotal: 0,   // grades 0-3
       }
     }
     const channelMap = {}
@@ -1369,8 +1374,6 @@ export default function Trades() {
       p.losses += r.losses
       p.winGradeSum  += r.grade * r.wins
       p.lossGradeSum += r.grade * r.losses
-      if (r.grade >= 7) { p.hiWins += r.wins; p.hiTotal += n }
-      if (r.grade <= 3) { p.loWins += r.wins; p.loTotal += n }
 
       const ck = `${r.channelId}|${r.provider}`
       if (!channelMap[ck]) {
@@ -1413,13 +1416,14 @@ export default function Trades() {
         p.logLoss = sum / p.graded
       }
     }
-    let yMax = 0
     for (const p of Object.values(providers)) {
+      let yMax = 0
       for (const bin of p.bins) yMax = Math.max(yMax, bin.wins, bin.lossCount)
+      p.yMax = Math.max(1, yMax)
     }
     const channelRows = Object.values(channelMap).sort((a, b) =>
       a.channelName.localeCompare(b.channelName) || a.provider.localeCompare(b.provider))
-    return { providers, yMax: Math.max(1, yMax), channelRows }
+    return { providers, channelRows }
   }, [gradeDist])
 
   // ---------- Market sessions ----------
@@ -2931,7 +2935,7 @@ export default function Trades() {
 
           {/* ============ AI Grades vs Outcome ============ */}
           {activeTab === 'ai-grades' && (() => {
-            const { providers, yMax, channelRows } = gradeDistView
+            const { providers, channelRows } = gradeDistView
             const gradeDistPending = gradeDistLoading || gradeDist === null
             const fmtAvg = (sum, n) => n > 0 ? (sum / n).toFixed(1) : '—'
             const fmtRate = (w, n) => n > 0 ? `${Math.round((w / n) * 100)}%` : '—'
@@ -2939,9 +2943,11 @@ export default function Trades() {
               <div className="mb-8 space-y-6">
                 <p className="text-xs text-gray-500 -mt-2">
                   How each AI grader's 0-10 score lines up with the real outcome of closed trades
-                  (wins above the line, losses below). Grades 7-10 read as "take it", 0-3 as "avoid":
-                  ✓ TP = graded 7-10 &amp; won, ✓ TN = graded 0-3 &amp; lost, ✗ FP = graded 7-10 &amp; lost,
-                  ✗ FN = graded 0-3 &amp; won. AUC is the probability a random winning trade was graded
+                  (wins above the line, losses below). High grades read as "take it", low as "avoid" —
+                  by default 7-10 / 0-3; the slider under each chart moves both cutoffs symmetrically:
+                  ✓ TP = graded in the take zone &amp; won, ✓ TN = graded in the avoid zone &amp; lost,
+                  ✗ FP = take zone &amp; lost, ✗ FN = avoid zone &amp; won.
+                  AUC is the probability a random winning trade was graded
                   above a random losing one (0.5 = no discrimination, higher is better); log loss
                   scores the grade read as a win probability (grade/10) — lower is better, and a
                   no-skill "always 5" grader scores 0.693. Only closed trades that ended in profit or
@@ -2951,11 +2957,21 @@ export default function Trades() {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {AI_PROVIDERS.map(p => {
                     const pv = providers[p.key]
-                    // Confusion-matrix counts: grade 7-10 = predicted win, 0-3 = predicted loss.
-                    const tp = pv.hiWins
-                    const fp = pv.hiTotal - pv.hiWins
-                    const fn = pv.loWins
-                    const tn = pv.loTotal - pv.loWins
+                    const yMax = pv.yMax
+                    // Symmetric cutoffs from this chart's slider: 0-loMax = predicted
+                    // loss ("avoid"), hiMin-10 = predicted win ("take").
+                    const loMax = gradeCutoffs[p.key]
+                    const hiMin = 10 - loMax
+                    let hiWins = 0, hiTotal = 0, loWins = 0, loTotal = 0
+                    for (const bin of pv.bins) {
+                      const n = bin.wins + bin.lossCount
+                      if (bin.grade >= hiMin) { hiWins += bin.wins; hiTotal += n }
+                      if (bin.grade <= loMax) { loWins += bin.wins; loTotal += n }
+                    }
+                    const tp = hiWins
+                    const fp = hiTotal - hiWins
+                    const fn = loWins
+                    const tn = loTotal - loWins
                     // Net result (wins − losses): all graded trades vs. skipping every 0-3
                     // graded trade (drops TN and FN alike), under the same sidebar filters.
                     const netAll   = pv.wins - pv.losses
@@ -2983,8 +2999,8 @@ export default function Trades() {
                                 { label: 'Graded trades',      value: pv.graded },
                                 { label: 'Avg grade · wins',   value: fmtAvg(pv.winGradeSum, pv.wins),   color: COLORS.green },
                                 { label: 'Avg grade · losses', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
-                                { label: 'Win rate @ 7-10',    value: `${fmtRate(pv.hiWins, pv.hiTotal)} (${pv.hiTotal})` },
-                                { label: 'Win rate @ 0-3',     value: `${fmtRate(pv.loWins, pv.loTotal)} (${pv.loTotal})` },
+                                { label: `Win rate @ ${hiMin}-10`,  value: `${fmtRate(hiWins, hiTotal)} (${hiTotal})` },
+                                { label: `Win rate @ 0-${loMax}`,   value: `${fmtRate(loWins, loTotal)} (${loTotal})` },
                                 {
                                   label: 'AUC · 0.5 = none',
                                   value: pv.auc != null ? pv.auc.toFixed(3) : '—',
@@ -3013,33 +3029,38 @@ export default function Trades() {
                                   </div>
                                 </div>
                               ))}
-                              {/* Confusion counts share one box: 7-10 = predicted win, 0-3 = predicted loss. */}
+                              {/* Confusion matrix as a real 2×2 grid: rows = predicted
+                                  (take / avoid zone), columns = actual outcome. Correct
+                                  cells (TP, TN) green, wrong cells (FP, FN) red. */}
                               <div
-                                className="px-2.5 py-1.5"
+                                className="px-2.5 py-1"
                                 style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
                               >
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">
-                                  TP · FP · TN · FN
-                                </div>
-                                <div className="flex items-center gap-x-3 text-sm font-semibold font-mono">
-                                  {[
-                                    { tag: '✓ TP', value: tp, color: COLORS.green },
-                                    { tag: '✗ FP', value: fp, color: COLORS.red },
-                                    { tag: '✓ TN', value: tn, color: COLORS.green },
-                                    { tag: '✗ FN', value: fn, color: COLORS.red },
-                                  ].map(cell => (
-                                    <span key={cell.tag} className="whitespace-nowrap">
-                                      <span className="text-[10px] text-gray-500 font-normal">{cell.tag} </span>
-                                      <span style={{ color: cell.color }}>{cell.value}</span>
-                                    </span>
-                                  ))}
+                                <div className="grid grid-cols-[auto_auto_auto] gap-x-3 leading-tight">
+                                  <div />
+                                  <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
+                                  <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
+                                  <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">{hiMin}-10</div>
+                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
+                                    {tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
+                                  </div>
+                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
+                                    {fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
+                                  </div>
+                                  <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">0-{loMax}</div>
+                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
+                                    {fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
+                                  </div>
+                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
+                                    {tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
 
                             {/* Net result (wins − losses): everything the model graded vs.
-                                what you'd get by skipping every 0-3 graded trade (drops the
-                                TN losses but also gives up the FN wins). Same sidebar filters. */}
+                                what you'd get by skipping every avoid-zone graded trade (drops
+                                the TN losses but also gives up the FN wins). Same sidebar filters. */}
                             <div
                               className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5"
                               style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
@@ -3052,14 +3073,14 @@ export default function Trades() {
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · skipping 0-3 graded</div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · skipping 0-{loMax} graded</div>
                                 <div className="text-sm font-semibold font-mono" style={{ color: netExclLow >= 0 ? COLORS.green : COLORS.red }}>
                                   {fmtNet(netExclLow)}{' '}
                                   <span className="text-gray-500 font-normal">({winsKept}W − {lossesKept}L)</span>
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge from skipping 0-3</div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge from skipping 0-{loMax}</div>
                                 <div className="text-sm font-semibold font-mono" style={{ color: netDelta > 0 ? COLORS.green : netDelta < 0 ? COLORS.red : '#e5e7eb' }}>
                                   {fmtNet(netDelta)}
                                 </div>
@@ -3073,25 +3094,25 @@ export default function Trades() {
                                 margin={{ left: 0, right: 10, top: 10, bottom: 4 }}
                                 barCategoryGap="25%"
                               >
-                                {/* Grade zones (same thresholds as the AI score chips):
-                                    three boxes — 0-3 / 4-6 / 7-10 — with an expectation
-                                    marker strip on top: red above the avoid zone, green
-                                    above the take zone. Fills stay faint so bars dominate. */}
-                                <ReferenceArea x1={0} x2={3}  fill="#ef4444" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
-                                <ReferenceArea x1={4} x2={6}  fill="transparent" fillOpacity={0} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
-                                <ReferenceArea x1={7} x2={10} fill="#22c55e" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
-                                <ReferenceArea x1={0} x2={3}  y1={yMax * 0.94} y2={yMax} fill="#ef4444" fillOpacity={0.9} strokeOpacity={0} />
-                                <ReferenceArea x1={7} x2={10} y1={yMax * 0.94} y2={yMax} fill="#22c55e" fillOpacity={0.9} strokeOpacity={0} />
-                                {/* Confusion-matrix quadrant labels (7-10 = predicted win, 0-3 =
-                                    predicted loss; above the line = won, below = lost). Text stays
-                                    neutral so it doesn't fight the green/red win-loss bars. */}
-                                <ReferenceArea x1={0} x2={3}  y1={0} y2={yMax * 0.88} fill="transparent" strokeOpacity={0}
+                                {/* Grade zones follow this chart's cutoff slider:
+                                    three boxes — 0-loMax / middle / hiMin-10 — with an
+                                    expectation marker strip on top: red above the avoid zone,
+                                    green above the take zone. Fills stay faint so bars dominate. */}
+                                <ReferenceArea x1={0} x2={loMax}  fill="#ef4444" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
+                                <ReferenceArea x1={loMax + 1} x2={hiMin - 1}  fill="transparent" fillOpacity={0} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
+                                <ReferenceArea x1={hiMin} x2={10} fill="#22c55e" fillOpacity={0.05} stroke="rgba(255,255,255,0.08)" strokeOpacity={1} />
+                                <ReferenceArea x1={0} x2={loMax}  y1={yMax * 0.94} y2={yMax} fill="#ef4444" fillOpacity={0.9} strokeOpacity={0} />
+                                <ReferenceArea x1={hiMin} x2={10} y1={yMax * 0.94} y2={yMax} fill="#22c55e" fillOpacity={0.9} strokeOpacity={0} />
+                                {/* Confusion-matrix quadrant labels (hiMin-10 = predicted win,
+                                    0-loMax = predicted loss; above the line = won, below = lost).
+                                    Text stays neutral so it doesn't fight the win-loss bars. */}
+                                <ReferenceArea x1={0} x2={loMax}  y1={0} y2={yMax * 0.88} fill="transparent" strokeOpacity={0}
                                   label={{ value: `✗ FN · ${fn}`, position: 'insideTop', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
-                                <ReferenceArea x1={0} x2={3}  y1={-yMax} y2={0} fill="transparent" strokeOpacity={0}
+                                <ReferenceArea x1={0} x2={loMax}  y1={-yMax} y2={0} fill="transparent" strokeOpacity={0}
                                   label={{ value: `✓ TN · ${tn}`, position: 'insideBottom', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
-                                <ReferenceArea x1={7} x2={10} y1={0} y2={yMax * 0.88} fill="transparent" strokeOpacity={0}
+                                <ReferenceArea x1={hiMin} x2={10} y1={0} y2={yMax * 0.88} fill="transparent" strokeOpacity={0}
                                   label={{ value: `✓ TP · ${tp}`, position: 'insideTop', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
-                                <ReferenceArea x1={7} x2={10} y1={-yMax} y2={0} fill="transparent" strokeOpacity={0}
+                                <ReferenceArea x1={hiMin} x2={10} y1={-yMax} y2={0} fill="transparent" strokeOpacity={0}
                                   label={{ value: `✗ FP · ${fp}`, position: 'insideBottom', fill: '#d1d5db', fontSize: 10, fontWeight: 600 }} />
                                 <XAxis
                                   dataKey="grade"
@@ -3121,6 +3142,35 @@ export default function Trades() {
                                 <Bar dataKey="lossesDown" name="Losses" stackId="wl" fill={COLORS.red} radius={[4, 4, 0, 0]} maxBarSize={26} />
                               </BarChart>
                             </ResponsiveContainer>
+
+                            {/* Symmetric cutoff slider: value t sets avoid = 0-t and
+                                take = (10-t)-10. Every cutoff-dependent stat above
+                                (matrix, win rates, net results, chart zones) follows it. */}
+                            <div
+                              className="flex items-center gap-3 mt-3 px-3 py-2"
+                              style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
+                            >
+                              <span className="text-[10px] uppercase tracking-wider whitespace-nowrap" style={{ color: COLORS.red }}>
+                                Avoid 0-{loMax}
+                              </span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={4}
+                                step={1}
+                                value={loMax}
+                                onChange={e => {
+                                  const t = Number(e.target.value)
+                                  setGradeCutoffs(c => ({ ...c, [p.key]: t }))
+                                }}
+                                className="flex-1 h-1.5 cursor-pointer"
+                                style={{ accentColor: '#39d5ff' }}
+                                aria-label={`${p.name} grade cutoffs`}
+                              />
+                              <span className="text-[10px] uppercase tracking-wider whitespace-nowrap" style={{ color: COLORS.green }}>
+                                Take {hiMin}-10
+                              </span>
+                            </div>
                           </>
                         )}
                       </ChartCard>
