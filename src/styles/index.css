@@ -789,37 +789,18 @@ select option { background: var(--neu-bg); color: var(--text-primary); }
 .hover\:bg-dark-tertiary:hover { background: var(--neu-bg-soft); }
 
 /* ─── Home hero animations ─────────────────────────────────────── */
-@keyframes hero-flow {
-  from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: -720; }
-}
 @keyframes hero-pulse {
-  0%, 100% { opacity: 0.35; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.75); }
-}
-@keyframes hero-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-9px); }
-}
-@keyframes hero-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(34px, -22px) scale(1.12); }
-  66%      { transform: translate(-24px, 16px) scale(0.92); }
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.35); }
 }
 @keyframes hero-blink {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.25; }
+  50%      { opacity: 0.3; }
 }
 
-.hero-line   { stroke-dasharray: 10 8; animation: hero-flow 22s linear infinite; }
-.hero-line-2 { stroke-dasharray: 4 10; animation: hero-flow 34s linear infinite reverse; }
-.hero-node   { transform-box: fill-box; transform-origin: center; animation: hero-pulse 3.2s ease-in-out infinite; }
-.hero-candle { transform-box: fill-box; transform-origin: center; animation: hero-float 6s ease-in-out infinite; }
-.hero-orb    { animation: hero-orb 16s ease-in-out infinite; }
-.hero-blink  { animation: hero-blink 1.6s ease-in-out infinite; }
+.hero-node  { transform-box: fill-box; transform-origin: center; animation: hero-pulse 4s ease-in-out infinite; }
+.hero-blink { animation: hero-blink 2.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-line, .hero-line-2, .hero-node, .hero-candle, .hero-orb, .hero-blink {
-    animation: none;
-  }
+  .hero-node, .hero-blink { animation: none; }
 }

@@ -105,39 +105,28 @@ function HeroSection() {
 
   return (
     <div className="relative overflow-hidden mb-6">
-      {/* Drifting glow orbs */}
+      {/* Soft static glow */}
       <div
         aria-hidden
-        className="hero-orb absolute pointer-events-none"
+        className="absolute pointer-events-none"
         style={{
-          width: '300px', height: '300px',
-          right: '6%', top: '-40%',
-          background: 'radial-gradient(circle, rgba(173,255,47,0.13) 0%, transparent 70%)',
-          filter: 'blur(12px)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="hero-orb absolute pointer-events-none"
-        style={{
-          width: '260px', height: '260px',
-          left: '38%', bottom: '-50%',
-          background: 'radial-gradient(circle, rgba(197,137,242,0.10) 0%, transparent 70%)',
-          filter: 'blur(12px)',
-          animationDelay: '-8s',
+          width: '340px', height: '340px',
+          right: '4%', top: '-35%',
+          background: 'radial-gradient(circle, rgba(173,255,47,0.08) 0%, transparent 70%)',
+          filter: 'blur(14px)',
         }}
       />
 
-      {/* Animated market SVG */}
+      {/* Minimal market line */}
       <svg
         aria-hidden
-        className="absolute inset-y-0 right-0 h-full w-full pointer-events-none opacity-50 lg:opacity-100 lg:w-[58%]"
+        className="absolute inset-y-0 right-0 h-full w-full pointer-events-none opacity-40 lg:opacity-100 lg:w-[58%]"
         viewBox="0 0 640 260"
         preserveAspectRatio="xMidYMid slice"
       >
         <defs>
           <linearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ADFF2F" stopOpacity="0.20" />
+            <stop offset="0%" stopColor="#ADFF2F" stopOpacity="0.12" />
             <stop offset="100%" stopColor="#ADFF2F" stopOpacity="0" />
           </linearGradient>
           <linearGradient id="heroFade" x1="0" y1="0" x2="1" y2="0">
@@ -152,61 +141,29 @@ function HeroSection() {
         <g mask="url(#heroMask)">
           {/* Faint grid */}
           {[52, 104, 156, 208].map(y => (
-            <line key={y} x1="0" y1={y} x2="640" y2={y} stroke="rgba(232,234,239,0.045)" strokeWidth="1" />
+            <line key={y} x1="0" y1={y} x2="640" y2={y} stroke="rgba(232,234,239,0.04)" strokeWidth="1" />
           ))}
 
-          {/* Area under the main line */}
+          {/* Area under the line */}
           <path
             d="M0,196 C50,186 80,150 120,148 C160,146 180,176 220,168 C260,160 280,104 320,100 C360,96 380,140 420,132 C460,124 490,70 530,66 C570,62 610,84 640,78 L640,260 L0,260 Z"
             fill="url(#heroArea)"
           />
 
-          {/* Secondary (warm) line, flowing in reverse */}
+          {/* Line */}
           <path
-            className="hero-line-2"
-            d="M0,150 C60,158 100,120 150,126 C200,132 240,160 290,150 C340,140 370,110 420,116 C470,122 520,96 570,100 C610,103 630,92 640,94"
-            fill="none"
-            stroke="#FFC857"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            opacity="0.45"
-          />
-
-          {/* Main flowing line */}
-          <path
-            className="hero-line"
             d="M0,196 C50,186 80,150 120,148 C160,146 180,176 220,168 C260,160 280,104 320,100 C360,96 380,140 420,132 C460,124 490,70 530,66 C570,62 610,84 640,78"
             fill="none"
             stroke="#ADFF2F"
-            strokeWidth="2.5"
+            strokeWidth="2"
             strokeLinecap="round"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(173,255,47,0.55))' }}
+            opacity="0.7"
+            style={{ filter: 'drop-shadow(0 0 5px rgba(173,255,47,0.35))' }}
           />
 
-          {/* Pulsing nodes on the line */}
-          {[[120, 148, '0s'], [220, 168, '-1.1s'], [320, 100, '-2.2s'], [420, 132, '-0.6s'], [530, 66, '-1.7s']].map(([cx, cy, delay]) => (
-            <circle
-              key={`${cx}-${cy}`}
-              className="hero-node"
-              cx={cx} cy={cy} r="4"
-              fill="#ADFF2F"
-              style={{ animationDelay: delay, filter: 'drop-shadow(0 0 5px rgba(173,255,47,0.8))' }}
-            />
-          ))}
-
-          {/* Floating candlesticks */}
-          <g className="hero-candle" opacity="0.55">
-            <line x1="470" y1="160" x2="470" y2="200" stroke="#ADFF2F" strokeWidth="1.5" />
-            <rect x="464" y="168" width="12" height="22" rx="2" fill="#ADFF2F" opacity="0.8" />
-          </g>
-          <g className="hero-candle" opacity="0.45" style={{ animationDelay: '-2s' }}>
-            <line x1="560" y1="150" x2="560" y2="196" stroke="#FF5C5C" strokeWidth="1.5" />
-            <rect x="554" y="158" width="12" height="26" rx="2" fill="#FF5C5C" opacity="0.8" />
-          </g>
-          <g className="hero-candle" opacity="0.5" style={{ animationDelay: '-4s' }}>
-            <line x1="612" y1="140" x2="612" y2="184" stroke="#ADFF2F" strokeWidth="1.5" />
-            <rect x="606" y="148" width="12" height="24" rx="2" fill="#ADFF2F" opacity="0.8" />
-          </g>
+          {/* Two gently pulsing dots */}
+          <circle className="hero-node" cx="320" cy="100" r="3.5" fill="#ADFF2F" />
+          <circle className="hero-node" cx="530" cy="66" r="3.5" fill="#ADFF2F" style={{ animationDelay: '-2s' }} />
         </g>
       </svg>
 
