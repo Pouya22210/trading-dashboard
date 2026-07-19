@@ -58,47 +58,31 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
   )
 }
 
-const RANGE_PHRASES = {
-  '1d': 'today',
-  '1w': 'this week',
-  '1m': 'this month',
-  '1y': 'this year',
-  all: 'all time',
+function formatCompact(n) {
+  if (n >= 1000) {
+    const v = n / 1000
+    return `${v >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, '')}k`
+  }
+  return n.toLocaleString()
 }
 
-function HeroSection({ channels, timeRange }) {
+function HeroSection({ channels }) {
+  const navigate = useNavigate()
+
   const stats = useMemo(() => {
-    let trades = 0, wins = 0, losses = 0, pnl = 0
-    for (const c of channels) {
-      trades += c.trades || 0
-      wins   += c.wins   || 0
-      losses += c.losses || 0
-      pnl    += c.pnl    || 0
-    }
-    const decided = wins + losses
-    return {
-      count: channels.length,
-      trades,
-      pnl,
-      winRate: decided > 0 ? (wins / decided) * 100 : 0,
-    }
+    let trades = 0
+    for (const c of channels) trades += c.trades || 0
+    return { count: channels.length, trades }
   }, [channels])
 
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 5  ? 'Late night session' :
-    hour < 12 ? 'Good morning'       :
-    hour < 18 ? 'Good afternoon'     : 'Good evening'
+  const scrollToLeaderboard = () => {
+    document.getElementById('leaderboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
-  const isProfit = stats.pnl >= 0
-  const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
-  const period = RANGE_PHRASES[timeRange] || 'this week'
-
-  const chips = [
-    { label: 'Signals',  value: stats.trades.toLocaleString(), color: 'var(--text-primary)' },
-    { label: 'Win rate', value: `${stats.winRate.toFixed(1)}%`, color: stats.winRate >= 50 ? 'var(--accent-green)' : 'var(--accent-warm)' },
-    { label: 'Net P&L',  value: `${isProfit ? '+' : '−'}$${Math.abs(stats.pnl).toFixed(2)}`, color: pnlColor },
-    { label: 'Channels', value: stats.count.toLocaleString(), color: 'var(--purple)' },
+  const statBoxes = [
+    { value: stats.count.toLocaleString(), label: 'Providers tracked' },
+    { value: formatCompact(stats.trades),  label: 'Trades verified' },
+    { value: '24/7',                       label: 'Live updates' },
   ]
 
   return (
@@ -216,8 +200,16 @@ function HeroSection({ channels, timeRange }) {
       </svg>
 
       {/* Content */}
-      <div className="relative p-6 sm:p-10" style={{ zIndex: 1, maxWidth: '620px' }}>
-        <div className="flex items-center gap-2 mb-3">
+      <div className="relative p-6 sm:p-10" style={{ zIndex: 1, maxWidth: '640px' }}>
+        {/* Eyebrow pill */}
+        <div
+          className="inline-flex items-center gap-2 mb-5"
+          style={{
+            padding: '7px 14px',
+            borderRadius: '999px',
+            background: 'var(--card-recess)',
+          }}
+        >
           <span
             className="hero-blink"
             style={{
@@ -232,73 +224,122 @@ function HeroSection({ channels, timeRange }) {
             style={{
               fontSize: '11px',
               fontWeight: 700,
-              letterSpacing: '0.14em',
-              color: 'var(--text-tertiary)',
+              letterSpacing: '0.1em',
+              color: 'var(--text-primary)',
               textTransform: 'uppercase',
             }}
           >
-            Live performance
+            Live signal tracking
           </span>
         </div>
 
         <h1
           style={{
-            fontSize: 'clamp(24px, 4vw, 34px)',
+            fontSize: 'clamp(28px, 4.5vw, 42px)',
             fontWeight: 800,
             color: 'var(--text-primary)',
             letterSpacing: '-0.02em',
-            lineHeight: 1.15,
+            lineHeight: 1.12,
           }}
         >
-          {greeting}, trader
+          Who's actually
+          <br />
+          <span style={{ color: 'var(--accent-green)' }}>winning</span> in forex?
         </h1>
+
         <p
-          className="mt-2"
+          className="mt-4"
           style={{
-            fontSize: '14px',
+            fontSize: '15px',
             color: 'var(--text-secondary)',
-            lineHeight: 1.6,
-            maxWidth: '440px',
+            lineHeight: 1.65,
+            maxWidth: '460px',
           }}
         >
-          Your {stats.count} channels have fired{' '}
-          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{stats.trades.toLocaleString()}</span>{' '}
-          signals {period} — here's who's leading the board.
+          Every signal provider, ranked by real verified trade results.
+          No hype — just P&L, win rates, and streaks, updated live.
         </p>
 
-        <div className="flex flex-wrap gap-2.5 sm:gap-3 mt-5">
-          {chips.map(chip => (
+        {/* CTA buttons */}
+        <div className="flex flex-wrap items-center gap-3 mt-6">
+          <button
+            onClick={scrollToLeaderboard}
+            className="transition-all"
+            style={{
+              padding: '13px 26px',
+              borderRadius: '999px',
+              border: 'none',
+              cursor: 'pointer',
+              background: 'var(--accent-green)',
+              color: '#0d1117',
+              fontSize: '14px',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              letterSpacing: '-0.01em',
+              boxShadow: '0 0 18px rgba(173,255,47,0.35), 0 4px 12px rgba(0,0,0,0.4)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 0 28px rgba(173,255,47,0.55), 0 4px 12px rgba(0,0,0,0.4)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 0 18px rgba(173,255,47,0.35), 0 4px 12px rgba(0,0,0,0.4)' }}
+          >
+            View Leaderboard
+          </button>
+          <button
+            onClick={() => navigate('/trades')}
+            className="transition-all"
+            style={{
+              padding: '13px 26px',
+              borderRadius: '999px',
+              border: 'none',
+              cursor: 'pointer',
+              background: 'var(--card-flat)',
+              color: 'var(--text-primary)',
+              fontSize: '14px',
+              fontWeight: 600,
+              fontFamily: 'inherit',
+              letterSpacing: '-0.01em',
+              boxShadow: 'var(--neu-raised-sm)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = 'var(--neu-raised-md)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'var(--neu-raised-sm)' }}
+          >
+            How it works
+          </button>
+        </div>
+
+        {/* Stat boxes */}
+        <div className="flex flex-wrap gap-3 mt-7">
+          {statBoxes.map(box => (
             <div
-              key={chip.label}
+              key={box.label}
+              className="text-center"
               style={{
-                padding: '9px 16px',
-                borderRadius: '14px',
-                background: 'var(--neu-bg)',
-                boxShadow: 'var(--neu-pressed-sm)',
+                padding: '16px 22px',
+                borderRadius: '18px',
+                background: 'var(--card-recess)',
+                minWidth: '118px',
               }}
             >
               <div
                 style={{
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-tertiary)',
-                  marginBottom: '2px',
+                  fontSize: '20px',
+                  fontWeight: 800,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: 'var(--text-primary)',
+                  letterSpacing: '-0.01em',
+                  lineHeight: 1.2,
                 }}
               >
-                {chip.label}
+                {box.value}
               </div>
               <div
                 style={{
-                  fontSize: '15px',
-                  fontWeight: 800,
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  color: chip.color,
-                  letterSpacing: '-0.01em',
+                  fontSize: '11px',
+                  color: 'var(--text-secondary)',
+                  marginTop: '4px',
+                  lineHeight: 1.35,
                 }}
               >
-                {chip.value}
+                {box.label}
               </div>
             </div>
           ))}
@@ -572,9 +613,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <HeroSection channels={channels} timeRange={leaderboardTimeRange} />
+      <HeroSection channels={channels} />
 
-      <div className="flex justify-end mb-4">
+      <div id="leaderboard" className="flex justify-end mb-4" style={{ scrollMarginTop: '84px' }}>
         <TimeRangeSelector
           value={leaderboardTimeRange}
           onChange={setLeaderboardTimeRange}
