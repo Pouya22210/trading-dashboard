@@ -4,7 +4,7 @@ import {
   Zap, AlertTriangle, Trophy
 } from 'lucide-react'
 import { fetchChannelPerformance } from '../lib/queries'
-import { subscribeToTrades } from '../lib/supabase'
+import { supabase, subscribeToTrades } from '../lib/supabase'
 
 const TIME_RANGES = [
   { key: '1d', label: '1D' },
@@ -66,34 +66,45 @@ function formatCompact(n) {
   return n.toLocaleString()
 }
 
-function HeroSection({ channels }) {
+function HeroSection() {
   const navigate = useNavigate()
+  const [totals, setTotals] = useState({ providers: null, trades: null })
 
-  const stats = useMemo(() => {
-    let trades = 0
-    for (const c of channels) trades += c.trades || 0
-    return { count: channels.length, trades }
-  }, [channels])
+  // Exact all-time counts, independent of the leaderboard's time-range filter.
+  useEffect(() => {
+    let cancelled = false
+    async function loadTotals() {
+      try {
+        const [channelsRes, tradesRes] = await Promise.all([
+          supabase.from('channels').select('*', { count: 'exact', head: true }),
+          supabase.from('trades').select('*', { count: 'exact', head: true }),
+        ])
+        if (!cancelled) {
+          setTotals({
+            providers: channelsRes.count ?? 0,
+            trades: tradesRes.count ?? 0,
+          })
+        }
+      } catch {
+        // keep placeholders on failure
+      }
+    }
+    loadTotals()
+    return () => { cancelled = true }
+  }, [])
 
   const scrollToLeaderboard = () => {
     document.getElementById('leaderboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const statBoxes = [
-    { value: stats.count.toLocaleString(), label: 'Providers tracked' },
-    { value: formatCompact(stats.trades),  label: 'Trades verified' },
-    { value: '24/7',                       label: 'Live updates' },
+    { value: totals.providers === null ? '—' : totals.providers.toLocaleString(), label: 'Providers tracked' },
+    { value: totals.trades === null ? '—' : formatCompact(totals.trades),         label: 'Trades verified' },
+    { value: '24/7',                                                              label: 'Live updates' },
   ]
 
   return (
-    <div
-      className="relative overflow-hidden mb-6"
-      style={{
-        background: 'var(--neu-bg)',
-        borderRadius: '28px',
-        boxShadow: 'var(--neu-raised-lg)',
-      }}
-    >
+    <div className="relative overflow-hidden mb-6">
       {/* Drifting glow orbs */}
       <div
         aria-hidden
@@ -200,7 +211,7 @@ function HeroSection({ channels }) {
       </svg>
 
       {/* Content */}
-      <div className="relative p-6 sm:p-10" style={{ zIndex: 1, maxWidth: '640px' }}>
+      <div className="relative py-6 sm:py-10" style={{ zIndex: 1, maxWidth: '640px' }}>
         {/* Eyebrow pill */}
         <div
           className="inline-flex items-center gap-2 mb-5"
@@ -613,7 +624,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <HeroSection channels={channels} />
+      <HeroSection />
 
       <div id="leaderboard" className="flex justify-end mb-4" style={{ scrollMarginTop: '84px' }}>
         <TimeRangeSelector
