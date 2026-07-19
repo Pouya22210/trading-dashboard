@@ -185,12 +185,12 @@ export default function Navbar() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: '12px',
-                  background: 'var(--neu-bg)',
+                  background: 'transparent',
                   border: 'none',
-                  boxShadow: activityLogOpen ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
-                  color: 'var(--purple)',
+                  boxShadow: 'none',
+                  color: activityLogOpen ? 'var(--accent-green)' : 'var(--text-primary)',
                   cursor: 'pointer',
-                  transition: 'box-shadow 0.18s ease, color 0.18s ease',
+                  transition: 'color 0.18s ease',
                 }}
               >
                 <History style={{ width: '18px', height: '18px' }} />
@@ -202,10 +202,10 @@ export default function Navbar() {
                 className="lg:hidden"
                 style={{
                   padding: '10px',
-                  background: 'var(--neu-bg)',
+                  background: 'transparent',
                   border: 'none',
                   borderRadius: '12px',
-                  boxShadow: mobileMenuOpen ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
+                  boxShadow: 'none',
                   cursor: 'pointer',
                 }}
                 aria-label="Toggle menu"

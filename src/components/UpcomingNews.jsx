@@ -61,10 +61,11 @@ export default function UpcomingNews() {
         style={{
           width: '40px', height: '40px', display: 'flex',
           alignItems: 'center', justifyContent: 'center', borderRadius: '12px',
-          background: 'var(--neu-bg)', border: 'none',
-          boxShadow: open ? 'var(--neu-pressed-sm)' : 'var(--neu-raised-sm)',
-          color: '#ef4444', cursor: 'pointer',
-          transition: 'box-shadow 0.18s ease, color 0.18s ease',
+          background: 'transparent', border: 'none',
+          boxShadow: 'none',
+          color: open ? 'var(--accent-green)' : 'var(--text-primary)',
+          cursor: 'pointer',
+          transition: 'color 0.18s ease',
         }}
       >
         <Newspaper style={{ width: '18px', height: '18px' }} />
