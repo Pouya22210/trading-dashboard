@@ -58,6 +58,256 @@ function TimeRangeSelector({ value, onChange, className = '' }) {
   )
 }
 
+const RANGE_PHRASES = {
+  '1d': 'today',
+  '1w': 'this week',
+  '1m': 'this month',
+  '1y': 'this year',
+  all: 'all time',
+}
+
+function HeroSection({ channels, timeRange }) {
+  const stats = useMemo(() => {
+    let trades = 0, wins = 0, losses = 0, pnl = 0
+    for (const c of channels) {
+      trades += c.trades || 0
+      wins   += c.wins   || 0
+      losses += c.losses || 0
+      pnl    += c.pnl    || 0
+    }
+    const decided = wins + losses
+    return {
+      count: channels.length,
+      trades,
+      pnl,
+      winRate: decided > 0 ? (wins / decided) * 100 : 0,
+    }
+  }, [channels])
+
+  const hour = new Date().getHours()
+  const greeting =
+    hour < 5  ? 'Late night session' :
+    hour < 12 ? 'Good morning'       :
+    hour < 18 ? 'Good afternoon'     : 'Good evening'
+
+  const isProfit = stats.pnl >= 0
+  const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
+  const period = RANGE_PHRASES[timeRange] || 'this week'
+
+  const chips = [
+    { label: 'Signals',  value: stats.trades.toLocaleString(), color: 'var(--text-primary)' },
+    { label: 'Win rate', value: `${stats.winRate.toFixed(1)}%`, color: stats.winRate >= 50 ? 'var(--accent-green)' : 'var(--accent-warm)' },
+    { label: 'Net P&L',  value: `${isProfit ? '+' : '−'}$${Math.abs(stats.pnl).toFixed(2)}`, color: pnlColor },
+    { label: 'Channels', value: stats.count.toLocaleString(), color: 'var(--purple)' },
+  ]
+
+  return (
+    <div
+      className="relative overflow-hidden mb-6"
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: '28px',
+        boxShadow: 'var(--neu-raised-lg)',
+      }}
+    >
+      {/* Drifting glow orbs */}
+      <div
+        aria-hidden
+        className="hero-orb absolute pointer-events-none"
+        style={{
+          width: '300px', height: '300px',
+          right: '6%', top: '-40%',
+          background: 'radial-gradient(circle, rgba(173,255,47,0.13) 0%, transparent 70%)',
+          filter: 'blur(12px)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="hero-orb absolute pointer-events-none"
+        style={{
+          width: '260px', height: '260px',
+          left: '38%', bottom: '-50%',
+          background: 'radial-gradient(circle, rgba(197,137,242,0.10) 0%, transparent 70%)',
+          filter: 'blur(12px)',
+          animationDelay: '-8s',
+        }}
+      />
+
+      {/* Animated market SVG */}
+      <svg
+        aria-hidden
+        className="absolute inset-y-0 right-0 h-full w-full pointer-events-none opacity-50 lg:opacity-100 lg:w-[58%]"
+        viewBox="0 0 640 260"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <defs>
+          <linearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ADFF2F" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="#ADFF2F" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="heroFade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0" />
+            <stop offset="35%" stopColor="#fff" stopOpacity="1" />
+          </linearGradient>
+          <mask id="heroMask">
+            <rect width="640" height="260" fill="url(#heroFade)" />
+          </mask>
+        </defs>
+
+        <g mask="url(#heroMask)">
+          {/* Faint grid */}
+          {[52, 104, 156, 208].map(y => (
+            <line key={y} x1="0" y1={y} x2="640" y2={y} stroke="rgba(232,234,239,0.045)" strokeWidth="1" />
+          ))}
+
+          {/* Area under the main line */}
+          <path
+            d="M0,196 C50,186 80,150 120,148 C160,146 180,176 220,168 C260,160 280,104 320,100 C360,96 380,140 420,132 C460,124 490,70 530,66 C570,62 610,84 640,78 L640,260 L0,260 Z"
+            fill="url(#heroArea)"
+          />
+
+          {/* Secondary (warm) line, flowing in reverse */}
+          <path
+            className="hero-line-2"
+            d="M0,150 C60,158 100,120 150,126 C200,132 240,160 290,150 C340,140 370,110 420,116 C470,122 520,96 570,100 C610,103 630,92 640,94"
+            fill="none"
+            stroke="#FFC857"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            opacity="0.45"
+          />
+
+          {/* Main flowing line */}
+          <path
+            className="hero-line"
+            d="M0,196 C50,186 80,150 120,148 C160,146 180,176 220,168 C260,160 280,104 320,100 C360,96 380,140 420,132 C460,124 490,70 530,66 C570,62 610,84 640,78"
+            fill="none"
+            stroke="#ADFF2F"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(173,255,47,0.55))' }}
+          />
+
+          {/* Pulsing nodes on the line */}
+          {[[120, 148, '0s'], [220, 168, '-1.1s'], [320, 100, '-2.2s'], [420, 132, '-0.6s'], [530, 66, '-1.7s']].map(([cx, cy, delay]) => (
+            <circle
+              key={`${cx}-${cy}`}
+              className="hero-node"
+              cx={cx} cy={cy} r="4"
+              fill="#ADFF2F"
+              style={{ animationDelay: delay, filter: 'drop-shadow(0 0 5px rgba(173,255,47,0.8))' }}
+            />
+          ))}
+
+          {/* Floating candlesticks */}
+          <g className="hero-candle" opacity="0.55">
+            <line x1="470" y1="160" x2="470" y2="200" stroke="#ADFF2F" strokeWidth="1.5" />
+            <rect x="464" y="168" width="12" height="22" rx="2" fill="#ADFF2F" opacity="0.8" />
+          </g>
+          <g className="hero-candle" opacity="0.45" style={{ animationDelay: '-2s' }}>
+            <line x1="560" y1="150" x2="560" y2="196" stroke="#FF5C5C" strokeWidth="1.5" />
+            <rect x="554" y="158" width="12" height="26" rx="2" fill="#FF5C5C" opacity="0.8" />
+          </g>
+          <g className="hero-candle" opacity="0.5" style={{ animationDelay: '-4s' }}>
+            <line x1="612" y1="140" x2="612" y2="184" stroke="#ADFF2F" strokeWidth="1.5" />
+            <rect x="606" y="148" width="12" height="24" rx="2" fill="#ADFF2F" opacity="0.8" />
+          </g>
+        </g>
+      </svg>
+
+      {/* Content */}
+      <div className="relative p-6 sm:p-10" style={{ zIndex: 1, maxWidth: '620px' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <span
+            className="hero-blink"
+            style={{
+              width: '7px', height: '7px',
+              borderRadius: '50%',
+              background: 'var(--accent-green)',
+              boxShadow: '0 0 8px rgba(173,255,47,0.8)',
+              display: 'inline-block',
+            }}
+          />
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.14em',
+              color: 'var(--text-tertiary)',
+              textTransform: 'uppercase',
+            }}
+          >
+            Live performance
+          </span>
+        </div>
+
+        <h1
+          style={{
+            fontSize: 'clamp(24px, 4vw, 34px)',
+            fontWeight: 800,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.02em',
+            lineHeight: 1.15,
+          }}
+        >
+          {greeting}, trader
+        </h1>
+        <p
+          className="mt-2"
+          style={{
+            fontSize: '14px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.6,
+            maxWidth: '440px',
+          }}
+        >
+          Your {stats.count} channels have fired{' '}
+          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{stats.trades.toLocaleString()}</span>{' '}
+          signals {period} — here's who's leading the board.
+        </p>
+
+        <div className="flex flex-wrap gap-2.5 sm:gap-3 mt-5">
+          {chips.map(chip => (
+            <div
+              key={chip.label}
+              style={{
+                padding: '9px 16px',
+                borderRadius: '14px',
+                background: 'var(--neu-bg)',
+                boxShadow: 'var(--neu-pressed-sm)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-tertiary)',
+                  marginBottom: '2px',
+                }}
+              >
+                {chip.label}
+              </div>
+              <div
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: chip.color,
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                {chip.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ChannelRankCard({ rank, channel, pnl, pnlPercent, winRate, trades, wins, losses, isTop, onClick }) {
   const isProfit = pnl >= 0
   const pnlColor = isProfit ? 'var(--accent-green)' : 'var(--red)'
@@ -271,7 +521,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96 text-gray-500">
-        Loading dashboard...
+        Loading home...
       </div>
     )
   }
@@ -322,6 +572,8 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <HeroSection channels={channels} timeRange={leaderboardTimeRange} />
+
       <div className="flex justify-end mb-4">
         <TimeRangeSelector
           value={leaderboardTimeRange}

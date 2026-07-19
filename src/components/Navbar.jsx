@@ -41,7 +41,7 @@ export default function Navbar() {
   }, [])
 
   const tabs = [
-    { path: '/', label: 'Dashboard' },
+    { path: '/', label: 'Home' },
     { path: '/trades', label: 'Trades & Analysis' },
     { path: '/channels', label: 'Channels', showCount: true },
   ]
@@ -63,7 +63,7 @@ export default function Navbar() {
             {/* Logo — links to dashboard */}
             <Link
               to="/"
-              aria-label="Go to dashboard"
+              aria-label="Go to home"
               className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none"
               style={{ textDecoration: 'none', color: 'inherit' }}
             >
