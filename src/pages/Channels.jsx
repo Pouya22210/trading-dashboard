@@ -9,7 +9,8 @@ import {
   fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels,
   fetchAppSetting, updateAppSetting,
   fetchNewsCategories, fetchNewsBlackouts, saveChannelNewsBlackouts,
-  deleteTradesByChannel
+  deleteTradesByChannel,
+  fetchAiGate, saveAiGate, normalizeAiGate, AI_GATE_DEFAULTS
 } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 import VisitorsTab from '../components/VisitorsTab'
@@ -162,12 +163,442 @@ function buildNewsBlackout(categories, existing) {
   return map
 }
 
+// Dual-handle range slider over the AI grade scale (integers 0-10).
+// Both handles are draggable; the one nearest the press point wins, and they
+// swap freely (low/high are normalised by the caller).
+function GradeRangeSlider({ low, high, onChange, disabled, accent = '#4ade80' }) {
+  const trackRef = useRef(null)
+  const draggingRef = useRef(null) // 'low' | 'high' | null
+
+  const STOPS = 10
+  const pct = (v) => (v / STOPS) * 100
+
+  const valueFromClientX = (clientX) => {
+    const el = trackRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    const ratio = rect.width ? (clientX - rect.left) / rect.width : 0
+    return Math.max(0, Math.min(STOPS, Math.round(ratio * STOPS)))
+  }
+
+  const applyMove = (which, clientX) => {
+    const v = valueFromClientX(clientX)
+    // Handles may cross: keep the pair ordered so the band stays valid.
+    const next = which === 'low' ? [v, high] : [low, v]
+    onChange(Math.min(next[0], next[1]), Math.max(next[0], next[1]))
+  }
+
+  const onPointerDown = (e) => {
+    if (disabled) return
+    e.preventDefault()
+    const v = valueFromClientX(e.clientX)
+    const which = Math.abs(v - low) <= Math.abs(v - high) ? 'low' : 'high'
+    draggingRef.current = which
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    applyMove(which, e.clientX)
+  }
+  const onPointerMove = (e) => {
+    if (!draggingRef.current) return
+    applyMove(draggingRef.current, e.clientX)
+  }
+  const onPointerUp = (e) => {
+    if (!draggingRef.current) return
+    draggingRef.current = null
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+  }
+
+  const thumbStyle = {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 18,
+    height: 18,
+    borderRadius: '50%',
+    background: disabled ? '#4b5563' : '#fff',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+    border: `2px solid ${disabled ? '#6b7280' : accent}`,
+    pointerEvents: 'none',
+    zIndex: 2,
+  }
+
+  return (
+    <div style={{ opacity: disabled ? 0.5 : 1, userSelect: 'none' }}>
+      <div
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        style={{ position: 'relative', height: 28, cursor: disabled ? 'not-allowed' : 'pointer', touchAction: 'none' }}
+      >
+        <div style={{
+          position: 'absolute', top: '50%', left: 0, right: 0, height: 6,
+          transform: 'translateY(-50%)', borderRadius: 999,
+          background: 'var(--card-recess)',
+        }} />
+        <div style={{
+          position: 'absolute', top: '50%', height: 6, transform: 'translateY(-50%)',
+          left: `${pct(low)}%`, width: `${pct(high) - pct(low)}%`,
+          borderRadius: 999,
+          background: disabled ? '#4b5563' : accent,
+        }} />
+        <div style={{ ...thumbStyle, left: `${pct(low)}%` }} />
+        <div style={{ ...thumbStyle, left: `${pct(high)}%` }} />
+      </div>
+      <div className="flex justify-between mt-1">
+        {Array.from({ length: STOPS + 1 }, (_, i) => (
+          <span
+            key={i}
+            className="text-[10px]"
+            style={{
+              width: 12,
+              textAlign: 'center',
+              color: !disabled && i >= low && i <= high ? accent : '#6b7280',
+              fontWeight: !disabled && i >= low && i <= high ? 600 : 400,
+            }}
+          >
+            {i}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function FormField({ label, children, hint }) {
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-gray-400 mb-2">{label}</label>
       {children}
       {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
+    </div>
+  )
+}
+
+// ============================================================================
+// AI EXECUTION TAB
+// ----------------------------------------------------------------------------
+// Global (all-channel) control over how the AI signal grade drives execution.
+// Master switch OFF == the bot's normal behaviour: trades go out immediately and
+// grading stays a label-only background job. Switch it ON and no order — market
+// or pending — is placed until that signal has a 0-10 grade, which then routes
+// it into one of three outcomes: execute / execute inverted / block.
+// Persisted as a single `ai_execution_gate` row in app_settings; the bot re-reads
+// it every 30s.
+// ============================================================================
+const GATE_GREEN = '#4ade80'
+const GATE_ORANGE = '#fb923c'
+const GATE_RED = '#f87171'
+
+function gradeOutcome(score, cfg) {
+  if (score >= cfg.execute_min && score <= cfg.execute_max) return 'execute'
+  if (cfg.inverse_enabled && score >= cfg.inverse_min && score <= cfg.inverse_max) return 'inverse'
+  return 'blocked'
+}
+
+// One cell per grade 0-10 showing exactly what happens to a signal with that
+// score. Makes gaps and overlaps between the two bands obvious at a glance.
+function GradeOutcomeMap({ cfg }) {
+  const colors = { execute: GATE_GREEN, inverse: GATE_ORANGE, blocked: GATE_RED }
+  const labels = { execute: 'Trade', inverse: 'Invert', blocked: 'Block' }
+  return (
+    <div className="grid grid-cols-11 gap-1">
+      {Array.from({ length: 11 }, (_, score) => {
+        const outcome = gradeOutcome(score, cfg)
+        const color = colors[outcome]
+        return (
+          <div
+            key={score}
+            className="text-center py-2 px-0.5"
+            style={{
+              borderRadius: '8px',
+              background: `${color}1f`,
+              border: `1px solid ${color}59`,
+            }}
+            title={`Grade ${score} → ${labels[outcome]}`}
+          >
+            <div className="text-sm font-semibold" style={{ color }}>{score}</div>
+            <div className="text-[9px] uppercase tracking-wide" style={{ color }}>
+              {labels[outcome]}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AIExecutionTab() {
+  const [cfg, setCfg] = useState(AI_GATE_DEFAULTS)
+  const [savedCfg, setSavedCfg] = useState(AI_GATE_DEFAULTS)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchAiGate()
+      .then(loaded => {
+        if (cancelled) return
+        setCfg(loaded)
+        setSavedCfg(loaded)
+      })
+      .catch(err => !cancelled && setError(err.message))
+      .finally(() => !cancelled && setLoading(false))
+    return () => { cancelled = true }
+  }, [])
+
+  const patch = (p) => {
+    setCfg(prev => ({ ...prev, ...p }))
+    setSavedAt(null)
+  }
+
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(savedCfg)
+  // The execute band is checked first, so an overlap silently shrinks the
+  // inverse band — warn instead of letting it look like both apply.
+  const overlap = cfg.inverse_enabled &&
+    cfg.inverse_min <= cfg.execute_max && cfg.execute_min <= cfg.inverse_max
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    try {
+      await saveAiGate(cfg)
+      const stored = normalizeAiGate(cfg)
+      setCfg(stored)
+      setSavedCfg(stored)
+      setSavedAt(new Date())
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-gray-500">Loading AI execution settings...</div>
+  }
+
+  const off = !cfg.enabled
+
+  return (
+    <div className="space-y-4">
+      {/* Master switch */}
+      <div
+        className="p-5"
+        style={{
+          background: 'var(--card-flat)',
+          borderRadius: '20px',
+          border: cfg.enabled
+            ? '2px solid rgba(139,92,246,0.45)'
+            : '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Brain className={`w-5 h-5 ${cfg.enabled ? 'text-violet-400' : 'text-gray-500'}`} />
+              <h3 className={`text-lg font-semibold ${cfg.enabled ? 'text-violet-300' : 'text-gray-300'}`}>
+                AI Grade Execution Control
+              </h3>
+              <span className={`badge ${cfg.enabled ? 'badge-success' : 'badge-neutral'}`}>
+                {cfg.enabled ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <p className="text-sm text-gray-400 mt-2 ml-7">
+              {cfg.enabled ? (
+                <>
+                  Every signal is graded <span className="text-gray-200">before</span> anything is sent to the
+                  broker — market and pending orders alike. The grade then decides whether the trade is
+                  executed, executed in the opposite direction, or blocked. All other logic
+                  (risk, TP/SL policies, cancel, news blackout, circuit breaker) is unchanged.
+                </>
+              ) : (
+                <>
+                  Off — the bot behaves exactly as normal: trades are placed immediately on the signal and
+                  AI grading stays a label-only background job that never blocks anything.
+                </>
+              )}
+            </p>
+          </div>
+          <Toggle checked={cfg.enabled} onChange={checked => patch({ enabled: checked })} />
+        </div>
+      </div>
+
+      {/* Dimmed but still editable while the gate is off, so the bands can be
+          set up before switching it on. */}
+      <div style={{ opacity: off ? 0.55 : 1 }} className="space-y-4">
+        {/* Outcome map */}
+        <div
+          className="p-5"
+          style={{ background: 'var(--card-flat)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <h4 className="text-sm font-medium text-gray-300 mb-3">What happens at each grade</h4>
+          <GradeOutcomeMap cfg={cfg} />
+          {overlap && (
+            <p className="text-xs mt-3 flex items-center gap-1.5" style={{ color: GATE_ORANGE }}>
+              <AlertTriangle className="w-3.5 h-3.5" />
+              The two ranges overlap. Grades in both are executed normally — the execute range wins.
+            </p>
+          )}
+        </div>
+
+        {/* Execute range */}
+        <div
+          className="p-5"
+          style={{
+            background: 'var(--card-flat)',
+            borderRadius: '20px',
+            border: `2px solid ${GATE_GREEN}40`,
+          }}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4" style={{ color: GATE_GREEN }} />
+            <span className="text-sm font-medium" style={{ color: GATE_GREEN }}>
+              Execute normally — grades {cfg.execute_min}–{cfg.execute_max}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mb-4 ml-6">
+            Signals scored in this range are traded exactly as the channel sent them.
+          </p>
+          <GradeRangeSlider
+            low={cfg.execute_min}
+            high={cfg.execute_max}
+            accent={GATE_GREEN}
+            onChange={(lo, hi) => patch({ execute_min: lo, execute_max: hi })}
+          />
+        </div>
+
+        {/* Inverse range */}
+        <div
+          className="p-5"
+          style={{
+            background: 'var(--card-flat)',
+            borderRadius: '20px',
+            border: cfg.inverse_enabled
+              ? `2px solid ${GATE_ORANGE}40`
+              : '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
+          <div className="flex items-start justify-between gap-4 mb-1">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" style={{ color: cfg.inverse_enabled ? GATE_ORANGE : '#6b7280' }} />
+              <span
+                className="text-sm font-medium"
+                style={{ color: cfg.inverse_enabled ? GATE_ORANGE : '#d1d5db' }}
+              >
+                Execute inverted — grades {cfg.inverse_min}–{cfg.inverse_max}
+              </span>
+            </div>
+            <Toggle
+              checked={cfg.inverse_enabled}
+              onChange={checked => patch({ inverse_enabled: checked })}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mb-4 ml-6">
+            Signals scored in this range are traded the other way round: BUY→SELL, SELL→BUY, with SL and TP
+            swapped — the same mechanism as the per-channel "Reverse Signals" option. On a channel that is
+            already reversed the two cancel out and the original direction is traded.
+          </p>
+          <GradeRangeSlider
+            low={cfg.inverse_min}
+            high={cfg.inverse_max}
+            accent={GATE_ORANGE}
+            disabled={!cfg.inverse_enabled}
+            onChange={(lo, hi) => patch({ inverse_min: lo, inverse_max: hi })}
+          />
+        </div>
+
+        {/* Blocked note */}
+        <div
+          className="p-4 flex items-start gap-2"
+          style={{ background: 'var(--card-flat)', borderRadius: '14px', border: `1px solid ${GATE_RED}40` }}
+        >
+          <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: GATE_RED }} />
+          <p className="text-xs text-gray-400">
+            <span style={{ color: GATE_RED }} className="font-medium">Everything else is blocked.</span>{' '}
+            Grades in neither range — and signals the grader could not score at all — never reach the broker.
+            They are still recorded as blocked trades with the reason, so nothing disappears silently.
+          </p>
+        </div>
+
+        {/* Advanced */}
+        <div
+          className="p-5 space-y-4"
+          style={{ background: 'var(--card-flat)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <h4 className="text-sm font-medium text-gray-300">Grading source and timing</h4>
+
+          <FormField
+            label="Which grade decides"
+            hint="Channels can have Claude and/or Gemini grading enabled. If the chosen provider returns no score, the other one is used."
+          >
+            <select value={cfg.provider} onChange={e => patch({ provider: e.target.value })}>
+              <option value="gemini">Gemini score</option>
+              <option value="claude">Claude score</option>
+              <option value="average">Average of both</option>
+            </select>
+          </FormField>
+
+          <FormField
+            label="Max wait for a grade (seconds)"
+            hint="If grading takes longer than this the signal is treated as stale and blocked, rather than entering at a price that has already moved on."
+          >
+            <input
+              type="number"
+              min="10"
+              step="10"
+              value={cfg.max_grade_wait_sec}
+              onChange={e => patch({ max_grade_wait_sec: parseInt(e.target.value) || 0 })}
+              className="w-40"
+            />
+          </FormField>
+
+          <div className="flex items-center justify-between p-4"
+            style={{ background: 'var(--card-recess)', borderRadius: '14px' }}
+          >
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-300">
+                Trade channels without AI grading
+              </label>
+              <p className="text-xs text-gray-500 mt-1">
+                A channel with neither Claude nor Gemini enabled can never produce a grade. Off (default),
+                its signals are blocked while this gate is on. On, those channels keep trading ungated.
+              </p>
+            </div>
+            <Toggle
+              checked={cfg.trade_ungraded_channels}
+              onChange={checked => patch({ trade_ungraded_channels: checked })}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Save bar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs">
+          {error && (
+            <span className="text-red-400 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" /> {error}
+            </span>
+          )}
+          {!error && savedAt && (
+            <span className="text-green-400 flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" /> Saved at {savedAt.toLocaleTimeString()} — the bot picks it up within 30s.
+            </span>
+          )}
+          {!error && !savedAt && dirty && (
+            <span className="text-gray-500">Unsaved changes</span>
+          )}
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving || !dirty}
+          className="btn-primary flex items-center gap-2"
+        >
+          {saving ? 'Saving...' : <><Save className="w-4 h-4" /> Save</>}
+        </button>
+      </div>
     </div>
   )
 }
@@ -981,6 +1412,21 @@ function ChannelEditorModal({ channel, onSave, onClose, existingChannels, newsCa
   )
 }
 
+const PAGE_TAB_HEADINGS = {
+  'channels': {
+    title: 'Channel Configuration',
+    subtitle: 'Manage your Telegram signal channels',
+  },
+  'ai-execution': {
+    title: 'AI Execution Control',
+    subtitle: 'Route order execution by the AI signal grade — for every channel at once',
+  },
+  'visitors': {
+    title: 'Site Visitors',
+    subtitle: 'Track and manage visitors to this dashboard',
+  },
+}
+
 export default function Channels() {
   const [channels, setChannels] = useState([])
   const [newsCategories, setNewsCategories] = useState([])
@@ -1113,12 +1559,10 @@ export default function Channels() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">
-            {pageTab === 'channels' ? 'Channel Configuration' : 'Site Visitors'}
+            {PAGE_TAB_HEADINGS[pageTab].title}
           </h1>
           <p className="text-gray-500 mt-1">
-            {pageTab === 'channels'
-              ? 'Manage your Telegram signal channels'
-              : 'Track and manage visitors to this dashboard'}
+            {PAGE_TAB_HEADINGS[pageTab].subtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1143,6 +1587,7 @@ export default function Channels() {
       >
         {[
           { key: 'channels', label: 'Channels', icon: Settings },
+          { key: 'ai-execution', label: 'AI Execution', icon: Brain },
           { key: 'visitors', label: 'Visitors', icon: Users },
         ].map(tab => {
           const Icon = tab.icon
@@ -1167,6 +1612,8 @@ export default function Channels() {
       </div>
 
       {pageTab === 'visitors' && <VisitorsTab />}
+
+      {pageTab === 'ai-execution' && <AIExecutionTab />}
 
       {pageTab === 'channels' && (<>
       {/* Global Settings (Issue 1: Pending Order Expiry) */}

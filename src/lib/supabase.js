@@ -502,6 +502,111 @@ export async function updateAppSetting(key, value) {
   return true
 }
 
+/**
+ * Like fetchAppSetting, but returns `fallback` instead of throwing when the key
+ * has no row yet (a setting whose migration hasn't been applied).
+ */
+export async function fetchAppSettingOrDefault(key, fallback = null) {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle()
+
+  if (error) {
+    console.warn(`fetchAppSetting('${key}') failed:`, error.message)
+    return fallback
+  }
+  return data?.value ?? fallback
+}
+
+/**
+ * Write an app setting, creating the row if it doesn't exist yet.
+ * `updateAppSetting` uses UPDATE, which silently affects 0 rows for a key that
+ * was never seeded — this upsert makes a new setting work before/without its
+ * migration.
+ */
+export async function upsertAppSetting(key, value, description = null) {
+  const row = {
+    key,
+    value,
+    updated_at: new Date().toISOString(),
+  }
+  if (description) row.description = description
+
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert(row, { onConflict: 'key' })
+
+  if (error) throw error
+  return true
+}
+
+// ============================================================================
+// AI EXECUTION GATE (global — Channels > AI Execution tab)
+// ============================================================================
+
+export const AI_GATE_SETTING_KEY = 'ai_execution_gate'
+
+/** Must stay in sync with AI_GATE_DEFAULTS in sigbot/App.py. */
+export const AI_GATE_DEFAULTS = {
+  enabled: false,
+  provider: 'gemini',          // 'gemini' | 'claude' | 'average'
+  execute_min: 6,
+  execute_max: 10,
+  inverse_enabled: false,
+  inverse_min: 0,
+  inverse_max: 4,
+  trade_ungraded_channels: false,
+  max_grade_wait_sec: 300,
+}
+
+const clampGrade = (v, fallback) => {
+  const n = parseInt(v, 10)
+  if (Number.isNaN(n)) return fallback
+  return Math.max(0, Math.min(10, n))
+}
+
+/** Coerce a stored value into a complete config (mirrors normalize_ai_gate). */
+export function normalizeAiGate(raw) {
+  let value = raw
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value) } catch { value = null }
+  }
+  const src = (value && typeof value === 'object') ? value : {}
+  const cfg = { ...AI_GATE_DEFAULTS }
+
+  cfg.enabled = !!(src.enabled ?? cfg.enabled)
+  cfg.inverse_enabled = !!(src.inverse_enabled ?? cfg.inverse_enabled)
+  cfg.trade_ungraded_channels = !!(src.trade_ungraded_channels ?? cfg.trade_ungraded_channels)
+  cfg.provider = ['gemini', 'claude', 'average'].includes(src.provider)
+    ? src.provider
+    : AI_GATE_DEFAULTS.provider
+
+  for (const [lo, hi] of [['execute_min', 'execute_max'], ['inverse_min', 'inverse_max']]) {
+    const a = clampGrade(src[lo], AI_GATE_DEFAULTS[lo])
+    const b = clampGrade(src[hi], AI_GATE_DEFAULTS[hi])
+    cfg[lo] = Math.min(a, b)
+    cfg[hi] = Math.max(a, b)
+  }
+
+  const wait = parseInt(src.max_grade_wait_sec, 10)
+  cfg.max_grade_wait_sec = Number.isNaN(wait) ? AI_GATE_DEFAULTS.max_grade_wait_sec : Math.max(10, wait)
+  return cfg
+}
+
+export async function fetchAiGate() {
+  return normalizeAiGate(await fetchAppSettingOrDefault(AI_GATE_SETTING_KEY, null))
+}
+
+export async function saveAiGate(cfg) {
+  return upsertAppSetting(
+    AI_GATE_SETTING_KEY,
+    normalizeAiGate(cfg),
+    'AI execution gate: routes order execution by the AI signal grade (see Channels > AI Execution)',
+  )
+}
+
 // ============================================================================
 // REAL-TIME SUBSCRIPTIONS (Improved)
 // ============================================================================
