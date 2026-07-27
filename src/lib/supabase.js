@@ -561,6 +561,14 @@ export const AI_GATE_DEFAULTS = {
   max_grade_wait_sec: 300,
 }
 
+/**
+ * Floor for max_grade_wait_sec — must stay in sync with AI_GATE_MIN_WAIT_SEC in
+ * sigbot/App.py. Grading renders charts and calls the provider (15-40s in
+ * practice), so a smaller value can never be met and blocks every signal as
+ * stale, including ones graded inside the execute band.
+ */
+export const AI_GATE_MIN_WAIT_SEC = 60
+
 const clampGrade = (v, fallback) => {
   const n = parseInt(v, 10)
   if (Number.isNaN(n)) return fallback
@@ -591,7 +599,9 @@ export function normalizeAiGate(raw) {
   }
 
   const wait = parseInt(src.max_grade_wait_sec, 10)
-  cfg.max_grade_wait_sec = Number.isNaN(wait) ? AI_GATE_DEFAULTS.max_grade_wait_sec : Math.max(10, wait)
+  cfg.max_grade_wait_sec = Number.isNaN(wait)
+    ? AI_GATE_DEFAULTS.max_grade_wait_sec
+    : Math.max(AI_GATE_MIN_WAIT_SEC, wait)
   return cfg
 }
 

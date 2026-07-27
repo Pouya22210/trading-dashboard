@@ -10,7 +10,7 @@ import {
   fetchAppSetting, updateAppSetting,
   fetchNewsCategories, fetchNewsBlackouts, saveChannelNewsBlackouts,
   deleteTradesByChannel,
-  fetchAiGate, saveAiGate, normalizeAiGate, AI_GATE_DEFAULTS
+  fetchAiGate, saveAiGate, normalizeAiGate, AI_GATE_DEFAULTS, AI_GATE_MIN_WAIT_SEC
 } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 import VisitorsTab from '../components/VisitorsTab'
@@ -542,14 +542,24 @@ function AIExecutionTab() {
 
           <FormField
             label="Max wait for a grade (seconds)"
-            hint="If grading takes longer than this the signal is treated as stale and blocked, rather than entering at a price that has already moved on."
+            hint={`If grading takes longer than this the signal is treated as stale and blocked, rather than entering at a price that has already moved on. Grading normally takes 15-40s, so the minimum is ${AI_GATE_MIN_WAIT_SEC}s — below that nothing could ever be traded.`}
           >
             <input
               type="number"
-              min="10"
-              step="10"
+              min={AI_GATE_MIN_WAIT_SEC}
+              step="30"
               value={cfg.max_grade_wait_sec}
-              onChange={e => patch({ max_grade_wait_sec: parseInt(e.target.value) || 0 })}
+              // Kept as typed so the field can be cleared and retyped; coerced
+              // on blur instead of collapsing an empty box to 0 mid-edit.
+              onChange={e => patch({ max_grade_wait_sec: e.target.value })}
+              onBlur={e => {
+                const n = parseInt(e.target.value, 10)
+                patch({
+                  max_grade_wait_sec: Number.isNaN(n)
+                    ? AI_GATE_DEFAULTS.max_grade_wait_sec
+                    : Math.max(AI_GATE_MIN_WAIT_SEC, n),
+                })
+              }}
               className="w-40"
             />
           </FormField>
