@@ -390,30 +390,44 @@ function MarketSessionsTooltip({ active, payload, label }) {
 }
 
 
-// Tooltip for the AI Grades mirrored bar chart — shows win/loss counts and the
-// win rate for the hovered grade bin.
+// Tooltip for the AI Grades mirrored bar chart. Counts are the SIGNAL's
+// outcome (inverted trades already flipped by the RPC), so the bin also
+// carries the calibration read: a well-calibrated grade g should win about
+// g/10 of the time. Realized trades and the inverted count are shown under
+// the divider when they differ from the signal view.
 function GradeDistributionTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null
   const d = payload[0]?.payload
   if (!d) return null
   const total = d.wins + d.lossCount
   const winRate = total > 0 ? Math.round((d.wins / total) * 100) : null
+  const expected = Math.round(d.grade * 10)
   return (
-    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[150px]">
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[170px]">
       <p className="text-white text-sm font-semibold mb-2">Grade {d.grade}/10</p>
       <div className="flex items-center gap-2 text-sm">
         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.green }} />
-        <span className="text-gray-300">Wins:</span>
+        <span className="text-gray-300">Signal won:</span>
         <span className="text-white font-mono ml-auto">{d.wins}</span>
       </div>
       <div className="flex items-center gap-2 text-sm">
         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.red }} />
-        <span className="text-gray-300">Losses:</span>
+        <span className="text-gray-300">Signal lost:</span>
         <span className="text-white font-mono ml-auto">{d.lossCount}</span>
       </div>
       {winRate != null && (
-        <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400">
-          Win rate: <span className="text-white font-mono">{winRate}%</span>
+        <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400 space-y-0.5">
+          <div>
+            Signal win rate: <span className="text-white font-mono">{winRate}%</span>
+            <span className="text-gray-500"> vs {expected}% implied</span>
+          </div>
+          <div>
+            Traded: <span className="text-white font-mono">{d.execWins}W − {d.execLosses}L</span>
+            {d.inverted > 0 && <span className="text-gray-500"> · {d.inverted} inverted</span>}
+          </div>
+          {d.breakeven > 0 && (
+            <div className="text-gray-500">{d.breakeven} closed at breakeven (excluded)</div>
+          )}
         </div>
       )}
     </div>
@@ -1351,12 +1365,24 @@ export default function Trades() {
   // so a low-volume grader's bars aren't dwarfed by the other panel's scale.
   // Cutoff-dependent stats (TP/FP/TN/FN, win rates, net results) are derived
   // at render time from the bins, using each chart's slider value.
+  //
+  // `wins`/`lossCount` here are the SIGNAL's outcome, not ours: when the AI
+  // execution gate inverts a low-graded signal (0-4 band → placed on the
+  // opposite side), our profit means the graded signal LOST, so the RPC has
+  // already flipped it. That is what makes the grade axis meaningful — a
+  // grader that is right about bad signals now shows a LOW win rate in the
+  // low bins instead of a high one. Realized P&L is carried separately as
+  // execWins/execLosses.
   const gradeDistView = useMemo(() => {
     const providers = {}
     for (const p of AI_PROVIDERS) {
       providers[p.key] = {
-        bins: Array.from({ length: 11 }, (_, g) => ({ grade: g, wins: 0, lossCount: 0, lossesDown: 0 })),
+        bins: Array.from({ length: 11 }, (_, g) => ({
+          grade: g, wins: 0, lossCount: 0, lossesDown: 0,
+          execWins: 0, execLosses: 0, inverted: 0, breakeven: 0,
+        })),
         graded: 0, wins: 0, losses: 0,
+        execWins: 0, execLosses: 0, inverted: 0, breakeven: 0,
         winGradeSum: 0, lossGradeSum: 0,
       }
     }
@@ -1364,31 +1390,41 @@ export default function Trades() {
     for (const r of (gradeDist || [])) {
       const p = providers[r.provider]
       if (!p || r.grade < 0 || r.grade > 10) continue
-      const n = r.wins + r.losses
+      const n = r.signalWins + r.signalLosses
       const bin = p.bins[r.grade]
-      bin.wins       += r.wins
-      bin.lossCount  += r.losses
-      bin.lossesDown -= r.losses
+      bin.wins       += r.signalWins
+      bin.lossCount  += r.signalLosses
+      bin.lossesDown -= r.signalLosses
+      bin.execWins   += r.execWins
+      bin.execLosses += r.execLosses
+      bin.inverted   += r.inverted
+      bin.breakeven  += r.breakeven
       p.graded += n
-      p.wins   += r.wins
-      p.losses += r.losses
-      p.winGradeSum  += r.grade * r.wins
-      p.lossGradeSum += r.grade * r.losses
+      p.wins   += r.signalWins
+      p.losses += r.signalLosses
+      p.execWins   += r.execWins
+      p.execLosses += r.execLosses
+      p.inverted   += r.inverted
+      p.breakeven  += r.breakeven
+      p.winGradeSum  += r.grade * r.signalWins
+      p.lossGradeSum += r.grade * r.signalLosses
 
       const ck = `${r.channelId}|${r.provider}`
       if (!channelMap[ck]) {
         channelMap[ck] = {
           channelId: r.channelId, channelName: r.channelName, provider: r.provider,
           graded: 0, wins: 0, losses: 0, winGradeSum: 0, lossGradeSum: 0, hiWins: 0, hiTotal: 0,
+          inverted: 0,
         }
       }
       const c = channelMap[ck]
       c.graded += n
-      c.wins   += r.wins
-      c.losses += r.losses
-      c.winGradeSum  += r.grade * r.wins
-      c.lossGradeSum += r.grade * r.losses
-      if (r.grade >= 7) { c.hiWins += r.wins; c.hiTotal += n }
+      c.wins   += r.signalWins
+      c.losses += r.signalLosses
+      c.inverted += r.inverted
+      c.winGradeSum  += r.grade * r.signalWins
+      c.lossGradeSum += r.grade * r.signalLosses
+      if (r.grade >= 7) { c.hiWins += r.signalWins; c.hiTotal += n }
     }
     // Discrimination metrics per provider, from the 0-10 bins.
     // AUC = probability a random winning trade was graded above a random
@@ -2945,16 +2981,24 @@ export default function Trades() {
             return (
               <div className="mb-8 space-y-6">
                 <p className="text-xs text-gray-500 -mt-2">
-                  How each AI grader's 0-10 score lines up with the real outcome of closed trades
-                  (wins above the line, losses below). High grades read as "take it", low as "avoid" —
-                  by default 7-10 / 0-3; the slider under each chart moves both cutoffs symmetrically:
-                  ✓ TP = graded in the take zone &amp; won, ✓ TN = graded in the avoid zone &amp; lost,
-                  ✗ FP = take zone &amp; lost, ✗ FN = avoid zone &amp; won.
-                  AUC is the probability a random winning trade was graded
+                  How each AI grader's 0-10 score lines up with what the <strong>graded signal</strong> did
+                  (signal won above the line, lost below). Note this is the signal's outcome, not ours:
+                  when the AI execution gate inverts a low-graded signal it places the opposite trade, so
+                  <em> our</em> profit on one of those means the graded signal lost — the grader was right —
+                  and it is counted below the line, in the TN box where it belongs.
+                  High grades read as "take it", low as "avoid" — by default 7-10 / 0-3; the slider under
+                  each chart moves both cutoffs symmetrically:
+                  ✓ TP = graded in the take zone &amp; the signal won, ✓ TN = avoid zone &amp; the signal lost,
+                  ✗ FP = take zone &amp; it lost, ✗ FN = avoid zone &amp; it won. So TP + TN is how often the
+                  grader was right — which, under the gate, is also how often we won.
+                  AUC is the probability a random winning signal was graded
                   above a random losing one (0.5 = no discrimination, higher is better); log loss
                   scores the grade read as a win probability (grade/10) — lower is better, and a
-                  no-skill "always 5" grader scores 0.693. Only closed trades that ended in profit or
-                  loss and were graded by the model are counted; all sidebar filters apply.
+                  no-skill "always 5" grader scores 0.693. The "net result" stats below are the
+                  opposite view — real trades as placed, inverted ones included. Only closed trades
+                  that ended in profit or loss and were graded by the model are counted; trades closed
+                  at breakeven never resolved their TP-vs-SL race and are excluded but counted
+                  separately. All sidebar filters apply.
                 </p>
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -2975,12 +3019,17 @@ export default function Trades() {
                     const fp = hiTotal - hiWins
                     const fn = loWins
                     const tn = loTotal - loWins
-                    // Net result (wins − losses): all graded trades vs. skipping every 0-3
-                    // graded trade (drops TN and FN alike), under the same sidebar filters.
-                    const netAll   = pv.wins - pv.losses
-                    const winsKept   = pv.wins - fn
-                    const lossesKept = pv.losses - tn
-                    const netExclLow = winsKept - lossesKept
+                    // Realized net (wins − losses of the trades we actually placed,
+                    // inverted ones included) vs. what we'd net by skipping every
+                    // trade graded in the avoid zone instead of trading it. Uses the
+                    // EXEC counts: under the gate a 0-4 grade is not skipped, it is
+                    // faded, so its profit is real money that dropping it forfeits.
+                    let loExecWins = 0, loExecLosses = 0
+                    for (const bin of pv.bins) {
+                      if (bin.grade <= loMax) { loExecWins += bin.execWins; loExecLosses += bin.execLosses }
+                    }
+                    const netAll     = pv.execWins - pv.execLosses
+                    const netExclLow = (pv.execWins - loExecWins) - (pv.execLosses - loExecLosses)
                     const netDelta   = netExclLow - netAll
                     const fmtNet = (v) => v > 0 ? `+${v}` : `${v}`
                     return (
@@ -3000,10 +3049,18 @@ export default function Trades() {
                             <div className="flex flex-wrap gap-2 mb-4">
                               {[
                                 { label: 'Graded trades',      value: pv.graded },
-                                { label: 'Avg grade · wins',   value: fmtAvg(pv.winGradeSum, pv.wins),   color: COLORS.green },
-                                { label: 'Avg grade · losses', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
-                                { label: `Win rate @ ${hiMin}-10`,  value: `${fmtRate(hiWins, hiTotal)} (${hiTotal})` },
-                                { label: `Win rate @ 0-${loMax}`,   value: `${fmtRate(loWins, loTotal)} (${loTotal})` },
+                                {
+                                  label: 'Inverted by gate',
+                                  value: pv.inverted,
+                                  color: pv.inverted > 0 ? COLORS.cyan : undefined,
+                                },
+                                ...(pv.breakeven > 0
+                                  ? [{ label: 'Breakeven · excluded', value: pv.breakeven, color: COLORS.yellow }]
+                                  : []),
+                                { label: 'Avg grade · signal won',  value: fmtAvg(pv.winGradeSum, pv.wins),   color: COLORS.green },
+                                { label: 'Avg grade · signal lost', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
+                                { label: `Signal win rate @ ${hiMin}-10`,  value: `${fmtRate(hiWins, hiTotal)} (${hiTotal})` },
+                                { label: `Signal win rate @ 0-${loMax}`,   value: `${fmtRate(loWins, loTotal)} (${loTotal})` },
                                 {
                                   label: 'AUC · 0.5 = none',
                                   value: pv.auc != null ? pv.auc.toFixed(3) : '—',
@@ -3069,17 +3126,17 @@ export default function Trades() {
                               style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
                             >
                               <div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · all graded</div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · as traded</div>
                                 <div className="text-sm font-semibold font-mono" style={{ color: netAll >= 0 ? COLORS.green : COLORS.red }}>
                                   {fmtNet(netAll)}{' '}
-                                  <span className="text-gray-500 font-normal">({pv.wins}W − {pv.losses}L)</span>
+                                  <span className="text-gray-500 font-normal">({pv.execWins}W − {pv.execLosses}L)</span>
                                 </div>
                               </div>
                               <div>
                                 <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · skipping 0-{loMax} graded</div>
                                 <div className="text-sm font-semibold font-mono" style={{ color: netExclLow >= 0 ? COLORS.green : COLORS.red }}>
                                   {fmtNet(netExclLow)}{' '}
-                                  <span className="text-gray-500 font-normal">({winsKept}W − {lossesKept}L)</span>
+                                  <span className="text-gray-500 font-normal">({pv.execWins - loExecWins}W − {pv.execLosses - loExecLosses}L)</span>
                                 </div>
                               </div>
                               <div>
@@ -3191,11 +3248,12 @@ export default function Trades() {
                             <th className="min-w-[160px]">Channel</th>
                             <th>Model</th>
                             <th>Graded</th>
-                            <th>Wins</th>
-                            <th>Losses</th>
-                            <th>Avg Grade · Wins</th>
-                            <th>Avg Grade · Losses</th>
-                            <th>Win Rate @ 7-10</th>
+                            <th>Inverted</th>
+                            <th>Signal Won</th>
+                            <th>Signal Lost</th>
+                            <th>Avg Grade · Won</th>
+                            <th>Avg Grade · Lost</th>
+                            <th>Signal Win Rate @ 7-10</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3212,6 +3270,7 @@ export default function Trades() {
                               </td>
                               <td>{AI_PROVIDERS.find(p => p.key === row.provider)?.name || row.provider}</td>
                               <td className="font-mono">{row.graded}</td>
+                              <td className="font-mono" style={{ color: row.inverted > 0 ? COLORS.cyan : undefined }}>{row.inverted}</td>
                               <td className="font-mono" style={{ color: COLORS.green }}>{row.wins}</td>
                               <td className="font-mono" style={{ color: COLORS.red }}>{row.losses}</td>
                               <td className="font-mono">{fmtAvg(row.winGradeSum, row.wins)}</td>

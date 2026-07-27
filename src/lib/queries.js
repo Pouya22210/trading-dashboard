@@ -106,10 +106,21 @@ export async function fetchTradesAnalytics(filters) {
 
 
 // ---------- Trades page: AI grade × win/loss distribution ----------
-// One row per (channel, provider, grade 0-10) cell over closed profit/loss
-// trades, with win/loss counts. Same filter envelope as the analytics RPC,
-// so the AI Grades tab tracks every sidebar filter (incl. news blackouts).
-// SQL: migrations/2026-07-05_grade_outcome_distribution.sql
+// One row per (channel, provider, grade 0-10) cell over closed trades. Same
+// filter envelope as the analytics RPC, so the AI Grades tab tracks every
+// sidebar filter (incl. news blackouts).
+// SQL: migrations/2026-07-27_grade_outcome_distribution_v2.sql
+//
+// Two win/loss pairs, and the difference matters:
+//   signalWins/signalLosses — did the GRADED SIGNAL win? For trades the AI
+//     execution gate INVERTED (score in the 0-4 band → placed on the
+//     opposite side) our profit means the graded signal lost, i.e. the
+//     grader was right, so the outcome is flipped at the SQL level. This is
+//     the pair to judge the model on.
+//   execWins/execLosses — did the trade we actually placed win? The P&L view.
+// `inverted` counts the flipped trades in the cell; `breakeven` counts closed
+// trades whose SL was moved to BE, so the TP-vs-SL race never resolved (they
+// are in neither win/loss pair).
 
 export async function fetchGradeOutcomeDistribution(filters) {
   const { data, error } = await supabase.rpc('get_grade_outcome_distribution', {
@@ -117,12 +128,16 @@ export async function fetchGradeOutcomeDistribution(filters) {
   })
   if (error) throw error
   return (data || []).map(row => ({
-    channelId:   row.channel_id,
-    channelName: row.channel_name,
-    provider:    row.provider,
-    grade:       Number(row.grade),
-    wins:        Number(row.wins)   || 0,
-    losses:      Number(row.losses) || 0,
+    channelId:    row.channel_id,
+    channelName:  row.channel_name,
+    provider:     row.provider,
+    grade:        Number(row.grade),
+    signalWins:   Number(row.signal_wins)   || 0,
+    signalLosses: Number(row.signal_losses) || 0,
+    execWins:     Number(row.exec_wins)     || 0,
+    execLosses:   Number(row.exec_losses)   || 0,
+    breakeven:    Number(row.breakeven)     || 0,
+    inverted:     Number(row.inverted)      || 0,
   }))
 }
 
