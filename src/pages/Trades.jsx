@@ -1693,6 +1693,7 @@ export default function Trades() {
     if (effectiveStatus === 'pending') return 'badge-warning'
     if (effectiveStatus === 'canceled') {
       if (trade.cancel_reason === 'cancel_policy') return 'badge-cancel-policy'
+      if (trade.cancel_reason === 'sl_before_entry') return 'badge-cancel-policy'
       return 'badge-neutral'
     }
     if (effectiveStatus === 'blocked') return 'badge-neutral'
@@ -1708,8 +1709,10 @@ export default function Trades() {
       return `pending (${trade.order_type})`
     }
     if (effectiveStatus === 'canceled') {
-      if (trade.cancel_reason === 'cancel_policy') return 'canceled (TP)'
-      if (trade.cancel_reason === 'expired')       return 'expired'
+      if (trade.cancel_reason === 'cancel_policy')   return 'canceled (TP)'
+      if (trade.cancel_reason === 'sl_before_entry') return 'canceled (SL)'
+      if (trade.cancel_reason === 'news_blackout')   return 'canceled (news)'
+      if (trade.cancel_reason === 'expired')         return 'expired'
       return 'canceled'
     }
     return effectiveStatus || '-'
