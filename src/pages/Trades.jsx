@@ -3009,31 +3009,16 @@ export default function Trades() {
             const fmtRate = (w, n) => n > 0 ? `${Math.round((w / n) * 100)}%` : '—'
             return (
               <div className="mb-8 space-y-6">
-                <p className="text-xs text-gray-500 -mt-2">
-                  How each AI grader's 0-10 score lines up with what the <strong>graded signal</strong> did
-                  (signal won above the line, lost below). <strong>Position on the axis is what the signal
-                  did; colour is what we actually got.</strong> They only differ on trades the AI execution
-                  gate inverted: a <span style={{ color: COLORS.blue }}>blue</span> bar below the line is an
-                  inverted trade that hit <em>its</em> target — the graded signal lost, so it sits below,
-                  but the money was ours; an <span style={{ color: COLORS.orange }}>orange</span> bar above
-                  the line is the mirror, an inverted trade stopped out. Count only
-                  <span style={{ color: COLORS.red }}> red</span> to see your real losses and only
-                  <span style={{ color: COLORS.green }}> green</span> plus blue for your real wins.
-                  High grades read as "take it", low as "avoid" — by default 7-10 / 0-3; the slider under
-                  each chart moves both cutoffs symmetrically:
-                  ✓ TP = graded in the take zone &amp; the signal won, ✓ TN = avoid zone &amp; the signal lost,
-                  ✗ FP = take zone &amp; it lost, ✗ FN = avoid zone &amp; it won. So TP + TN is how often the
-                  grader was right — which, under the gate, is also how often we won.
-                  AUC is the probability a random winning signal was graded
-                  above a random losing one (0.5 = no discrimination, higher is better); log loss
-                  scores the grade read as a win probability (grade/10) — lower is better, and a
-                  no-skill "always 5" grader scores 0.693. The "net result" stats below are the
-                  opposite view — real trades as placed, inverted ones included. Only closed trades
-                  that ended in profit or loss and were graded by the model are counted; trades closed
-                  at breakeven never resolved their TP-vs-SL race and are excluded but counted
-                  separately. All sidebar filters apply.
-                </p>
-
+                {/* Reading the chart, for whoever maintains this: a bar's POSITION
+                    says what the graded signal did (won above the line, lost below);
+                    its COLOUR says what we actually got. Those differ only on trades
+                    the AI execution gate inverted — blue below the line is an inverted
+                    trade that hit its own target (signal lost, money ours), orange
+                    above the line is the mirror. Red alone is real losses; green plus
+                    blue is real wins. The confusion matrix and AUC/log loss score the
+                    grader (signal outcome); the "net result" chips are P&L as traded.
+                    Closed profit/loss only — breakeven never resolved the TP-vs-SL
+                    race and is counted separately. */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {AI_PROVIDERS.map(p => {
                     const pv = providers[p.key]
