@@ -48,7 +48,31 @@ BEGIN
       v.channel_id,
       COALESCE(v.display_channel_name, v.channel_name, 'Unknown') AS channel_name,
       v.outcome,
-      COALESCE(t.is_inverted, false) AS is_inverted,
+      -- Inversion, belt and braces. trades.is_inverted is authoritative once
+      -- the bot writes it, but it is only as fresh as the last bot restart /
+      -- backfill, and a stale false silently paints an inverted trade as a
+      -- plain loss. So OR it with the same geometry rule the backfill uses:
+      -- a signal whose stop sits below its entry (or below its first TP) was
+      -- a BUY, otherwise a SELL; if that disagrees with the executed
+      -- `direction`, the trade was flipped. Reading only the untouched
+      -- signal_* columns keeps this independent of `direction` itself.
+      (
+        COALESCE(t.is_inverted, false)
+        OR CASE
+             WHEN t.signal_entry_price IS NOT NULL AND t.signal_sl_price IS NOT NULL
+                  AND t.signal_sl_price <> t.signal_entry_price
+               THEN (CASE WHEN t.signal_sl_price < t.signal_entry_price THEN 'buy' ELSE 'sell' END)
+                    <> v.direction::text
+             WHEN t.signal_tp_prices IS NOT NULL
+                  AND jsonb_typeof(t.signal_tp_prices) = 'array'
+                  AND jsonb_array_length(t.signal_tp_prices) > 0
+                  AND (t.signal_tp_prices->>0) ~ '^-?[0-9.]+$'
+                  AND (t.signal_tp_prices->>0)::numeric <> t.signal_sl_price
+               THEN (CASE WHEN t.signal_sl_price < (t.signal_tp_prices->>0)::numeric THEN 'buy' ELSE 'sell' END)
+                    <> v.direction::text
+             ELSE false
+           END
+      ) AS is_inverted,
       t.ai_label, t.win_probability,
       t.gemini_label, t.gemini_win_probability
     FROM public.v_trades_with_channels v
