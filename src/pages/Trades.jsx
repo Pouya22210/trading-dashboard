@@ -407,14 +407,28 @@ function GradeDistributionTooltip({ active, payload }) {
       <p className="text-white text-sm font-semibold mb-2">Grade {d.grade}/10</p>
       <div className="flex items-center gap-2 text-sm">
         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.green }} />
-        <span className="text-gray-300">Signal won:</span>
-        <span className="text-white font-mono ml-auto">{d.wins}</span>
+        <span className="text-gray-300">Signal won · we won:</span>
+        <span className="text-white font-mono ml-auto">{d.winsOwn}</span>
       </div>
+      {d.invLossesUp > 0 && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.orange }} />
+          <span className="text-gray-300">Signal won · inverted, we lost:</span>
+          <span className="text-white font-mono ml-auto">{d.invLossesUp}</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 text-sm">
         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.red }} />
-        <span className="text-gray-300">Signal lost:</span>
-        <span className="text-white font-mono ml-auto">{d.lossCount}</span>
+        <span className="text-gray-300">Signal lost · we lost:</span>
+        <span className="text-white font-mono ml-auto">{-d.lossesOwnDown}</span>
       </div>
+      {d.invExecWins > 0 && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.blue }} />
+          <span className="text-gray-300">Signal lost · inverted, we won:</span>
+          <span className="text-white font-mono ml-auto">{d.invExecWins}</span>
+        </div>
+      )}
       {winRate != null && (
         <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400 space-y-0.5">
           <div>
@@ -1380,6 +1394,10 @@ export default function Trades() {
         bins: Array.from({ length: 11 }, (_, g) => ({
           grade: g, wins: 0, lossCount: 0, lossesDown: 0,
           execWins: 0, execLosses: 0, inverted: 0, breakeven: 0,
+          invExecWins: 0, invExecLosses: 0,
+          // Chart series: each side of the axis is split so an inverted trade
+          // is never drawn in the colour of a result we didn't get.
+          winsOwn: 0, invLossesUp: 0, lossesOwnDown: 0, invWinsDown: 0,
         })),
         graded: 0, wins: 0, losses: 0,
         execWins: 0, execLosses: 0, inverted: 0, breakeven: 0,
@@ -1399,6 +1417,17 @@ export default function Trades() {
       bin.execLosses += r.execLosses
       bin.inverted   += r.inverted
       bin.breakeven  += r.breakeven
+      bin.invExecWins   += r.invertedExecWins
+      bin.invExecLosses += r.invertedExecLosses
+      // Split each side of the axis by whose result it was. Above the line
+      // (signal won) = our wins on normal trades + our LOSSES on inverted
+      // ones; below (signal lost) = our losses on normal trades + our WINS
+      // on inverted ones. Colouring these the same would report losses we
+      // never took and wins we never had.
+      bin.winsOwn       += r.signalWins - r.invertedExecLosses
+      bin.invLossesUp   += r.invertedExecLosses
+      bin.lossesOwnDown -= r.signalLosses - r.invertedExecWins
+      bin.invWinsDown   -= r.invertedExecWins
       p.graded += n
       p.wins   += r.signalWins
       p.losses += r.signalLosses
@@ -2982,10 +3011,14 @@ export default function Trades() {
               <div className="mb-8 space-y-6">
                 <p className="text-xs text-gray-500 -mt-2">
                   How each AI grader's 0-10 score lines up with what the <strong>graded signal</strong> did
-                  (signal won above the line, lost below). Note this is the signal's outcome, not ours:
-                  when the AI execution gate inverts a low-graded signal it places the opposite trade, so
-                  <em> our</em> profit on one of those means the graded signal lost — the grader was right —
-                  and it is counted below the line, in the TN box where it belongs.
+                  (signal won above the line, lost below). <strong>Position on the axis is what the signal
+                  did; colour is what we actually got.</strong> They only differ on trades the AI execution
+                  gate inverted: a <span style={{ color: COLORS.blue }}>blue</span> bar below the line is an
+                  inverted trade that hit <em>its</em> target — the graded signal lost, so it sits below,
+                  but the money was ours; an <span style={{ color: COLORS.orange }}>orange</span> bar above
+                  the line is the mirror, an inverted trade stopped out. Count only
+                  <span style={{ color: COLORS.red }}> red</span> to see your real losses and only
+                  <span style={{ color: COLORS.green }}> green</span> plus blue for your real wins.
                   High grades read as "take it", low as "avoid" — by default 7-10 / 0-3; the slider under
                   each chart moves both cutoffs symmetrically:
                   ✓ TP = graded in the take zone &amp; the signal won, ✓ TN = avoid zone &amp; the signal lost,
@@ -3196,10 +3229,20 @@ export default function Trades() {
                                   wrapperStyle={{ paddingTop: 12 }}
                                   formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>}
                                 />
-                                <Bar dataKey="wins" name="Wins" stackId="wl" fill={COLORS.green} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                {/* Four series, two per side of the axis. The axis position
+                                    says what the SIGNAL did; the colour says what WE got.
+                                    Inverted trades are the ones where those disagree, so they
+                                    get their own colours instead of borrowing green/red and
+                                    reporting results we never had. Stack order puts the
+                                    inverted slice on the outside of each bar. */}
+                                {/* radius on every series: a zero-height slice renders nothing,
+                                    so whichever one ends up outermost still gets a rounded tip. */}
+                                <Bar dataKey="winsOwn" name="We won" stackId="wl" fill={COLORS.green} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                <Bar dataKey="invLossesUp" name="Inverted · we lost" stackId="wl" fill={COLORS.orange} radius={[4, 4, 0, 0]} maxBarSize={26} />
                                 {/* Negative bars are drawn sign-aware by Recharts, so the same
                                     radius spec rounds this bar's outer (bottom) tip too. */}
-                                <Bar dataKey="lossesDown" name="Losses" stackId="wl" fill={COLORS.red} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                <Bar dataKey="lossesOwnDown" name="We lost" stackId="wl" fill={COLORS.red} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                <Bar dataKey="invWinsDown" name="Inverted · we won" stackId="wl" fill={COLORS.blue} radius={[4, 4, 0, 0]} maxBarSize={26} />
                               </BarChart>
                             </ResponsiveContainer>
 

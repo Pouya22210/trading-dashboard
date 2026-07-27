@@ -138,6 +138,10 @@ export async function fetchGradeOutcomeDistribution(filters) {
     execLosses:   Number(row.exec_losses)   || 0,
     breakeven:    Number(row.breakeven)     || 0,
     inverted:     Number(row.inverted)      || 0,
+    // Inverted trades split by OUR result, so the chart can colour them apart
+    // from real losses/wins on the same side of the axis.
+    invertedExecWins:   Number(row.inverted_exec_wins)   || 0,
+    invertedExecLosses: Number(row.inverted_exec_losses) || 0,
   }))
 }
 

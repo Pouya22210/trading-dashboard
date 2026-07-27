@@ -98,7 +98,13 @@ BEGIN
       COUNT(*) FILTER (WHERE outcome = 'profit')     AS exec_wins,
       COUNT(*) FILTER (WHERE outcome = 'loss')       AS exec_losses,
       COUNT(*) FILTER (WHERE outcome = 'breakeven')  AS breakeven,
-      COUNT(*) FILTER (WHERE is_inverted)            AS inverted
+      COUNT(*) FILTER (WHERE is_inverted)            AS inverted,
+      -- Inverted trades split by OUR result, so the chart can colour them
+      -- apart: an inverted trade that hit ITS target sits below the line
+      -- (the graded signal lost) but is money we WON, and must not be drawn
+      -- as a loss. Its mirror sits above the line and is money we lost.
+      COUNT(*) FILTER (WHERE is_inverted AND outcome = 'profit') AS inverted_exec_wins,
+      COUNT(*) FILTER (WHERE is_inverted AND outcome = 'loss')   AS inverted_exec_losses
     FROM graded
     GROUP BY channel_id, channel_name, provider, grade
   )
@@ -113,7 +119,9 @@ BEGIN
       'exec_wins',     exec_wins,
       'exec_losses',   exec_losses,
       'breakeven',     breakeven,
-      'inverted',      inverted
+      'inverted',      inverted,
+      'inverted_exec_wins',   inverted_exec_wins,
+      'inverted_exec_losses', inverted_exec_losses
     )
     ORDER BY channel_name, provider, grade
   ), '[]'::jsonb)
