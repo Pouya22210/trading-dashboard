@@ -4,6 +4,8 @@ import { Sparkles, Clock, Menu, X, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import ActivityLogPanel from './ActivityLogPanel'
 import UpcomingNews from './UpcomingNews'
+import BotSelector from './BotSelector'
+import { useBot } from './BotContext'
 
 export default function Navbar() {
   const location = useLocation()
@@ -11,6 +13,7 @@ export default function Navbar() {
   const [activityLogOpen, setActivityLogOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
   const [channelCount, setChannelCount] = useState(null)
+  const { selectedBotId } = useBot()
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -20,9 +23,16 @@ export default function Navbar() {
   }, [])
 
   useEffect(() => {
+    if (!selectedBotId) return
+
+    // Count only the selected bot's channels — the tab badge has to agree
+    // with what the Channels page actually lists.
     async function loadChannelCount() {
       try {
-        const { count } = await supabase.from('channels').select('*', { count: 'exact', head: true })
+        const { count } = await supabase
+          .from('channels')
+          .select('*', { count: 'exact', head: true })
+          .eq('bot_id', selectedBotId)
         setChannelCount(count ?? 0)
       } catch {
         // silently ignore
@@ -38,7 +48,7 @@ export default function Navbar() {
       .subscribe()
 
     return () => supabase.removeChannel(subscription)
-  }, [])
+  }, [selectedBotId])
 
   const tabs = [
     { path: '/', label: 'Home' },
@@ -157,6 +167,9 @@ export default function Navbar() {
                   LIVE
                 </span>
               </div>
+
+              {/* Bot (VPS) picker — the global switch every page follows */}
+              <BotSelector className="hidden md:flex" />
 
               {/* Clock - flat */}
               <div className="hidden lg:flex items-center gap-2" style={{

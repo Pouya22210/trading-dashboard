@@ -13,19 +13,26 @@ export const supabase = createClient(
 )
 
 // Helper functions for common operations
-export async function fetchChannels() {
-  const { data, error } = await supabase
+// `botId` scopes to one VPS. Every channel belongs to exactly one bot, so
+// passing it is the norm; omitting it returns channels across all bots and is
+// only useful for admin/debug views.
+export async function fetchChannels(botId = null) {
+  let query = supabase
     .from('v_channel_configs')
     .select('*')
     .order('channel_key')
+  if (botId) query = query.eq('bot_id', botId)
 
+  const { data, error } = await query
   if (error) throw error
 
   // The AI grader toggles live on the channels table but aren't exposed by the
   // v_channel_configs view, so pull them directly and merge by channel id.
-  const { data: aiFlags } = await supabase
+  let flagQuery = supabase
     .from('channels')
     .select('id, ai_analysis_enabled, ai_analysis_gemini_enabled')
+  if (botId) flagQuery = flagQuery.eq('bot_id', botId)
+  const { data: aiFlags } = await flagQuery
   const flagMap = Object.fromEntries((aiFlags || []).map(c => [c.id, c]))
   return (data || []).map(ch => ({
     ...ch,
@@ -57,10 +64,17 @@ export async function fetchChannel(id) {
 }
 
 export async function createChannel(channelData) {
+  if (!channelData.bot_id) {
+    // Fail loudly. A channel with no bot would be silently adopted by the
+    // single-bot fallback trigger, which is wrong once a second VPS exists.
+    throw new Error('createChannel: bot_id is required — every channel belongs to exactly one bot')
+  }
+
   // Insert into channels table first
   const { data: channel, error: channelError } = await supabase
     .from('channels')
     .insert({
+      bot_id: channelData.bot_id,
       channel_key: channelData.channel_key,
       risk_per_trade: channelData.risk_per_trade,
       risk_tolerance: channelData.risk_tolerance,
@@ -478,72 +492,68 @@ export async function fetchDailyStats() {
 // APP SETTINGS
 // ============================================================================
 
-export async function fetchAppSetting(key) {
-  const { data, error } = await supabase
-    .from('app_settings')
-    .select('value')
-    .eq('key', key)
-    .single()
+// Settings are keyed by (bot_id, key). A row with bot_id NULL is the shared
+// default; a row carrying a bot's id overrides it for that bot. Pass `botId`
+// for anything a VPS owns — the AI execution gate above all, since each
+// strategy needs its own bands.
 
-  if (error) throw error
-  return data?.value
+export async function fetchAppSetting(key, botId = null) {
+  return fetchAppSettingOrDefault(key, null, botId)
 }
 
-export async function updateAppSetting(key, value) {
-  const { error } = await supabase
-    .from('app_settings')
-    .update({
-      value: value,
-      updated_at: new Date().toISOString()
-    })
-    .eq('key', key)
-
-  if (error) throw error
-  return true
+export async function updateAppSetting(key, value, botId = null) {
+  return upsertAppSetting(key, value, null, botId)
 }
 
 /**
- * Like fetchAppSetting, but returns `fallback` instead of throwing when the key
- * has no row yet (a setting whose migration hasn't been applied).
+ * Read a setting for one bot, falling back to the global row, then to
+ * `fallback` when neither exists (e.g. a setting whose migration hasn't run).
  */
-export async function fetchAppSettingOrDefault(key, fallback = null) {
-  const { data, error } = await supabase
+export async function fetchAppSettingOrDefault(key, fallback = null, botId = null) {
+  let query = supabase
     .from('app_settings')
-    .select('value')
+    .select('value, bot_id')
     .eq('key', key)
-    .maybeSingle()
 
+  // Both the bot's own row and the global one, so we can prefer the former.
+  query = botId ? query.or(`bot_id.eq.${botId},bot_id.is.null`) : query.is('bot_id', null)
+
+  const { data, error } = await query
   if (error) {
     console.warn(`fetchAppSetting('${key}') failed:`, error.message)
     return fallback
   }
-  return data?.value ?? fallback
+
+  const rows = data || []
+  const own = rows.find(r => r.bot_id === botId)
+  return (own ?? rows[0])?.value ?? fallback
 }
 
 /**
- * Write an app setting, creating the row if it doesn't exist yet.
- * `updateAppSetting` uses UPDATE, which silently affects 0 rows for a key that
- * was never seeded — this upsert makes a new setting work before/without its
- * migration.
+ * Write a setting for one bot, creating its row if it doesn't exist yet.
+ * Upsert rather than update: an UPDATE silently affects 0 rows for a
+ * (bot_id, key) pair that was never seeded, which is the normal case for a
+ * newly registered VPS.
  */
-export async function upsertAppSetting(key, value, description = null) {
+export async function upsertAppSetting(key, value, description = null, botId = null) {
   const row = {
     key,
     value,
+    bot_id: botId,
     updated_at: new Date().toISOString(),
   }
   if (description) row.description = description
 
   const { error } = await supabase
     .from('app_settings')
-    .upsert(row, { onConflict: 'key' })
+    .upsert(row, { onConflict: 'bot_id,key' })
 
   if (error) throw error
   return true
 }
 
 // ============================================================================
-// AI EXECUTION GATE (global — Channels > AI Execution tab)
+// AI EXECUTION GATE (per bot — Channels > AI Execution tab)
 // ============================================================================
 
 export const AI_GATE_SETTING_KEY = 'ai_execution_gate'
@@ -605,15 +615,19 @@ export function normalizeAiGate(raw) {
   return cfg
 }
 
-export async function fetchAiGate() {
-  return normalizeAiGate(await fetchAppSettingOrDefault(AI_GATE_SETTING_KEY, null))
+// The gate is per bot: each VPS grades with its own strategy, so its bands
+// belong to it. Reading falls back to the global row for a bot that has not
+// been given its own gate yet; saving always writes the bot's own row.
+export async function fetchAiGate(botId = null) {
+  return normalizeAiGate(await fetchAppSettingOrDefault(AI_GATE_SETTING_KEY, null, botId))
 }
 
-export async function saveAiGate(cfg) {
+export async function saveAiGate(cfg, botId = null) {
   return upsertAppSetting(
     AI_GATE_SETTING_KEY,
     normalizeAiGate(cfg),
     'AI execution gate: routes order execution by the AI signal grade (see Channels > AI Execution)',
+    botId,
   )
 }
 
@@ -767,14 +781,21 @@ export async function clearAllSiteVisits() {
 }
 
 /**
- * Subscribe to live MT5 position P&L broadcasts from the sigbot.
- * The bot pushes a tick every ~2s on topic 'live-positions' with shape:
+ * Subscribe to live MT5 position P&L broadcasts from one bot.
+ * Each VPS broadcasts a tick every ~2s on its OWN topic,
+ * 'live-positions:<bot_key>', with shape:
  *   { positions: [{ ticket, magic, symbol, side, profit, swap, price, volume }], ts }
+ * The topic is per bot because a shared one would interleave positions from
+ * every VPS into a single stream.
+ *
+ * Pass the selected bot's `bot_key`. Omitting it subscribes to the legacy
+ * shared topic, which only a pre-multi-bot sigbot still publishes on.
  * Returns the channel so callers can unsubscribe.
  */
-export function subscribeToLivePositions(onTick) {
+export function subscribeToLivePositions(onTick, botKey = null) {
+  const topic = botKey ? `live-positions:${botKey}` : 'live-positions'
   const channel = supabase
-    .channel('live-positions')
+    .channel(topic)
     .on('broadcast', { event: 'tick' }, ({ payload }) => {
       try {
         onTick(payload)

@@ -21,16 +21,19 @@ const TIME_RANGE_DAYS = {
   'all': null,
 }
 
-export async function fetchChannelPerformance(timeRange = '1w', excludeOrphaned = false) {
+export async function fetchChannelPerformance(timeRange = '1w', excludeOrphaned = false, botId = null) {
   const days = TIME_RANGE_DAYS[timeRange] ?? 7
   const startTs = days != null
     ? new Date(Date.now() - days * 86400_000).toISOString()
     : null
 
+  // This RPC does NOT go through _trades_filter_ids, so it takes the bot
+  // filter as its own parameter.
   const { data, error } = await supabase.rpc('get_channel_performance', {
     p_start_ts: startTs,
     p_end_ts: null,
     p_exclude_orphaned: excludeOrphaned,
+    p_bot_id: botId,
   })
 
   if (error) throw error
@@ -213,6 +216,7 @@ export async function fetchTradeMarkers(filters = {}) {
       .order('signal_time', { ascending: true })
       .range(offset, offset + MARKERS_BATCH - 1)
 
+    if (f.botId)                      query = query.eq('bot_id', f.botId)
     if (channelIds.length > 0)        query = query.in('channel_id', channelIds)
     if ((f.showOrphaned ?? true) === false) query = query.eq('is_orphaned_channel', false)
     if (f.startDate)                  query = query.gte('signal_time', f.startDate)
@@ -278,6 +282,11 @@ function numOrNull(value) {
 // ---------------------------------------------------------------------
 function serializeFilters(f = {}) {
   return {
+    // Which bot (VPS) these results belong to. Read at the one chokepoint
+    // every filtered analytics RPC funnels through (_trades_filter_ids), so
+    // this single key scopes the whole Trades & Analysis page.
+    // null = unscoped, which is what the pre-multi-bot dashboard sent.
+    bot_id:                 f.botId || null,
     start_ts:               f.startDate || null,
     end_ts:                 f.endDate   || null,
     channel_ids:            f.channelIds   ?? [],

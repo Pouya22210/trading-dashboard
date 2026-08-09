@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { fetchChannelPerformance } from '../lib/queries'
 import { supabase, subscribeToTrades } from '../lib/supabase'
+import { useBot } from '../components/BotContext'
 
 const TIME_RANGES = [
   { key: '1d', label: '1D' },
@@ -449,6 +450,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
+  const { selectedBotId } = useBot()
   const [leaderboardTimeRange, setLeaderboardTimeRange] = useState('1w')
   const [mobileSection, setMobileSection] = useState('gainers')
   const [showScrollHint, setShowScrollHint] = useState(false)
@@ -464,10 +466,14 @@ export default function Dashboard() {
   const refetchTimerRef     = useRef(null)
   const timeRangeRef        = useRef(leaderboardTimeRange)
   timeRangeRef.current      = leaderboardTimeRange
+  // Same trick for the selected bot, so the realtime refetch stays scoped to
+  // it without re-subscribing on every switch.
+  const botIdRef            = useRef(selectedBotId)
+  botIdRef.current          = selectedBotId
 
   async function loadChannels(timeRange) {
     try {
-      const data = await fetchChannelPerformance(timeRange)
+      const data = await fetchChannelPerformance(timeRange, false, botIdRef.current)
       setChannels(data)
     } catch (err) {
       console.error('Failed to load channel performance:', err)
@@ -483,7 +489,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadChannels(leaderboardTimeRange)
-  }, [leaderboardTimeRange])
+  }, [leaderboardTimeRange, selectedBotId])
 
   useEffect(() => {
     const subscription = subscribeToTrades({

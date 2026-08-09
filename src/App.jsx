@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './components/AuthContext'
+import { BotProvider } from './components/BotContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
@@ -16,26 +17,28 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-dark-primary">
-          <Navbar />
+      <BotProvider>
+        <BrowserRouter>
+          <div className="min-h-screen bg-dark-primary">
+            <Navbar />
 
-          <main>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/trades" element={<Trades />} />
-              <Route 
-                path="/channels" 
-                element={
-                  <ProtectedRoute title="Channel Configuration">
-                    <Channels />
-                  </ProtectedRoute>
-                } 
-              />
-            </Routes>
-          </main>
-        </div>
-      </BrowserRouter>
+            <main>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/trades" element={<Trades />} />
+                <Route
+                  path="/channels"
+                  element={
+                    <ProtectedRoute title="Channel Configuration">
+                      <Channels />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </main>
+          </div>
+        </BrowserRouter>
+      </BotProvider>
     </AuthProvider>
   )
 }

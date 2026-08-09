@@ -14,6 +14,8 @@ import {
 } from '../lib/supabase'
 import LogoutButton from '../components/LogoutButton'
 import VisitorsTab from '../components/VisitorsTab'
+import StrategyList from '../components/StrategyList'
+import { useBot } from '../components/BotContext'
 
 function Toggle({ checked, onChange, label }) {
   return (
@@ -335,9 +337,15 @@ function AIExecutionTab() {
   const [savedAt, setSavedAt] = useState(null)
   const [error, setError] = useState(null)
 
+  // The gate is per bot — each VPS grades with its own strategy, so its
+  // execute/inverse bands belong to it. Reload whenever the bot changes.
+  const { selectedBotId, selectedBot } = useBot()
+
   useEffect(() => {
+    if (!selectedBotId) return
     let cancelled = false
-    fetchAiGate()
+    setLoading(true)
+    fetchAiGate(selectedBotId)
       .then(loaded => {
         if (cancelled) return
         setCfg(loaded)
@@ -346,7 +354,7 @@ function AIExecutionTab() {
       .catch(err => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false))
     return () => { cancelled = true }
-  }, [])
+  }, [selectedBotId])
 
   const patch = (p) => {
     setCfg(prev => ({ ...prev, ...p }))
@@ -363,7 +371,7 @@ function AIExecutionTab() {
     setSaving(true)
     setError(null)
     try {
-      await saveAiGate(cfg)
+      await saveAiGate(cfg, selectedBotId)
       const stored = normalizeAiGate(cfg)
       setCfg(stored)
       setSavedCfg(stored)
@@ -404,6 +412,13 @@ function AIExecutionTab() {
               <span className={`badge ${cfg.enabled ? 'badge-success' : 'badge-neutral'}`}>
                 {cfg.enabled ? 'ON' : 'OFF'}
               </span>
+              {/* These bands belong to one VPS — say which, or a per-bot
+                  setting looks like a global one. */}
+              {selectedBot && (
+                <span className="badge badge-neutral" title="This gate applies to the selected bot only">
+                  {selectedBot.name}
+                </span>
+              )}
             </div>
             <p className="text-sm text-gray-400 mt-2 ml-7">
               {cfg.enabled ? (
@@ -1453,18 +1468,24 @@ export default function Channels() {
   const [pendingExpiryHours, setPendingExpiryHours] = useState(6)
   const [savingExpiry, setSavingExpiry] = useState(false)
 
+  // Everything on this page is scoped to the selected VPS.
+  const { selectedBotId } = useBot()
+
   useEffect(() => {
+    if (!selectedBotId) return
     loadChannels()
     loadGlobalSettings()
-    
+
     const subscription = subscribeToChannels(() => loadChannels())
     return () => subscription.unsubscribe()
-  }, [])
+  }, [selectedBotId])
 
   async function loadChannels() {
     try {
+      setLoading(true)
       const [data, categories, blackouts] = await Promise.all([
-        fetchChannels(),
+        // Only the selected VPS's channels.
+        fetchChannels(selectedBotId),
         fetchNewsCategories(),
         fetchNewsBlackouts(),
       ])
@@ -1509,7 +1530,8 @@ export default function Channels() {
       await updateChannel(editingChannel.id, formData)
       channelId = editingChannel.id
     } else {
-      const created = await createChannel(formData)
+      // New channels belong to the VPS currently selected.
+      const created = await createChannel({ ...formData, bot_id: selectedBotId })
       channelId = created?.id
     }
     // Persist per-channel news blackout settings (no-op if migration not applied)
@@ -1622,6 +1644,10 @@ export default function Channels() {
       </div>
 
       {pageTab === 'visitors' && <VisitorsTab />}
+
+      {/* The strategy list is the VPS switch for this page: picking one shows
+          that VPS's channels, their settings, and its own AI execution gate. */}
+      {pageTab !== 'visitors' && <StrategyList />}
 
       {pageTab === 'ai-execution' && <AIExecutionTab />}
 

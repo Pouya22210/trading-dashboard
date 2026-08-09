@@ -6,7 +6,7 @@ import {
   BarChart3, Clock, TrendingUp, TrendingDown, Target, ChevronLeft, ChevronRight,
   CheckSquare, Square, ChevronDown, Globe,
   Hash, DollarSign, Percent, AlertTriangle, LayoutGrid, CalendarDays, CandlestickChart,
-  Newspaper, Sparkles
+  Newspaper, Sparkles, Server
 } from 'lucide-react'
 
 import {
@@ -16,6 +16,8 @@ import {
 } from 'recharts'
 
 import { subscribeToTrades, fetchNewsCategories } from '../lib/supabase'
+import { useBot } from '../components/BotContext'
+import BotSelector from '../components/BotSelector'
 import {
   fetchTradesPage,
   fetchTradesAnalytics,
@@ -1019,6 +1021,21 @@ export default function Trades() {
   const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
   const [selectedWeekdays, setSelectedWeekdays] = useState([0, 1, 2, 3, 4, 5, 6])
 
+  // Exactly one bot is always selected, globally (see BotContext). Every
+  // query on this page is scoped to it.
+  const { selectedBotId } = useBot()
+
+  // Channels belong to exactly one bot, so a channel selection made under one
+  // bot matches nothing under another — it would silently show an empty page.
+  // Clear it on every switch (skipping the first render so a ?channel= deep
+  // link still works).
+  const previousBotId = useRef(selectedBotId)
+  useEffect(() => {
+    if (previousBotId.current === selectedBotId) return
+    previousBotId.current = selectedBotId
+    setSelectedChannelIds([])
+  }, [selectedBotId])
+
   // ---------- News what-if filter ----------
   // Catalogue of news categories + per-category exclusion window. All OFF by
   // default — the page shows real results until the user opts into excluding
@@ -1052,6 +1069,7 @@ export default function Trades() {
 
   // ---------- Query filter envelope sent to RPCs ----------
   const queryFilters = useMemo(() => ({
+    botId:        selectedBotId,
     startDate:    filters.startDate || null,
     endDate:      filters.endDate   || null,
     channelIds:   selectedChannelIds,
@@ -1070,7 +1088,7 @@ export default function Trades() {
         days_before: Math.max(0, Math.min(7, cfg.days_before || 0)),
         days_after:  Math.max(0, Math.min(7, cfg.days_after  || 0)),
       })),
-  }), [filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, newsFilter])
+  }), [selectedBotId, filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, newsFilter])
 
   const filterKey = useMemo(() => JSON.stringify(queryFilters), [queryFilters])
 
@@ -1871,6 +1889,17 @@ export default function Trades() {
           </div>
 
           <div className="space-y-4 mb-6">
+            {/* Bot (VPS). Single-select and never empty — results from
+                different strategies and brokers are not comparable, so there
+                is no "all bots" option. Bound to the global selection, so
+                changing it here also changes it in the navbar. */}
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <Server className="w-3 h-3 text-accent-cyan" /> Bot (VPS)
+              </label>
+              <BotSelector variant="filter" />
+            </div>
+
             <div>
               <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                 <Calendar className="w-3 h-3 text-accent-cyan" /> Start Date
