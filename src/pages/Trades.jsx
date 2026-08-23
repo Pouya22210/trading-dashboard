@@ -495,18 +495,32 @@ function AIScoreCell({ trade, onOpen }) {
 }
 
 
+// The one place a trade's 0-10 grade is derived, so every surface (chip, modal)
+// shows the same number.
+//
+// `label` (ai_label / gemini_label) is the AUTHORITATIVE grade: the bot computes
+// it with Python's round(), which is half-to-EVEN, and that is the value the AI
+// execution gate acted on and the value get_grade_outcome_distribution bins on.
+// Re-deriving it here from the probability with Math.round() (half-UP) disagrees
+// on every exact .5 — p=0.25 is label 2 but Math.round gives 3 — so the label
+// always wins when present. The probability fallback is only for legacy rows
+// that never got a label, and matches the SQL round() the RPC uses for them.
+function gradeScore(label, confidence) {
+  let score = Number(label)
+  if (label == null || label === '' || Number.isNaN(score)) {
+    if (confidence == null || Number.isNaN(Number(confidence))) return null
+    score = Math.round(Number(confidence) * 10)
+  }
+  return Math.max(0, Math.min(10, score))
+}
+
+
 // AI signal-grader score chip. Shows an optional provider tag (C/G) then the
 // 0-10 score, colour-coded. Tooltip shows the model's one-line summary; "-" when
 // the trade has no AI label.
 function AILabelChip({ label, confidence, summary, onClick, providerTag }) {
-  // `label` now holds the AI agreement score 0..10 (as text). Fall back to
-  // win_probability*10 if it's missing for older rows.
-  let score = Number(label)
-  if (Number.isNaN(score) && confidence != null && !Number.isNaN(Number(confidence))) {
-    score = Math.round(Number(confidence) * 10)
-  }
-  if (Number.isNaN(score)) return <span className="text-gray-600">-</span>
-  score = Math.max(0, Math.min(10, score))
+  const score = gradeScore(label, confidence)
+  if (score == null) return <span className="text-gray-600">-</span>
   // 0-3 red, 4-6 amber, 7-10 green.
   const s = score >= 7
     ? { bg: 'rgba(34,197,94,0.15)',  color: '#22c55e' }
@@ -552,12 +566,10 @@ function AIAnalysisModal({ trade, provider = 'claude', onClose }) {
   const analysis = fields.analysis || {}
   const providerName = provider === 'gemini' ? 'Gemini 2.5 Flash' : 'Claude'
 
-  let score = Number(analysis.score)
-  if (Number.isNaN(score) && fields.confidence != null) {
-    score = Math.round(Number(fields.confidence) * 10)
-  }
-  const hasScore = !Number.isNaN(score)
-  if (hasScore) score = Math.max(0, Math.min(10, score))
+  // Same derivation as the chip that opened this modal - the stored label first,
+  // never a fresh Math.round() of the probability (see gradeScore).
+  const score = gradeScore(fields.label, fields.confidence)
+  const hasScore = score != null
   const s = !hasScore
     ? { bg: 'rgba(110,118,129,0.15)', color: '#6e7681' }
     : score >= 7
