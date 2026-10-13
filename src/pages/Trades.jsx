@@ -1807,6 +1807,7 @@ export default function Trades() {
       if (trade.cancel_reason === 'cancel_policy')   return 'canceled (TP)'
       if (trade.cancel_reason === 'sl_before_entry') return 'canceled (SL)'
       if (trade.cancel_reason === 'news_blackout')   return 'canceled (news)'
+      if (trade.cancel_reason === 'regime')          return 'canceled (regime)'
       if (trade.cancel_reason === 'expired')         return 'expired'
       return 'canceled'
     }

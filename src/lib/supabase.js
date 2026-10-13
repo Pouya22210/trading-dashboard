@@ -632,6 +632,137 @@ export async function saveAiGate(cfg, botId = null) {
 }
 
 // ============================================================================
+// STRATEGY PIPELINE (per bot — Channels > Strategies tab)
+// ----------------------------------------------------------------------------
+// Execution order + config of the pluggable signal strategies run by
+// sigbot/trade_pipeline. The AI grader's own on/off switch stays in the
+// ai_execution_gate row above.
+// ============================================================================
+
+export const STRATEGY_PIPELINE_KEY = 'strategy_pipeline'
+
+/** Strategy keys in default order — must match REGISTRY in sigbot/trade_pipeline/strategies. */
+export const PIPELINE_STRATEGIES = ['regime', 'ai_grader']
+
+export const REGIME_CODES = [
+  { code: '0', name: 'Bull Quiet' },
+  { code: '1', name: 'Bull Volatile' },
+  { code: '2', name: 'Range Quiet' },
+  { code: '3', name: 'Range Volatile' },
+  { code: '4', name: 'Bear Quiet' },
+  { code: '5', name: 'Bear Volatile' },
+]
+
+export const REGIME_TIMEFRAMES = ['M5', 'M15', 'M30', 'H1', 'H4', 'D1']
+
+/** Must stay in sync with REGIME_DEFAULTS in sigbot/trade_pipeline/strategies/regime.py. */
+export const REGIME_DEFAULTS = {
+  enabled: false,
+  mode: 'enforce',              // 'enforce' | 'shadow'
+  primary_tf: 'M15',
+  context_tf: 'H1',             // '' = off
+  min_confidence: 0.30,
+  max_change_point_prob: 0.70,  // 1 = off
+  min_stop_atr_volatile: 0.5,   // 0 = off
+  min_character_conf: 0.70,     // 1 = off
+  max_age_sec: 180,
+  on_missing: 'block',          // 'block' | 'allow'
+  pending_recheck: true,
+  regimes_path: '',
+  policy: {
+    '0': { BUY: true, SELL: false },
+    '1': { BUY: true, SELL: false },
+    '2': { BUY: true, SELL: true },
+    '3': { BUY: false, SELL: false },
+    '4': { BUY: false, SELL: true },
+    '5': { BUY: false, SELL: true },
+  },
+}
+
+const clampNum = (v, fallback, lo = -Infinity, hi = Infinity) => {
+  const n = parseFloat(v)
+  return Number.isNaN(n) ? fallback : Math.max(lo, Math.min(hi, n))
+}
+
+/** Mirrors RegimeStrategy.normalize_config. */
+export function normalizeRegimeConfig(raw) {
+  const src = (raw && typeof raw === 'object') ? raw : {}
+  const d = REGIME_DEFAULTS
+  const policy = {}
+  for (const { code } of REGIME_CODES) {
+    const p = (src.policy && typeof src.policy[code] === 'object') ? src.policy[code] : {}
+    policy[code] = {
+      BUY: !!(p.BUY ?? d.policy[code].BUY),
+      SELL: !!(p.SELL ?? d.policy[code].SELL),
+    }
+  }
+  const primary = String(src.primary_tf || d.primary_tf).toUpperCase()
+  const context = String(src.context_tf ?? d.context_tf).toUpperCase()
+  return {
+    enabled: !!(src.enabled ?? d.enabled),
+    mode: ['enforce', 'shadow'].includes(src.mode) ? src.mode : d.mode,
+    primary_tf: REGIME_TIMEFRAMES.includes(primary) ? primary : d.primary_tf,
+    context_tf: REGIME_TIMEFRAMES.includes(context) ? context : '',
+    min_confidence: clampNum(src.min_confidence, d.min_confidence, 0, 1),
+    max_change_point_prob: clampNum(src.max_change_point_prob, d.max_change_point_prob, 0, 1),
+    min_stop_atr_volatile: clampNum(src.min_stop_atr_volatile, d.min_stop_atr_volatile, 0),
+    min_character_conf: clampNum(src.min_character_conf, d.min_character_conf, 0, 1),
+    max_age_sec: clampNum(src.max_age_sec, d.max_age_sec, 30),
+    on_missing: ['block', 'allow'].includes(src.on_missing) ? src.on_missing : d.on_missing,
+    pending_recheck: !!(src.pending_recheck ?? d.pending_recheck),
+    regimes_path: String(src.regimes_path || ''),
+    policy,
+  }
+}
+
+/** Mirrors trade_pipeline.settings.normalize_settings. */
+export function normalizeStrategyPipeline(raw) {
+  let value = raw
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value) } catch { value = null }
+  }
+  const src = (value && typeof value === 'object') ? value : {}
+  const order = []
+  for (const k of Array.isArray(src.order) ? src.order : []) {
+    if (PIPELINE_STRATEGIES.includes(k) && !order.includes(k)) order.push(k)
+  }
+  for (const k of PIPELINE_STRATEGIES) if (!order.includes(k)) order.push(k)
+  return {
+    order,
+    strategies: { regime: normalizeRegimeConfig(src.strategies?.regime) },
+  }
+}
+
+export async function fetchStrategyPipeline(botId = null) {
+  return normalizeStrategyPipeline(await fetchAppSettingOrDefault(STRATEGY_PIPELINE_KEY, null, botId))
+}
+
+export async function saveStrategyPipeline(cfg, botId = null) {
+  return upsertAppSetting(
+    STRATEGY_PIPELINE_KEY,
+    normalizeStrategyPipeline(cfg),
+    'Strategy pipeline: order and config of signal strategies (see Channels > Strategies)',
+    botId,
+  )
+}
+
+/** Latest strategy decisions for one bot. Empty if the migration isn't applied. */
+export async function fetchStrategyDecisions(botId, limit = 25) {
+  let query = supabase
+    .from('strategy_decisions')
+    .select('id, created_at, symbol, signal_side, effective_side, strategy, stage, action, reason, channel_id, telegram_msg_id')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (botId) query = query.eq('bot_id', botId)
+  const { data, error } = await query
+  if (error) {
+    console.warn('fetchStrategyDecisions failed:', error.message)
+    return []
+  }
+  return data || []
+}
+
+// ============================================================================
 // REAL-TIME SUBSCRIPTIONS (Improved)
 // ============================================================================
 

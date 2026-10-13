@@ -3,7 +3,7 @@ import {
   Plus, Edit2, Trash2, Settings, Shield, Target, Zap,
   MessageSquare, TrendingUp, AlertTriangle, ChevronDown, ChevronUp,
   Save, X, Check, RefreshCw, Shuffle, Search,
-  Users, Newspaper, Brain, Eraser
+  Users, Newspaper, Brain, Eraser, Layers
 } from 'lucide-react'
 import {
   fetchChannels, createChannel, updateChannel, deleteChannel, subscribeToChannels,
@@ -15,6 +15,7 @@ import {
 import LogoutButton from '../components/LogoutButton'
 import VisitorsTab from '../components/VisitorsTab'
 import StrategyList from '../components/StrategyList'
+import StrategiesTab from '../components/StrategiesTab'
 import { useBot } from '../components/BotContext'
 
 function Toggle({ checked, onChange, label }) {
@@ -1446,6 +1447,10 @@ const PAGE_TAB_HEADINGS = {
     title: 'AI Execution Control',
     subtitle: 'Route order execution by the AI signal grade — for every channel at once',
   },
+  'strategies': {
+    title: 'Signal Strategies',
+    subtitle: 'Switch filters such as the market regime on or off and set the order they run in',
+  },
   'visitors': {
     title: 'Site Visitors',
     subtitle: 'Track and manage visitors to this dashboard',
@@ -1619,6 +1624,7 @@ export default function Channels() {
       >
         {[
           { key: 'channels', label: 'Channels', icon: Settings },
+          { key: 'strategies', label: 'Strategies', icon: Layers },
           { key: 'ai-execution', label: 'AI Execution', icon: Brain },
           { key: 'visitors', label: 'Visitors', icon: Users },
         ].map(tab => {
@@ -1648,6 +1654,8 @@ export default function Channels() {
       {/* The strategy list is the VPS switch for this page: picking one shows
           that VPS's channels, their settings, and its own AI execution gate. */}
       {pageTab !== 'visitors' && <StrategyList />}
+
+      {pageTab === 'strategies' && <StrategiesTab />}
 
       {pageTab === 'ai-execution' && <AIExecutionTab />}
 
