@@ -26,7 +26,8 @@ import { useBot } from './BotContext'
 const ACCENT = '#ADFF2F'
 const CARD = { background: 'var(--card-flat)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.06)' }
 
-const STRATEGY_META = {
+// Also used by the Trades page's strategy filter.
+export const STRATEGY_META = {
   regime: {
     label: 'Market Regime',
     icon: Activity,

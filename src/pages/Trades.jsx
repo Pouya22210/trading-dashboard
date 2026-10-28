@@ -28,6 +28,7 @@ import {
 } from '../lib/queries'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
 import TradePriceChart from '../components/TradePriceChart'
+import { STRATEGY_META } from '../components/StrategiesTab'
 
 
 // Color palette for channels
@@ -92,6 +93,87 @@ const TRADES_PER_PAGE = 10
 
 
 // Returns all currently active forex trading sessions, ordered by liquidity.
+// Pipeline strategies the trades can be filtered by (keys = strategy_decisions.strategy).
+const STRATEGY_FILTERS = Object.entries(STRATEGY_META).map(([key, m]) => ({ key, label: m.label, color: m.color }))
+
+// Status text with an instant hover tooltip (tap on touch screens) showing
+// why the trade was blocked. Positioned `fixed` so the table's scroll
+// container can't clip it.
+function StatusWithReason({ reason, rejections, className = '', style, children }) {
+  const [pos, setPos] = useState(null)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!pos) return
+    const close = () => setPos(null)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [pos])
+
+  if (!reason) return <span className={className} style={style}>{children}</span>
+
+  const show = () => {
+    const r = ref.current?.getBoundingClientRect()
+    if (!r) return
+    const width = 280
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+    const below = r.bottom + 160 < window.innerHeight
+    setPos({ left, width, ...(below ? { top: r.bottom + 6 } : { bottom: window.innerHeight - r.top + 6 }) })
+  }
+
+  return (
+    <span
+      ref={ref}
+      className={`${className} cursor-help underline decoration-dotted underline-offset-2`}
+      style={style}
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+      onClick={(e) => { e.stopPropagation(); pos ? setPos(null) : show() }}
+    >
+      {children}
+      {pos && (
+        <span
+          role="tooltip"
+          className="fixed z-[1000] block text-left normal-case font-normal"
+          style={{
+            ...pos,
+            padding: '10px 12px',
+            fontSize: '12px',
+            letterSpacing: 0,
+            lineHeight: 1.45,
+            color: 'var(--text-primary, #e8eaef)',
+            background: '#1a1d24',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderRadius: '10px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            pointerEvents: 'none',
+            whiteSpace: 'normal',
+          }}
+        >
+          <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Blocked because</span>
+          <span className="block">{reason}</span>
+          {rejections?.length > 0 && (
+            <span className="block mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              {rejections.map((rj, i) => (
+                <span key={i} className="block mt-0.5">
+                  <span style={{ color: STRATEGY_META[rj.strategy]?.color || '#9ca3af' }}>
+                    {STRATEGY_META[rj.strategy]?.label || rj.strategy}:
+                  </span>{' '}
+                  {rj.reason || 'rejected'}
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function getActiveTradingSessions() {
   const now = new Date()
   const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes()
@@ -1035,6 +1117,8 @@ export default function Trades() {
   const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
   const [selectedWeekdays, setSelectedWeekdays] = useState([0, 1, 2, 3, 4, 5, 6])
   const [selectedSessions, setSelectedSessions] = useState(ALL_SESSION_KEYS)
+  // Empty = all trades; otherwise trades that went through ANY selected strategy.
+  const [selectedStrategies, setSelectedStrategies] = useState([])
 
   // Exactly one bot is always selected, globally (see BotContext). Every
   // query on this page is scoped to it.
@@ -1095,6 +1179,7 @@ export default function Trades() {
     weekdays:     selectedWeekdays,
     // All sessions together cover every UTC hour, so "all" is sent as no filter.
     sessions:     selectedSessions.length === MARKET_SESSIONS.length ? [] : selectedSessions,
+    strategies:   selectedStrategies,
     excludeManualCancel: false,
     // Only enabled categories are sent; the server excludes trades whose signal
     // day falls inside any of these news windows.
@@ -1105,7 +1190,7 @@ export default function Trades() {
         days_before: Math.max(0, Math.min(7, cfg.days_before || 0)),
         days_after:  Math.max(0, Math.min(7, cfg.days_after  || 0)),
       })),
-  }), [selectedBotId, filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, selectedSessions, newsFilter])
+  }), [selectedBotId, filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, selectedSessions, selectedStrategies, newsFilter])
 
   const filterKey = useMemo(() => JSON.stringify(queryFilters), [queryFilters])
 
@@ -1121,9 +1206,10 @@ export default function Trades() {
     if (selectedChannelIds.length > 0) n++
     if (selectedWeekdays.length !== 7) n++
     if (selectedSessions.length !== MARKET_SESSIONS.length) n++
+    if (selectedStrategies.length > 0) n++
     if (Object.values(newsFilter).some(cfg => cfg?.is_enabled)) n++
     return n
-  }, [filters, selectedChannelIds, selectedWeekdays, selectedSessions, newsFilter])
+  }, [filters, selectedChannelIds, selectedWeekdays, selectedSessions, selectedStrategies, newsFilter])
 
   const hasActiveFilters = activeFilterCount > 0
 
@@ -1725,6 +1811,7 @@ export default function Trades() {
     setCurrentPage(1)
     setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])
     setSelectedSessions(ALL_SESSION_KEYS)
+    setSelectedStrategies([])
     setNewsFilter({})
     setOutcomePage(1)
     setGanttPage(1)
@@ -2087,6 +2174,47 @@ export default function Trades() {
               )}
             </div>
 
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Strategy
+              </label>
+              <div className="grid grid-cols-2 gap-1">
+                {STRATEGY_FILTERS.map(strategy => {
+                  const isSelected = selectedStrategies.includes(strategy.key)
+                  return (
+                    <button
+                      key={strategy.key}
+                      onClick={() => setSelectedStrategies(prev =>
+                        isSelected ? prev.filter(k => k !== strategy.key) : [...prev, strategy.key]
+                      )}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded transition-all ${
+                        isSelected
+                          ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30'
+                          : 'bg-dark-secondary text-gray-500 border border-dark-border hover:text-gray-300'
+                      }`}
+                      title={`Only trades that went through ${strategy.label} (also those that went through other strategies too)`}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: strategy.color, opacity: isSelected ? 1 : 0.4 }}
+                      />
+                      {strategy.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {selectedStrategies.length > 0 ? (
+                <button
+                  onClick={() => setSelectedStrategies([])}
+                  className="text-xs text-accent-cyan hover:underline mt-1"
+                >
+                  Show all trades
+                </button>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">None selected: all trades</p>
+              )}
+            </div>
+
             <NewsFilterSection
               categories={newsCategories}
               value={newsFilter}
@@ -2403,15 +2531,15 @@ export default function Trades() {
                                   badgeClass === 'badge-warning'       ? 'text-orange-400' :
                                   badgeClass === 'badge-cancel-policy' ? 'badge-cancel-policy' :
                                   'text-gray-400'
-                                const blockReason = getBlockReason(trade)
                                 return (
-                                  <span
-                                    className={`font-medium uppercase ${textColorClass}${blockReason ? ' cursor-help underline decoration-dotted underline-offset-2' : ''}`}
+                                  <StatusWithReason
+                                    reason={getBlockReason(trade)}
+                                    rejections={trade.strategy_rejections}
+                                    className={`font-medium uppercase ${textColorClass}`}
                                     style={{ fontSize: '11px', letterSpacing: '0.04em' }}
-                                    title={blockReason || undefined}
                                   >
                                     {getStatusDisplay(trade)}
-                                  </span>
+                                  </StatusWithReason>
                                 )
                               })()}
                             </td>
@@ -2519,10 +2647,11 @@ export default function Trades() {
                           <span
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${statusColorClass}`}
                             style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '6px' }}
-                            title={getBlockReason(trade) || undefined}
                           >
                             <span className="w-1 h-1 rounded-full" style={{ backgroundColor: statusDotColor }} />
-                            {getStatusDisplay(trade)}
+                            <StatusWithReason reason={getBlockReason(trade)} rejections={trade.strategy_rejections}>
+                              {getStatusDisplay(trade)}
+                            </StatusWithReason>
                             {(() => {
                               if (trade.status === 'canceled') return null
                               if (trade.profit_loss != null) {

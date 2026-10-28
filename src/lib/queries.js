@@ -72,7 +72,7 @@ export async function fetchTradesPage(filters, { limit = 10, offset = 0 } = {}) 
     try {
       const { data: extra } = await supabase
         .from('trades')
-        .select('id, ai_label, win_probability, llm_analysis, gemini_label, gemini_win_probability, gemini_llm_analysis, notes')
+        .select('id, channel_id, telegram_msg_id, ai_label, win_probability, llm_analysis, gemini_label, gemini_win_probability, gemini_llm_analysis, notes')
         .in('id', ids)
       const extraMap = Object.fromEntries((extra || []).map(a => [a.id, a]))
       for (const r of rows) {
@@ -85,15 +85,65 @@ export async function fetchTradesPage(filters, { limit = 10, offset = 0 } = {}) 
           r.gemini_win_probability  = a.gemini_win_probability
           r.gemini_llm_analysis     = a.gemini_llm_analysis
           r.notes                   = a.notes
+          r.channel_id              = r.channel_id ?? a.channel_id
+          r.telegram_msg_id         = r.telegram_msg_id ?? a.telegram_msg_id
         }
       }
     } catch (_) { /* optional — never block the trades page on this */ }
+    try {
+      await attachStrategyRejections(rows)
+    } catch (_) { /* optional — the tooltip falls back to the notes reason */ }
   }
 
   return {
     total: Number(data?.total) || 0,
     rows,
   }
+}
+
+
+// For blocked rows, the strategies that rejected the signal and their exact
+// reasons (trades.notes only has the generic one, e.g. "Signal does not fit
+// the current market regime"). Matched on channel_id + telegram_msg_id.
+// Sets row.strategy_rejections = [{ strategy, reason }].
+async function attachStrategyRejections(rows) {
+  const blocked = rows.filter(r => r.status === 'blocked' && r.channel_id && r.telegram_msg_id != null)
+  if (!blocked.length) return
+  const { data, error } = await supabase
+    .from('strategy_decisions')
+    .select('channel_id, telegram_msg_id, strategy, reason, created_at')
+    .in('channel_id', [...new Set(blocked.map(r => r.channel_id))])
+    .in('telegram_msg_id', [...new Set(blocked.map(r => r.telegram_msg_id))])
+    .in('stage', ['signal', 'flip_recheck'])
+    .eq('action', 'reject')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  const byTrade = {}
+  for (const d of data || []) {
+    const key = `${d.channel_id}:${d.telegram_msg_id}`
+    if (!byTrade[key]) byTrade[key] = []
+    const list = byTrade[key]
+    if (!list.some(x => x.strategy === d.strategy && x.reason === d.reason)) {
+      list.push({ strategy: d.strategy, reason: d.reason })
+    }
+  }
+  for (const r of blocked) r.strategy_rejections = byTrade[`${r.channel_id}:${r.telegram_msg_id}`] || []
+}
+
+// Ids of the trades that went through any of the given pipeline strategies
+// (same rule as the `strategies` filter in _trades_filter_ids). Paged past
+// PostgREST's 1000-row cap.
+async function fetchStrategyTradeIds(strategies, botId) {
+  const ids = new Set()
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .rpc('trade_ids_for_strategies', { p_strategies: strategies, p_bot_id: botId || null })
+      .range(offset, offset + 999)
+    if (error) throw error
+    for (const row of data || []) ids.add(row.id)
+    if (!data || data.length < 1000) break
+  }
+  return ids
 }
 
 
@@ -205,6 +255,7 @@ export async function fetchTradeMarkers(filters = {}) {
   const channelIds = f.channelIds ?? []
   const weekdaySet = new Set(f.weekdays ?? [0, 1, 2, 3, 4, 5, 6])
   const sessionKeys = f.sessions?.length ? f.sessions : null
+  const strategyIds = f.strategies?.length ? await fetchStrategyTradeIds(f.strategies, f.botId) : null
 
   const markers = []
   let offset = 0
@@ -235,6 +286,7 @@ export async function fetchTradeMarkers(filters = {}) {
       if (entryTime == null || entryPrice == null) continue
       if (!weekdaySet.has(new Date(entryTime).getUTCDay())) continue
       if (sessionKeys && !inAnySession(toMs(row.signal_time), sessionKeys)) continue
+      if (strategyIds && !strategyIds.has(row.id)) continue
 
       const exitTime  = toMs(row.close_time)
       const exitPrice = numOrNull(row.close_price)
@@ -320,6 +372,9 @@ function serializeFilters(f = {}) {
     // Market sessions (sydney/tokyo/london/newyork) on signal hour, UTC.
     // Empty = no session filter.
     sessions:               f.sessions  ?? [],
+    // Pipeline strategies (regime, ai_grader, ...): trades that went through
+    // ANY of them. Empty = no strategy filter.
+    strategies:             f.strategies ?? [],
     exclude_manual_cancel:  f.excludeManualCancel ?? false,
     // News what-if exclusion: array of { category_id, days_before, days_after }.
     // The RPC drops trades whose signal day falls in any of these windows.
