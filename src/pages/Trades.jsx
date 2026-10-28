@@ -82,6 +82,8 @@ const MARKET_SESSIONS = [
   { key: 'newyork', label: 'New York', startHour: 13, endHour: 22, color: '#a371f7', crossesMidnight: false },
 ]
 
+const ALL_SESSION_KEYS = MARKET_SESSIONS.map(s => s.key)
+
 const SESSION_KEY_TO_LABEL = {
   sydney: 'Sydney', tokyo: 'Tokyo', london: 'London', newyork: 'New York',
 }
@@ -1032,6 +1034,7 @@ export default function Trades() {
 
   const [showOrphanedChannels, setShowOrphanedChannels] = useState(true)
   const [selectedWeekdays, setSelectedWeekdays] = useState([0, 1, 2, 3, 4, 5, 6])
+  const [selectedSessions, setSelectedSessions] = useState(ALL_SESSION_KEYS)
 
   // Exactly one bot is always selected, globally (see BotContext). Every
   // query on this page is scoped to it.
@@ -1090,6 +1093,8 @@ export default function Trades() {
     direction:    filters.side      || null,
     orderType:    filters.orderType || null,
     weekdays:     selectedWeekdays,
+    // All sessions together cover every UTC hour, so "all" is sent as no filter.
+    sessions:     selectedSessions.length === MARKET_SESSIONS.length ? [] : selectedSessions,
     excludeManualCancel: false,
     // Only enabled categories are sent; the server excludes trades whose signal
     // day falls inside any of these news windows.
@@ -1100,7 +1105,7 @@ export default function Trades() {
         days_before: Math.max(0, Math.min(7, cfg.days_before || 0)),
         days_after:  Math.max(0, Math.min(7, cfg.days_after  || 0)),
       })),
-  }), [selectedBotId, filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, newsFilter])
+  }), [selectedBotId, filters, selectedChannelIds, showOrphanedChannels, selectedWeekdays, selectedSessions, newsFilter])
 
   const filterKey = useMemo(() => JSON.stringify(queryFilters), [queryFilters])
 
@@ -1115,9 +1120,10 @@ export default function Trades() {
     if (filters.orderType) n++
     if (selectedChannelIds.length > 0) n++
     if (selectedWeekdays.length !== 7) n++
+    if (selectedSessions.length !== MARKET_SESSIONS.length) n++
     if (Object.values(newsFilter).some(cfg => cfg?.is_enabled)) n++
     return n
-  }, [filters, selectedChannelIds, selectedWeekdays, newsFilter])
+  }, [filters, selectedChannelIds, selectedWeekdays, selectedSessions, newsFilter])
 
   const hasActiveFilters = activeFilterCount > 0
 
@@ -1718,6 +1724,7 @@ export default function Trades() {
     setSelectedChannelIds([])
     setCurrentPage(1)
     setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])
+    setSelectedSessions(ALL_SESSION_KEYS)
     setNewsFilter({})
     setOutcomePage(1)
     setGanttPage(1)
@@ -2031,6 +2038,51 @@ export default function Trades() {
                   className="text-xs text-accent-cyan hover:underline mt-1"
                 >
                   Select all days
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Market Session
+              </label>
+              <div className="grid grid-cols-2 gap-1">
+                {MARKET_SESSIONS.map(session => {
+                  const isSelected = selectedSessions.includes(session.key)
+                  const hours = `${session.startHour}:00 - ${session.endHour}:00 UTC`
+                  return (
+                    <button
+                      key={session.key}
+                      onClick={() => {
+                        if (isSelected) {
+                          // Keep at least one session selected.
+                          if (selectedSessions.length > 1) setSelectedSessions(prev => prev.filter(k => k !== session.key))
+                        } else {
+                          setSelectedSessions(prev => ALL_SESSION_KEYS.filter(k => k === session.key || prev.includes(k)))
+                        }
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded transition-all ${
+                        isSelected
+                          ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30'
+                          : 'bg-dark-secondary text-gray-500 border border-dark-border hover:text-gray-300'
+                      }`}
+                      title={`${session.label} session: ${hours} (by signal time)`}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: session.color, opacity: isSelected ? 1 : 0.4 }}
+                      />
+                      {session.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {selectedSessions.length < MARKET_SESSIONS.length && (
+                <button
+                  onClick={() => setSelectedSessions(ALL_SESSION_KEYS)}
+                  className="text-xs text-accent-cyan hover:underline mt-1"
+                >
+                  Select all sessions
                 </button>
               )}
             </div>

@@ -192,8 +192,8 @@ export async function fetchMaxDrawdown(filters) {
 // from the `v_trades_with_channels` view — the same proven path as
 // supabase.fetchTrades — selecting full rows and mapping to lean points.
 //
-// Filters that the view supports are applied server-side; `weekdays` is applied
-// by the caller-facing filter here on the trade's signal time (UTC). Rows are
+// Filters that the view supports are applied server-side; `weekdays` and
+// `sessions` are applied client-side here (UTC). Rows are
 // pulled in 1000-row batches to bypass Supabase's max-rows cap, and capped so a
 // huge history can't lock up the browser.
 
@@ -204,6 +204,7 @@ export async function fetchTradeMarkers(filters = {}) {
   const f = filters
   const channelIds = f.channelIds ?? []
   const weekdaySet = new Set(f.weekdays ?? [0, 1, 2, 3, 4, 5, 6])
+  const sessionKeys = f.sessions?.length ? f.sessions : null
 
   const markers = []
   let offset = 0
@@ -233,6 +234,7 @@ export async function fetchTradeMarkers(filters = {}) {
       const entryPrice = numOrNull(row.executed_entry_price ?? row.signal_entry_price)
       if (entryTime == null || entryPrice == null) continue
       if (!weekdaySet.has(new Date(entryTime).getUTCDay())) continue
+      if (sessionKeys && !inAnySession(toMs(row.signal_time), sessionKeys)) continue
 
       const exitTime  = toMs(row.close_time)
       const exitPrice = numOrNull(row.close_price)
@@ -262,6 +264,26 @@ export async function fetchTradeMarkers(filters = {}) {
   }
 
   return markers
+}
+
+// UTC hour windows per market session — must match the `sessions` filter in
+// public._trades_filter_ids (and the Market Sessions buckets in
+// get_trades_analytics). [start, end) with end < start wrapping past midnight.
+const SESSION_UTC_HOURS = {
+  sydney:  [22, 7],
+  tokyo:   [0, 9],
+  london:  [8, 17],
+  newyork: [13, 22],
+}
+
+function inAnySession(ms, keys) {
+  if (ms == null) return false
+  const h = new Date(ms).getUTCHours()
+  return keys.some(k => {
+    const [start, end] = SESSION_UTC_HOURS[k] || []
+    if (start == null) return false
+    return start < end ? (h >= start && h < end) : (h >= start || h < end)
+  })
 }
 
 function toMs(value) {
@@ -295,6 +317,9 @@ function serializeFilters(f = {}) {
     direction:              f.direction || null,
     order_type:             f.orderType || null,
     weekdays:               f.weekdays  ?? [0, 1, 2, 3, 4, 5, 6],
+    // Market sessions (sydney/tokyo/london/newyork) on signal hour, UTC.
+    // Empty = no session filter.
+    sessions:               f.sessions  ?? [],
     exclude_manual_cancel:  f.excludeManualCancel ?? false,
     // News what-if exclusion: array of { category_id, days_before, days_after }.
     // The RPC drops trades whose signal day falls in any of these windows.
