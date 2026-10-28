@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { 
   History, Plus, Edit3, Trash2, ToggleLeft, ToggleRight,
   RefreshCw, ChevronDown, ChevronUp, Settings, ArrowRight,
-  Clock, Filter
+  Clock, Filter, AlertTriangle
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { fetchChannelEvents, subscribeToChannelEvents } from '../lib/channelEvents'
@@ -16,6 +16,7 @@ const EVENT_CONFIG = {
   channel_enabled:       { icon: ToggleRight, color: '#ADFF2F',         label: 'Channel Enabled' },
   channel_disabled:      { icon: ToggleLeft, color: 'var(--orange)',    label: 'Channel Disabled' },
   telegram_name_changed: { icon: RefreshCw,  color: 'var(--purple)',    label: 'Name Changed' },
+  channel_invalid:       { icon: AlertTriangle, color: 'var(--red)',    label: 'Channel Invalid' },
   policy_updated:        { icon: Settings,   color: '#ADFF2F',          label: 'Policy Updated' },
   settings_updated:      { icon: Settings,   color: 'rgba(232,234,239,0.58)', label: 'Settings Updated' },
 }
@@ -118,6 +119,12 @@ function EventCard({ event, isExpanded, onToggle }) {
     const change = eventData.is_active
     if (change.old !== undefined && change.new !== undefined) {
       changes.push({ field: 'is_active', old: change.old, new: change.new })
+    }
+  }
+  if (eventData.telegram_channel_id) {
+    const change = eventData.telegram_channel_id
+    if (change.new !== undefined) {
+      changes.push({ field: 'telegram_channel_id', old: change.old, new: String(change.new) })
     }
   }
   if (eventData.risk_per_trade) {
@@ -294,7 +301,8 @@ const FILTER_OPTIONS = [
   { key: 'channel_updated', label: 'Settings' },
   { key: 'policy_updated', label: 'Policies' },
   { key: 'channel_created', label: 'Created' },
-  { key: 'channel_deleted', label: 'Deleted' }
+  { key: 'channel_deleted', label: 'Deleted' },
+  { key: 'channel_invalid', label: 'Invalid' }
 ]
 
 export default function ActivityLogPanel({ className = '' }) {
@@ -304,18 +312,23 @@ export default function ActivityLogPanel({ className = '' }) {
   const [filter, setFilter] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
 
-  // Load events
+  // Load events. A category is fetched from the server, not filtered from the
+  // latest 50, so rare events (e.g. invalid channels) aren't buried by
+  // frequent enable/disable events.
   const loadEvents = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await fetchChannelEvents({ limit: 50 })
+      const data = await fetchChannelEvents({
+        limit: 50,
+        eventType: filter === 'all' ? undefined : filter,
+      })
       setEvents(data)
     } catch (err) {
       console.error('Failed to load channel events:', err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [filter])
 
   // Initial load and subscription
   useEffect(() => {
@@ -323,12 +336,13 @@ export default function ActivityLogPanel({ className = '' }) {
     
     const subscription = subscribeToChannelEvents({
       onInsert: (newEvent) => {
+        if (filter !== 'all' && newEvent.event_type !== filter) return
         setEvents(prev => [newEvent, ...prev].slice(0, 50))
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [loadEvents])
+  }, [loadEvents, filter])
 
   // Toggle expansion
   const toggleExpand = useCallback((id) => {
