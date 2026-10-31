@@ -41,28 +41,6 @@ export async function fetchChannels(botId = null) {
   }))
 }
 
-export async function fetchChannel(id) {
-  const { data, error } = await supabase
-    .from('v_channel_configs')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (error) throw error
-
-  // The AI grader toggles aren't in the view — read them from the channels table.
-  const { data: ch } = await supabase
-    .from('channels')
-    .select('ai_analysis_enabled, ai_analysis_gemini_enabled')
-    .eq('id', id)
-    .single()
-  return {
-    ...data,
-    ai_analysis_enabled: ch?.ai_analysis_enabled ?? false,
-    ai_analysis_gemini_enabled: ch?.ai_analysis_gemini_enabled ?? false,
-  }
-}
-
 export async function createChannel(channelData) {
   if (!channelData.bot_id) {
     // Fail loudly. A channel with no bot would be silently adopted by the
@@ -475,17 +453,6 @@ export async function fetchTrades(filters = {}) {
 
   console.log(`✅ Fetched ${allTrades.length} trades total`)
   return allTrades
-}
-
-export async function fetchDailyStats() {
-  const { data, error } = await supabase
-    .from('v_daily_stats')
-    .select('*')
-    .order('trade_date', { ascending: false })
-    .limit(30)
-
-  if (error) throw error
-  return data || []
 }
 
 // ============================================================================

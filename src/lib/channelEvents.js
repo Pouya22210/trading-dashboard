@@ -71,25 +71,3 @@ export function subscribeToChannelEvents(callbacks = {}) {
   }
 }
 
-/**
- * Log a manual channel event (for frontend actions)
- * Note: Most events are auto-logged via triggers, but this can be used
- * for manual logging if needed
- */
-export async function logChannelEvent(eventData) {
-  const { data, error } = await supabase
-    .from('channel_events')
-    .insert({
-      channel_id: eventData.channelId,
-      event_type: eventData.eventType,
-      description: eventData.description,
-      event_data: eventData.eventData || {},
-      old_channel_name: eventData.oldChannelName,
-      new_channel_name: eventData.newChannelName
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
