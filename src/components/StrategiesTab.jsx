@@ -18,9 +18,14 @@ import { useBot } from './BotContext'
 // or — the AI grader only — invert the trade. Drag cards to change the order.
 // Nothing switched on == trades execute exactly as normal.
 //
-// Stored in the `strategy_pipeline` app_settings row (order + regime config);
-// the AI grader's on/off is the existing `ai_execution_gate.enabled`. The bot
-// re-reads both every 30s.
+// Each card has two switches: ON/OFF (does the strategy run at all) and
+// EXECUTION CONTROL (may it block / invert trades). Execution off = shadow:
+// it still judges every signal but every signal executes.
+//
+// Stored in the `strategy_pipeline` app_settings row (order + regime config;
+// a pipeline strategy's execution control is its `mode`, enforce|shadow);
+// the AI grader's are `ai_execution_gate.enabled` / `.execution_control`. The
+// bot re-reads both every 30s.
 // ============================================================================
 
 const ACCENT = '#ADFF2F'
@@ -92,12 +97,6 @@ function RegimeSettings({ cfg, onChange }) {
   return (
     <div className="mt-4 pt-4 space-y-5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Mode" hint="Shadow logs every decision but never blocks — use it to judge the strategy first.">
-          <select value={cfg.mode} onChange={e => set({ mode: e.target.value })} className="w-full">
-            <option value="enforce">Enforce — reject means blocked</option>
-            <option value="shadow">Shadow — log only, never block</option>
-          </select>
-        </Field>
         <Field label="If no regime is available" hint="Regime service down, file stale, or symbol not covered.">
           <select value={cfg.on_missing} onChange={e => set({ on_missing: e.target.value })} className="w-full">
             <option value="block">Block the signal</option>
@@ -186,7 +185,16 @@ function RegimeSettings({ cfg, onChange }) {
   )
 }
 
-function StrategyCard({ k, index, total, enabled, status, onToggle, onMove, dragging, dragHandlers, children, expanded, onExpand }) {
+function LabeledToggle({ label, title, checked, onChange, disabled }) {
+  return (
+    <div className="flex items-center justify-end gap-2" title={title}>
+      <span className="text-[10px] uppercase tracking-wider text-gray-500 whitespace-nowrap">{label}</span>
+      <Toggle checked={checked} onChange={onChange} disabled={disabled} />
+    </div>
+  )
+}
+
+function StrategyCard({ k, index, total, enabled, status, onToggle, executes, onExecutionToggle, onMove, dragging, dragHandlers, children, expanded, onExpand }) {
   const meta = STRATEGY_META[k]
   const Icon = meta.icon
   // Only the grip starts a drag, so selecting text in the settings inputs
@@ -229,9 +237,14 @@ function StrategyCard({ k, index, total, enabled, status, onToggle, onMove, drag
             <span className="text-xs font-mono text-gray-500">#{index + 1}</span>
             <Icon className="w-4 h-4" style={{ color: enabled ? meta.color : '#6b7280' }} />
             <h3 className="text-base font-semibold" style={{ color: enabled ? meta.color : '#d1d5db' }}>{meta.label}</h3>
-            <span className={`badge ${enabled ? 'badge-success' : 'badge-neutral'}`}>{status}</span>
+            <span className={`badge ${status === 'ON' ? 'badge-success' : status === 'SHADOW' ? 'badge-warning' : 'badge-neutral'}`}>{status}</span>
           </div>
           <p className="text-xs text-gray-400 mt-1.5">{meta.blurb}</p>
+          {status === 'SHADOW' && (
+            <p className="text-[11px] mt-1.5" style={{ color: '#facc15' }}>
+              Shadow: judging every signal without blocking any. Compare it against the baseline in Trades › AI Grades.
+            </p>
+          )}
           {onExpand && (
             <button type="button" onClick={onExpand} className="text-xs mt-2 flex items-center gap-1 text-gray-400 hover:text-white">
               <Settings className="w-3.5 h-3.5" /> {expanded ? 'Hide settings' : 'Settings'}
@@ -240,7 +253,12 @@ function StrategyCard({ k, index, total, enabled, status, onToggle, onMove, drag
           {children}
         </div>
 
-        <Toggle checked={enabled} onChange={onToggle} />
+        <div className="flex flex-col gap-2.5 flex-shrink-0">
+          <LabeledToggle label="On" checked={enabled} onChange={onToggle}
+            title="Run this strategy on every signal" />
+          <LabeledToggle label="Execution" checked={executes} onChange={onExecutionToggle} disabled={!enabled}
+            title="On: it can block (or invert) trades. Off: shadow — it judges and logs every signal, but every signal executes." />
+        </div>
       </div>
     </div>
   )
@@ -342,14 +360,15 @@ export default function StrategiesTab() {
 
   const regime = pipeline.strategies.regime
   const enabledOf = (k) => (k === 'ai_grader' ? !!gate?.enabled : !!pipeline.strategies[k]?.enabled)
+  const executesOf = (k) => (k === 'ai_grader' ? gate?.execution_control !== false : pipeline.strategies[k]?.mode !== 'shadow')
   const statusOf = (k) => {
     if (!enabledOf(k)) return 'OFF'
-    if (k === 'regime' && regime.mode === 'shadow') return 'SHADOW'
-    return 'ON'
+    return executesOf(k) ? 'ON' : 'SHADOW'
   }
 
   const pipelineDirty = JSON.stringify(pipeline) !== JSON.stringify(savedPipeline)
-  const gateDirty = !!gate && !!savedGate && gate.enabled !== savedGate.enabled
+  const gateDirty = !!gate && !!savedGate &&
+    (gate.enabled !== savedGate.enabled || gate.execution_control !== savedGate.execution_control)
   const dirty = pipelineDirty || gateDirty
 
   const touch = () => setSavedAt(null)
@@ -357,6 +376,11 @@ export default function StrategiesTab() {
   const toggle = (k, v) => {
     if (k === 'ai_grader') setGate(g => ({ ...g, enabled: v }))
     else setPipeline(p => ({ ...p, strategies: { ...p.strategies, [k]: { ...p.strategies[k], enabled: v } } }))
+    touch()
+  }
+  const setExecutes = (k, v) => {
+    if (k === 'ai_grader') setGate(g => ({ ...g, execution_control: v }))
+    else setPipeline(p => ({ ...p, strategies: { ...p.strategies, [k]: { ...p.strategies[k], mode: v ? 'enforce' : 'shadow' } } }))
     touch()
   }
   const moveTo = (key, targetIndex) => {
@@ -379,9 +403,9 @@ export default function StrategiesTab() {
       }
       if (gateDirty) {
         // Re-read the gate first so bands edited in the AI Execution tab
-        // meanwhile aren't overwritten — only the on/off switch changes here.
+        // meanwhile aren't overwritten — only the two switches change here.
         const latest = await fetchAiGate(selectedBotId)
-        const next = { ...latest, enabled: gate.enabled }
+        const next = { ...latest, enabled: gate.enabled, execution_control: gate.execution_control }
         await saveAiGate(next, selectedBotId)
         setGate(next); setSavedGate(next)
       }
@@ -412,8 +436,9 @@ export default function StrategiesTab() {
         </div>
         <p className="text-sm text-gray-400 mt-2">
           Every signal — market or pending — runs through the switched-on strategies from top to bottom before
-          anything is sent to the broker. A rejection blocks the trade and records the reason. Drag the cards
-          (or use the arrows) to change the order. With everything off, trades execute exactly as normal.
+          anything is sent to the broker. A rejection blocks the trade and records the reason. Turn a card's
+          Execution switch off to run it in shadow: it judges and logs every signal but never blocks one. Drag the
+          cards (or use the arrows) to change the order. With everything off, trades execute exactly as normal.
         </p>
         <div className="flex items-center gap-1.5 flex-wrap mt-4 text-xs">
           <span className="px-2.5 py-1 text-gray-300" style={{ background: 'var(--card-recess)', borderRadius: '8px' }}>Signal</span>
@@ -447,6 +472,8 @@ export default function StrategiesTab() {
               enabled={enabledOf(k)}
               status={statusOf(k)}
               onToggle={v => toggle(k, v)}
+              executes={executesOf(k)}
+              onExecutionToggle={v => setExecutes(k, v)}
               onMove={d => moveTo(k, i + d)}
               dragging={dragKey === k}
               dragHandlers={{
@@ -462,7 +489,7 @@ export default function StrategiesTab() {
               {k === 'ai_grader' && (
                 <p className="text-[11px] text-gray-500 mt-2">
                   Bands, provider and max wait are set in the <span className="text-gray-300">AI Execution</span> tab.
-                  Switching it here is the same switch.
+                  With Execution off, signals execute immediately and channels with AI grading on still get a grade.
                 </p>
               )}
             </StrategyCard>
@@ -479,9 +506,10 @@ export default function StrategiesTab() {
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#38bdf8' }} />
           <p className="text-xs text-gray-400">
             The market regime comes from the rule-based regime service on the VPS
-            (<code className="text-gray-300">scriptsun_regime_service.bat</code>, which runs
+            (<code className="text-gray-300">scripts
+un_regime_service.bat</code>, which runs
             <code className="text-gray-300"> sigbot/regime_final/regime_detector.py</code>). If it is not running, signals are
-            {regime.on_missing === 'block' ? ' blocked' : ' let through'} as "no regime available".
+            {regime.on_missing === 'block' && regime.mode !== 'shadow' ? ' blocked' : ' let through'} as "no regime available".
           </p>
         </div>
       )}

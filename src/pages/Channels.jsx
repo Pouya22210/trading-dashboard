@@ -280,11 +280,12 @@ function FormField({ label, children, hint }) {
 // ============================================================================
 // AI EXECUTION TAB
 // ----------------------------------------------------------------------------
-// Global (all-channel) control over how the AI signal grade drives execution.
-// Master switch OFF == the bot's normal behaviour: trades go out immediately and
-// grading stays a label-only background job. Switch it ON and no order — market
-// or pending — is placed until that signal has a 0-10 grade, which then routes
-// it into one of three outcomes: execute / execute inverted / block.
+// How the AI signal grade drives execution: the bands, provider and wait.
+// The on/off and execution-control switches live on the AI Grader card in the
+// Strategies tab. While both are on, no order — market or pending — is placed
+// until that signal has a 0-10 grade, which then routes it into one of three
+// outcomes: execute / execute inverted / block. Otherwise the bot behaves
+// normally: trades go out immediately and grading stays label-only.
 // Persisted as a single `ai_execution_gate` row in app_settings; the bot re-reads
 // it every 30s.
 // ============================================================================
@@ -330,7 +331,7 @@ function GradeOutcomeMap({ cfg }) {
   )
 }
 
-function AIExecutionTab() {
+function AIExecutionTab({ onOpenStrategies }) {
   const [cfg, setCfg] = useState(AI_GATE_DEFAULTS)
   const [savedCfg, setSavedCfg] = useState(AI_GATE_DEFAULTS)
   const [loading, setLoading] = useState(true)
@@ -372,8 +373,12 @@ function AIExecutionTab() {
     setSaving(true)
     setError(null)
     try {
-      await saveAiGate(cfg, selectedBotId)
-      const stored = normalizeAiGate(cfg)
+      // The two switches belong to the Strategies tab: keep whatever it saved
+      // since this tab loaded instead of writing back a stale copy.
+      const latest = await fetchAiGate(selectedBotId)
+      const next = { ...cfg, enabled: latest.enabled, execution_control: latest.execution_control }
+      await saveAiGate(next, selectedBotId)
+      const stored = normalizeAiGate(next)
       setCfg(stored)
       setSavedCfg(stored)
       setSavedAt(new Date())
@@ -388,57 +393,49 @@ function AIExecutionTab() {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading AI execution settings...</div>
   }
 
-  const off = !cfg.enabled
+  const gating = cfg.enabled && cfg.execution_control
+  const off = !gating
+  const status = !cfg.enabled ? 'OFF' : cfg.execution_control ? 'ON' : 'SHADOW'
 
   return (
     <div className="space-y-4">
-      {/* Master switch */}
+      {/* Status only — switched on the AI Grader card in the Strategies tab. */}
       <div
         className="p-5"
         style={{
           background: 'var(--card-flat)',
           borderRadius: '20px',
-          border: cfg.enabled
-            ? '2px solid rgba(139,92,246,0.45)'
-            : '1px solid rgba(255,255,255,0.06)',
+          border: gating ? '2px solid rgba(139,92,246,0.45)' : '1px solid rgba(255,255,255,0.06)',
         }}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <Brain className={`w-5 h-5 ${cfg.enabled ? 'text-violet-400' : 'text-gray-500'}`} />
-              <h3 className={`text-lg font-semibold ${cfg.enabled ? 'text-violet-300' : 'text-gray-300'}`}>
-                AI Grade Execution Control
-              </h3>
-              <span className={`badge ${cfg.enabled ? 'badge-success' : 'badge-neutral'}`}>
-                {cfg.enabled ? 'ON' : 'OFF'}
-              </span>
-              {/* These bands belong to one VPS — say which, or a per-bot
-                  setting looks like a global one. */}
-              {selectedBot && (
-                <span className="badge badge-neutral" title="This gate applies to the selected bot only">
-                  {selectedBot.name}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-gray-400 mt-2 ml-7">
-              {cfg.enabled ? (
-                <>
-                  Every signal is graded <span className="text-gray-200">before</span> anything is sent to the
-                  broker — market and pending orders alike. The grade then decides whether the trade is
-                  executed, executed in the opposite direction, or blocked. All other logic
-                  (risk, TP/SL policies, cancel, news blackout, circuit breaker) is unchanged.
-                </>
-              ) : (
-                <>
-                  Off — the bot behaves exactly as normal: trades are placed immediately on the signal and
-                  AI grading stays a label-only background job that never blocks anything.
-                </>
-              )}
-            </p>
-          </div>
-          <Toggle checked={cfg.enabled} onChange={checked => patch({ enabled: checked })} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Brain className={`w-5 h-5 ${gating ? 'text-violet-400' : 'text-gray-500'}`} />
+          <h3 className={`text-lg font-semibold ${gating ? 'text-violet-300' : 'text-gray-300'}`}>AI Grade Bands</h3>
+          <span className={`badge ${status === 'ON' ? 'badge-success' : status === 'SHADOW' ? 'badge-warning' : 'badge-neutral'}`}>
+            {status}
+          </span>
+          {selectedBot && (
+            <span className="badge badge-neutral" title="These bands apply to the selected bot only">
+              {selectedBot.name}
+            </span>
+          )}
         </div>
+        <p className="text-sm text-gray-400 mt-2 ml-7">
+          {gating ? (
+            <>
+              Every signal is graded <span className="text-gray-200">before</span> anything is sent to the
+              broker, and the grade decides whether it is executed, executed inverted, or blocked by the bands below.
+            </>
+          ) : status === 'SHADOW' ? (
+            <>Shadow: the AI grader is on but has no execution control, so signals execute immediately and grades are labels only.</>
+          ) : (
+            <>Off: trades are placed immediately and AI grading stays a label-only background job.</>
+          )}
+          {' '}Switch it on/off and give it execution control on the AI Grader card in the{' '}
+          <button type="button" onClick={onOpenStrategies} className="text-violet-300 hover:text-violet-200 underline">
+            Strategies tab
+          </button>.
+        </p>
       </div>
 
       {/* Dimmed but still editable while the gate is off, so the bands can be
@@ -1444,12 +1441,12 @@ const PAGE_TAB_HEADINGS = {
     subtitle: 'Manage your Telegram signal channels',
   },
   'ai-execution': {
-    title: 'AI Execution Control',
-    subtitle: 'Route order execution by the AI signal grade — for every channel at once',
+    title: 'AI Execution',
+    subtitle: 'Grade bands, provider and wait for the AI grader — switch it on in the Strategies tab',
   },
   'strategies': {
     title: 'Signal Strategies',
-    subtitle: 'Switch filters such as the market regime on or off and set the order they run in',
+    subtitle: 'Switch strategies on or off, give them execution control, and set the order they run in',
   },
   'visitors': {
     title: 'Site Visitors',
@@ -1657,7 +1654,7 @@ export default function Channels() {
 
       {pageTab === 'strategies' && <StrategiesTab />}
 
-      {pageTab === 'ai-execution' && <AIExecutionTab />}
+      {pageTab === 'ai-execution' && <AIExecutionTab onOpenStrategies={() => setPageTab('strategies')} />}
 
       {pageTab === 'channels' && (<>
       {/* Global Settings (Issue 1: Pending Order Expiry) */}

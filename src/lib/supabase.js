@@ -561,6 +561,9 @@ export const AI_GATE_SETTING_KEY = 'ai_execution_gate'
 /** Must stay in sync with AI_GATE_DEFAULTS in sigbot/App.py. */
 export const AI_GATE_DEFAULTS = {
   enabled: false,
+  // Strategies tab "Execution control". Off = shadow: the grader never routes
+  // or blocks a trade (label-only grading). The gate acts only when both are on.
+  execution_control: true,
   provider: 'gemini',          // 'gemini' | 'claude' | 'average'
   execute_min: 6,
   execute_max: 10,
@@ -595,6 +598,7 @@ export function normalizeAiGate(raw) {
   const cfg = { ...AI_GATE_DEFAULTS }
 
   cfg.enabled = !!(src.enabled ?? cfg.enabled)
+  cfg.execution_control = !!(src.execution_control ?? cfg.execution_control)
   cfg.inverse_enabled = !!(src.inverse_enabled ?? cfg.inverse_enabled)
   cfg.trade_ungraded_channels = !!(src.trade_ungraded_channels ?? cfg.trade_ungraded_channels)
   cfg.provider = ['gemini', 'claude', 'average'].includes(src.provider)
