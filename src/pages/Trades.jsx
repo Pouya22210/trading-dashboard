@@ -25,6 +25,7 @@ import {
   fetchMaxDrawdown,
   fetchTradeMarkers,
   fetchGradeOutcomeDistribution,
+  fetchRegimeOutcomeDistribution,
 } from '../lib/queries'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
 import TradePriceChart from '../components/TradePriceChart'
@@ -530,6 +531,59 @@ function GradeDistributionTooltip({ active, payload }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+
+// Tooltips for the Market Regime section. Bin rows are already split into
+// TP/FN (won) and FP/TN (lost) for the current threshold.
+function RegimeBinTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null
+  const d = payload[0]?.payload
+  if (!d) return null
+  const total = d.tpUp + d.fnUp - d.fpDown - d.tnDown
+  const rows = [
+    { label: 'TP · allowed, won',  value: d.tpUp,    color: COLORS.green },
+    { label: 'FN · blocked, won',  value: d.fnUp,    color: COLORS.orange },
+    { label: 'FP · allowed, lost', value: -d.fpDown, color: COLORS.red },
+    { label: 'TN · blocked, lost', value: -d.tnDown, color: COLORS.blue },
+  ]
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[170px]">
+      <p className="text-white text-sm font-semibold mb-2">Confidence {d.bucket * 10}-{d.bucket * 10 + 10}%</p>
+      {rows.map(r => (
+        <div key={r.label} className="flex items-center gap-2 text-sm">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: r.color }} />
+          <span className="text-gray-300">{r.label}:</span>
+          <span className="text-white font-mono ml-auto">{r.value}</span>
+        </div>
+      ))}
+      {total > 0 && (
+        <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400">
+          Win rate in bucket: <span className="text-white font-mono">{Math.round(((d.tpUp + d.fnUp) / total) * 100)}%</span>
+          <span className="text-gray-500"> ({total})</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RegimeSweepTooltip({ active, payload, baseWinRate }) {
+  if (!active || !payload || !payload.length) return null
+  const d = payload[0]?.payload
+  if (!d) return null
+  const fmtNet = (v) => v > 0 ? `+${v}` : `${v}`
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[190px] text-sm">
+      <p className="text-white font-semibold mb-2">Allow at confidence {d.label}</p>
+      <div className="text-gray-300">Allowed: <span className="text-white font-mono">{d.allowed}</span>
+        <span className="text-gray-500"> · blocked {d.fn + d.tn}</span></div>
+      <div className="text-gray-300">Win rate: <span className="text-white font-mono">
+        {d.allowedWinRate != null ? `${d.allowedWinRate.toFixed(1)}%` : '—'}</span>
+        <span className="text-gray-500"> vs {baseWinRate != null ? `${baseWinRate.toFixed(1)}%` : '—'} baseline</span></div>
+      <div className="text-gray-300">Edge vs baseline: <span className="font-mono" style={{ color: d.edge > 0 ? COLORS.green : d.edge < 0 ? COLORS.red : '#e5e7eb' }}>
+        {fmtNet(d.edge)}</span> <span className="text-gray-500">({d.tn} TN − {d.fn} FN)</span></div>
     </div>
   )
 }
@@ -1108,6 +1162,12 @@ export default function Trades() {
   const [gradeCutoffs, setGradeCutoffs] = useState(
     () => Object.fromEntries(AI_PROVIDERS.map(p => [p.key, 3]))
   )
+  // Market regime (shadow) on the same tab. Threshold t = bucket index: the
+  // regime "allows" a trade when its other rules pass and confidence ≥ t×10%.
+  // Default 3 = the strategy's default min_confidence of 30%.
+  const [regimeDist, setRegimeDist] = useState(null)
+  const [regimeDistLoading, setRegimeDistLoading] = useState(false)
+  const [regimeThreshold, setRegimeThreshold] = useState(3)
 
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
@@ -1315,6 +1375,11 @@ export default function Trades() {
       .then(rows => { if (!canceled) setGradeDist(rows) })
       .catch(err => { console.error('Failed to load grade distribution:', err); if (!canceled) setGradeDist([]) })
       .finally(() => { if (!canceled) setGradeDistLoading(false) })
+    setRegimeDistLoading(true)
+    fetchRegimeOutcomeDistribution(queryFilters)
+      .then(rows => { if (!canceled) setRegimeDist(rows) })
+      .catch(err => { console.error('Failed to load regime distribution:', err); if (!canceled) setRegimeDist([]) })
+      .finally(() => { if (!canceled) setRegimeDistLoading(false) })
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, activeTab])
@@ -1612,6 +1677,55 @@ export default function Trades() {
       a.channelName.localeCompare(b.channelName) || a.provider.localeCompare(b.provider))
     return { providers, channelRows }
   }, [gradeDist])
+
+  // ---------- Market regime confidence × outcome (AI Grades tab) ----------
+  // Shadow mode: every signal was executed, so each judged trade has a real
+  // outcome whatever the regime thought. Bins: 10 confidence buckets, each
+  // split into trades the OTHER regime rules accepted (`pass*`) or rejected
+  // (`fail*`). At threshold t a trade is allowed iff it passed the other rules
+  // and sits in bucket ≥ t; the confusion matrix and the edge sweep derive
+  // from that at render time. Positive = "allowed", actual = we won.
+  // Breakeven and no-regime-data trades are counted but excluded from W/L.
+  const regimeView = useMemo(() => {
+    const bins = Array.from({ length: 10 }, (_, b) => ({
+      bucket: b, label: `${b * 10}%`,
+      passWins: 0, passLosses: 0, failWins: 0, failLosses: 0,
+    }))
+    let noData = 0, breakeven = 0
+    for (const r of (regimeDist || [])) {
+      if (r.confBucket == null || r.passExConf == null) {
+        noData += r.wins + r.losses + r.breakeven
+        continue
+      }
+      const bin = bins[Math.min(9, Math.max(0, r.confBucket))]
+      breakeven += r.breakeven
+      if (r.passExConf) { bin.passWins += r.wins; bin.passLosses += r.losses }
+      else              { bin.failWins += r.wins; bin.failLosses += r.losses }
+    }
+    let wins = 0, losses = 0
+    for (const b of bins) { wins += b.passWins + b.failWins; losses += b.passLosses + b.failLosses }
+    // Confusion counts at every threshold, for the edge-vs-baseline sweep.
+    const sweep = Array.from({ length: 10 }, (_, t) => {
+      let tp = 0, fp = 0
+      for (const b of bins) if (b.bucket >= t) { tp += b.passWins; fp += b.passLosses }
+      const fn = wins - tp, tn = losses - fp
+      return {
+        t, label: `≥${t * 10}%`, tp, fp, fn, tn,
+        allowed: tp + fp,
+        allowedWinRate: tp + fp > 0 ? (tp / (tp + fp)) * 100 : null,
+        // Skipping the blocked trades saves their losses and forfeits their wins.
+        edge: tn - fn,
+      }
+    })
+    let yMax = 0
+    for (const b of bins) yMax = Math.max(yMax, b.passWins + b.failWins, b.passLosses + b.failLosses)
+    return {
+      bins, sweep, wins, losses, noData, breakeven,
+      judged: wins + losses,
+      baseWinRate: wins + losses > 0 ? (wins / (wins + losses)) * 100 : null,
+      yMax: Math.max(1, yMax),
+    }
+  }, [regimeDist])
 
   // ---------- Market sessions ----------
   const marketSessionsData = useMemo(() => {
@@ -3488,6 +3602,203 @@ export default function Trades() {
                     )
                   })}
                 </div>
+
+                {/* Market regime, shadow mode: the same confusion-matrix read as
+                    the AI panels, but the "score" is the regime's confidence and
+                    the cut-off is a minimum confidence. Positive = allowed (other
+                    regime rules pass AND confidence ≥ threshold), actual = we won.
+                    Every trade here was really executed, so blocked trades have
+                    real outcomes: FN = wins the regime would have cost us, TN =
+                    losses it would have saved. Edge vs baseline = TN − FN. */}
+                {(() => {
+                  const rv = regimeView
+                  const t = regimeThreshold
+                  const s = rv.sweep[t]
+                  const pending = regimeDistLoading || regimeDist === null
+                  const fmtNet = (v) => v > 0 ? `+${v}` : `${v}`
+                  const fmtPct = (v) => v != null ? `${v.toFixed(1)}%` : '—'
+                  const blockedN = s.fn + s.tn
+                  const blockedWinRate = blockedN > 0 ? (s.fn / blockedN) * 100 : null
+                  const baseNet = rv.wins - rv.losses
+                  const allowedNet = s.tp - s.fp
+                  const chartData = rv.bins.map(b => {
+                    const on = b.bucket >= t
+                    return {
+                      bucket: b.bucket, label: b.label,
+                      tpUp:   on ? b.passWins : 0,
+                      fnUp:   on ? b.failWins : b.passWins + b.failWins,
+                      fpDown: -(on ? b.passLosses : 0),
+                      tnDown: -(on ? b.failLosses : b.passLosses + b.failLosses),
+                    }
+                  })
+                  const yMax = rv.yMax
+                  return (
+                    <ChartCard title="Market Regime · Confidence vs Outcome (shadow)" icon={Globe}>
+                      {pending ? (
+                        <div className="flex items-center justify-center h-72 text-gray-500 text-sm">Loading…</div>
+                      ) : rv.judged === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-72 text-gray-500 text-sm gap-1 px-6 text-center">
+                          <span>No closed trades judged by the regime in Shadow mode match these filters.</span>
+                          <span className="text-xs text-gray-600">
+                            Set the Market Regime strategy to Shadow (Channels › Strategies) and keep the regime service running.
+                            Trades appear here once they close in profit or loss.
+                          </span>
+                          {rv.noData > 0 && (
+                            <span className="text-xs text-gray-600">{rv.noData} trade(s) had no usable regime data.</span>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {[
+                              { label: 'Judged trades', value: rv.judged },
+                              ...(rv.noData > 0 ? [{ label: 'No regime data · excluded', value: rv.noData, color: COLORS.yellow }] : []),
+                              ...(rv.breakeven > 0 ? [{ label: 'Breakeven · excluded', value: rv.breakeven, color: COLORS.yellow }] : []),
+                              { label: 'Baseline win rate', value: `${fmtPct(rv.baseWinRate)} (${rv.judged})` },
+                              { label: `Allowed win rate @ ≥${t * 10}%`, value: `${fmtPct(s.allowedWinRate)} (${s.allowed})`,
+                                color: s.allowedWinRate == null || rv.baseWinRate == null ? undefined
+                                  : s.allowedWinRate > rv.baseWinRate ? COLORS.green
+                                  : s.allowedWinRate < rv.baseWinRate ? COLORS.red : undefined },
+                              { label: 'Blocked win rate', value: `${fmtPct(blockedWinRate)} (${blockedN})` },
+                            ].map(stat => (
+                              <div key={stat.label} className="px-2.5 py-1.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: stat.color || '#e5e7eb' }}>{stat.value}</div>
+                              </div>
+                            ))}
+                            {/* 2×2 confusion matrix: rows = regime verdict at this
+                                threshold, columns = actual outcome. */}
+                            <div className="px-2.5 py-1" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+                              <div className="grid grid-cols-[auto_auto_auto] gap-x-3 leading-tight">
+                                <div />
+                                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
+                                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
+                                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Allowed</div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
+                                  {s.tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
+                                </div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
+                                  {s.fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
+                                </div>
+                                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Blocked</div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
+                                  {s.fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
+                                </div>
+                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
+                                  {s.tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Net result (wins − losses): baseline = every trade taken
+                              (what really happened) vs. only the trades the regime
+                              would have allowed at this threshold. */}
+                          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · baseline (all taken)</div>
+                              <div className="text-sm font-semibold font-mono" style={{ color: baseNet >= 0 ? COLORS.green : COLORS.red }}>
+                                {fmtNet(baseNet)} <span className="text-gray-500 font-normal">({rv.wins}W − {rv.losses}L)</span>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · regime @ ≥{t * 10}%</div>
+                              <div className="text-sm font-semibold font-mono" style={{ color: allowedNet >= 0 ? COLORS.green : COLORS.red }}>
+                                {fmtNet(allowedNet)} <span className="text-gray-500 font-normal">({s.tp}W − {s.fp}L)</span>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge vs baseline</div>
+                              <div className="text-sm font-semibold font-mono" style={{ color: s.edge > 0 ? COLORS.green : s.edge < 0 ? COLORS.red : '#e5e7eb' }}>
+                                {fmtNet(s.edge)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            {/* Per-bucket TP/FN/FP/TN. Wins above the line, losses
+                                below; colour = the regime's verdict at the current
+                                threshold. Buckets under the threshold are all blocked;
+                                above it, trades the other rules reject stay blocked. */}
+                            <div>
+                              <div className="text-[11px] text-gray-400 mb-1">Outcome by regime confidence</div>
+                              <ResponsiveContainer width="100%" height={280}>
+                                <BarChart data={chartData} stackOffset="sign" margin={{ left: 0, right: 10, top: 10, bottom: 4 }} barCategoryGap="25%">
+                                  {t > 0 && (
+                                    <ReferenceArea x1="0%" x2={`${(t - 1) * 10}%`} fill="#ef4444" fillOpacity={0.05} strokeOpacity={0} />
+                                  )}
+                                  <ReferenceArea x1={`${t * 10}%`} x2="90%" fill="#22c55e" fillOpacity={0.05} strokeOpacity={0} />
+                                  <XAxis dataKey="label" stroke="#6e7681" fontSize={11} tickLine={false} interval={0}
+                                    label={{ value: 'Regime confidence', position: 'insideBottom', offset: -2, fill: '#6e7681', fontSize: 10 }} />
+                                  <YAxis stroke="#6e7681" fontSize={11} domain={[-yMax, yMax]} allowDecimals={false}
+                                    tickFormatter={(v) => Math.abs(v)} width={34} />
+                                  <Tooltip content={<RegimeBinTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                                  <ReferenceLine y={0} stroke="#6e7681" strokeWidth={1} />
+                                  <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>} />
+                                  <Bar dataKey="tpUp"   name="TP · allowed, won"  stackId="o" fill={COLORS.green}  radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                  <Bar dataKey="fnUp"   name="FN · blocked, won"  stackId="o" fill={COLORS.orange} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                  <Bar dataKey="fpDown" name="FP · allowed, lost" stackId="o" fill={COLORS.red}    radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                  <Bar dataKey="tnDown" name="TN · blocked, lost" stackId="o" fill={COLORS.blue}   radius={[4, 4, 0, 0]} maxBarSize={26} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+
+                            {/* Threshold sweep: edge (TN − FN) as bars, allowed win
+                                rate as a line against the baseline win rate. Where the
+                                bars are green and the line sits above the dashed
+                                baseline, the regime beats taking every trade. */}
+                            <div>
+                              <div className="text-[11px] text-gray-400 mb-1">Edge vs baseline by minimum confidence</div>
+                              <ResponsiveContainer width="100%" height={280}>
+                                <ComposedChart data={rv.sweep} margin={{ left: 0, right: 0, top: 10, bottom: 4 }}>
+                                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                  <XAxis dataKey="label" stroke="#6e7681" fontSize={11} tickLine={false} interval={0} />
+                                  <YAxis yAxisId="edge" stroke="#6e7681" fontSize={11} allowDecimals={false} width={34} />
+                                  <YAxis yAxisId="wr" orientation="right" stroke="#6e7681" fontSize={11} domain={[0, 100]}
+                                    tickFormatter={(v) => `${v}%`} width={40} />
+                                  <Tooltip content={<RegimeSweepTooltip baseWinRate={rv.baseWinRate} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                                  <ReferenceLine yAxisId="edge" y={0} stroke="#6e7681" />
+                                  {rv.baseWinRate != null && (
+                                    <ReferenceLine yAxisId="wr" y={rv.baseWinRate} stroke={COLORS.gray} strokeDasharray="4 4"
+                                      label={{ value: `baseline ${rv.baseWinRate.toFixed(0)}%`, position: 'insideTopRight', fill: '#9ca3af', fontSize: 10 }} />
+                                  )}
+                                  <ReferenceLine yAxisId="edge" x={`≥${t * 10}%`} stroke={COLORS.cyan} strokeOpacity={0.6} />
+                                  <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>} />
+                                  <Bar yAxisId="edge" dataKey="edge" name="Edge (TN − FN)" radius={[4, 4, 0, 0]} maxBarSize={26}
+                                    onClick={(_, i) => setRegimeThreshold(i)} cursor="pointer" fill={COLORS.green}>
+                                    {rv.sweep.map(d => (
+                                      <Cell key={d.t} fill={d.edge >= 0 ? COLORS.green : COLORS.red} fillOpacity={d.t === t ? 1 : 0.55} />
+                                    ))}
+                                  </Bar>
+                                  <Line yAxisId="wr" type="monotone" dataKey="allowedWinRate" name="Allowed win rate" stroke={COLORS.cyan}
+                                    strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                                </ComposedChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+
+                          {/* Minimum-confidence slider: every number above follows it.
+                              Clicking a bar in the sweep chart sets it too. */}
+                          <div className="flex items-center gap-3 mt-3 px-3 py-2" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+                            <span className="text-[10px] uppercase tracking-wider whitespace-nowrap" style={{ color: COLORS.red }}>
+                              Block &lt;{t * 10}%
+                            </span>
+                            <input
+                              type="range" min={0} max={9} step={1} value={t}
+                              onChange={e => setRegimeThreshold(Number(e.target.value))}
+                              className="flex-1 h-1.5 cursor-pointer"
+                              style={{ accentColor: '#39d5ff' }}
+                              aria-label="Regime minimum confidence"
+                            />
+                            <span className="text-[10px] uppercase tracking-wider whitespace-nowrap" style={{ color: COLORS.green }}>
+                              Allow ≥{t * 10}%
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </ChartCard>
+                  )
+                })()}
 
                 {/* Per-channel × model breakdown */}
                 {!gradeDistPending && channelRows.length > 0 && (

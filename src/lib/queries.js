@@ -198,6 +198,25 @@ export async function fetchGradeOutcomeDistribution(filters) {
   }))
 }
 
+// Market-regime confidence × outcome (shadow-mode decisions only). One row per
+// channel × confidence bucket (0-9 = 0-10% … 90-100%, null = no regime data)
+// × passExConf ("every regime rule except min confidence accepts").
+export async function fetchRegimeOutcomeDistribution(filters) {
+  const { data, error } = await supabase.rpc('get_regime_outcome_distribution', {
+    p_filters: serializeFilters(filters),
+  })
+  if (error) throw error
+  return (data || []).map(row => ({
+    channelId:   row.channel_id,
+    channelName: row.channel_name,
+    confBucket:  row.conf_bucket == null ? null : Number(row.conf_bucket),
+    passExConf:  row.pass_ex_conf,
+    wins:        Number(row.wins)      || 0,
+    losses:      Number(row.losses)    || 0,
+    breakeven:   Number(row.breakeven) || 0,
+  }))
+}
+
 
 // ---------- Trades page: risk-based daily calendar ----------
 // Fetches the *entire* calendar for the filter set (not per-month). The UI
