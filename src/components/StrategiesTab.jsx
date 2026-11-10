@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   GripVertical, ChevronUp, ChevronDown, Brain, Activity, Save, Check,
-  AlertTriangle, ArrowDown, Send, Zap, RefreshCw, Settings
+  AlertTriangle, ArrowDown, Send, Zap, RefreshCw, Settings, TrendingUp
 } from 'lucide-react'
 import {
   fetchStrategyPipeline, saveStrategyPipeline, normalizeStrategyPipeline,
@@ -40,6 +40,13 @@ export const STRATEGY_META = {
     blurb: 'Accepts a signal only if its direction fits the current market regime (trend, volatility, '
       + 'higher-timeframe context). Pending orders are re-checked until they fill and cancelled if the '
       + 'regime turns against them.',
+  },
+  kronos: {
+    label: 'Kronos Forecast',
+    icon: TrendingUp,
+    color: '#f472b6',
+    blurb: 'The Kronos AI model forecasts many possible next candles; a signal passes when its TP is hit before '
+      + 'its SL in at least the minimum share of those forecasts.',
   },
   ai_grader: {
     label: 'AI Grader',
@@ -181,6 +188,34 @@ function RegimeSettings({ cfg, onChange }) {
       <Field label="regimes.json path (optional)" hint="Blank = MetaQuotes Common\Files\regimes.json, where the regime service writes by default.">
         <input type="text" value={cfg.regimes_path} onChange={e => set({ regimes_path: e.target.value })} className="w-full" placeholder="default" />
       </Field>
+    </div>
+  )
+}
+
+function KronosSettings({ cfg, onChange }) {
+  const set = (p) => onChange({ ...cfg, ...p })
+  return (
+    <div className="mt-4 pt-4 space-y-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field
+          label="Minimum TP-first share (0-1)"
+          hint="Accept when TP is hit before SL in at least this share of the forecasts that reach either level. Compare thresholds in Trades › AI Grades."
+        >
+          <NumberInput value={cfg.min_prob} max={1} onChange={v => set({ min_prob: v })} />
+        </Field>
+        <Field label="If no forecast is available" hint="Service down, forecast too old, or no forecast reached TP or SL.">
+          <select value={cfg.on_missing} onChange={e => set({ on_missing: e.target.value })} className="w-full">
+            <option value="allow">Let it through</option>
+            <option value="block">Block the signal</option>
+          </select>
+        </Field>
+        <Field label="Forecast max age (seconds)" hint="Older forecasts count as missing.">
+          <NumberInput value={cfg.max_age_sec} step={60} min={60} onChange={v => set({ max_age_sec: v })} />
+        </Field>
+        <Field label="kronos.json path (optional)" hint="Blank = MetaQuotes Common\Files\kronos.json, where the Kronos service writes by default.">
+          <input type="text" value={cfg.kronos_path} onChange={e => set({ kronos_path: e.target.value })} className="w-full" placeholder="default" />
+        </Field>
+      </div>
     </div>
   )
 }
@@ -341,7 +376,7 @@ export default function StrategiesTab() {
   const [savedAt, setSavedAt] = useState(null)
   const [error, setError] = useState(null)
   const [dragKey, setDragKey] = useState(null)
-  const [expanded, setExpanded] = useState({ regime: false })
+  const [expanded, setExpanded] = useState({ regime: false, kronos: false })
 
   useEffect(() => {
     if (!selectedBotId) return
@@ -359,6 +394,7 @@ export default function StrategiesTab() {
   }, [selectedBotId])
 
   const regime = pipeline.strategies.regime
+  const kronos = pipeline.strategies.kronos
   const enabledOf = (k) => (k === 'ai_grader' ? !!gate?.enabled : !!pipeline.strategies[k]?.enabled)
   const executesOf = (k) => (k === 'ai_grader' ? gate?.execution_control !== false : pipeline.strategies[k]?.mode !== 'shadow')
   const statusOf = (k) => {
@@ -373,6 +409,7 @@ export default function StrategiesTab() {
 
   const touch = () => setSavedAt(null)
   const setRegime = (cfg) => { setPipeline(p => ({ ...p, strategies: { ...p.strategies, regime: cfg } })); touch() }
+  const setKronos = (cfg) => { setPipeline(p => ({ ...p, strategies: { ...p.strategies, kronos: cfg } })); touch() }
   const toggle = (k, v) => {
     if (k === 'ai_grader') setGate(g => ({ ...g, enabled: v }))
     else setPipeline(p => ({ ...p, strategies: { ...p.strategies, [k]: { ...p.strategies[k], enabled: v } } }))
@@ -483,9 +520,10 @@ export default function StrategiesTab() {
                 onDragEnd: () => setDragKey(null),
               }}
               expanded={expanded[k]}
-              onExpand={k === 'regime' ? () => setExpanded(x => ({ ...x, regime: !x.regime })) : null}
+              onExpand={k === 'regime' || k === 'kronos' ? () => setExpanded(x => ({ ...x, [k]: !x[k] })) : null}
             >
               {k === 'regime' && expanded.regime && <RegimeSettings cfg={regime} onChange={setRegime} />}
+              {k === 'kronos' && expanded.kronos && <KronosSettings cfg={kronos} onChange={setKronos} />}
               {k === 'ai_grader' && (
                 <p className="text-[11px] text-gray-500 mt-2">
                   Bands, provider and max wait are set in the <span className="text-gray-300">AI Execution</span> tab.
@@ -506,10 +544,21 @@ export default function StrategiesTab() {
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#38bdf8' }} />
           <p className="text-xs text-gray-400">
             The market regime comes from the rule-based regime service on the VPS
-            (<code className="text-gray-300">scripts
-un_regime_service.bat</code>, which runs
+            (<code className="text-gray-300">scripts\run_regime_service.bat</code>, which runs
             <code className="text-gray-300"> sigbot/regime_final/regime_detector.py</code>). If it is not running, signals are
             {regime.on_missing === 'block' && regime.mode !== 'shadow' ? ' blocked' : ' let through'} as "no regime available".
+          </p>
+        </div>
+      )}
+
+      {enabledOf('kronos') && (
+        <div className="p-4 flex items-start gap-2" style={{ ...CARD, borderRadius: '14px', border: '1px solid rgba(244,114,182,0.25)' }}>
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#f472b6' }} />
+          <p className="text-xs text-gray-400">
+            Kronos forecasts come from the Kronos service on this bot's VPS
+            (<code className="text-gray-300">scripts\run_kronos_service.bat</code>, which runs
+            <code className="text-gray-300"> sigbot/kronos_service/service.py</code>). If it is not running, signals are
+            {kronos.on_missing === 'block' && kronos.mode !== 'shadow' ? ' blocked' : ' let through'} as "no forecast".
           </p>
         </div>
       )}

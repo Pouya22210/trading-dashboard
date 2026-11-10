@@ -218,6 +218,28 @@ export async function fetchRegimeOutcomeDistribution(filters) {
 }
 
 
+// A pipeline strategy's 0-1 score × outcome (shadow-mode decisions only), e.g.
+// Kronos's kronos_prob. One row per channel × bucket (0-19 = 0-5% … 95-100%,
+// null = judged without a score).
+// SQL: migrations/2026-11-10_strategy_score_distribution.sql
+export async function fetchStrategyScoreDistribution(filters, strategy, scoreKey) {
+  const { data, error } = await supabase.rpc('get_strategy_score_distribution', {
+    p_filters: serializeFilters(filters),
+    p_strategy: strategy,
+    p_score_key: scoreKey,
+  })
+  if (error) throw error
+  return (data || []).map(row => ({
+    channelId:   row.channel_id,
+    channelName: row.channel_name,
+    bucket:      row.bucket == null ? null : Number(row.bucket),
+    wins:        Number(row.wins)      || 0,
+    losses:      Number(row.losses)    || 0,
+    breakeven:   Number(row.breakeven) || 0,
+  }))
+}
+
+
 // ---------- Trades page: risk-based daily calendar ----------
 // Fetches the *entire* calendar for the filter set (not per-month). The UI
 // paginates through months locally, and uses the dataset's min/max date to

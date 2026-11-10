@@ -26,6 +26,7 @@ import {
   fetchTradeMarkers,
   fetchGradeOutcomeDistribution,
   fetchRegimeOutcomeDistribution,
+  fetchStrategyScoreDistribution,
 } from '../lib/queries'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
 import TradePriceChart from '../components/TradePriceChart'
@@ -96,6 +97,20 @@ const TRADES_PER_PAGE = 10
 // Returns all currently active forex trading sessions, ordered by liquidity.
 // Pipeline strategies the trades can be filtered by (keys = strategy_decisions.strategy).
 const STRATEGY_FILTERS = Object.entries(STRATEGY_META).map(([key, m]) => ({ key, label: m.label, color: m.color }))
+
+// AI Grades tab: one strategy's results at a time. Remembered per browser.
+const GRADE_STRATEGIES = ['ai_grader', 'regime', 'kronos']
+  .filter(k => STRATEGY_META[k])
+  .map(k => ({ key: k, label: STRATEGY_META[k].label, color: STRATEGY_META[k].color }))
+const GRADE_STRATEGY_STORAGE_KEY = 'trades.aiGrades.strategy'
+function loadGradeStrategy() {
+  try {
+    const v = window.localStorage.getItem(GRADE_STRATEGY_STORAGE_KEY)
+    return GRADE_STRATEGIES.some(s => s.key === v) ? v : 'ai_grader'
+  } catch {
+    return 'ai_grader'
+  }
+}
 
 // Status text with an instant hover tooltip (tap on touch screens) showing
 // why the trade was blocked. Positioned `fixed` so the table's scroll
@@ -585,6 +600,295 @@ function RegimeSweepTooltip({ active, payload, baseWinRate }) {
       <div className="text-gray-300">Edge vs baseline: <span className="font-mono" style={{ color: d.edge > 0 ? COLORS.green : d.edge < 0 ? COLORS.red : '#e5e7eb' }}>
         {fmtNet(d.edge)}</span> <span className="text-gray-500">({d.tn} TN − {d.fn} FN)</span></div>
     </div>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
+// Kronos forecast (shadow) — AI Grades tab card.
+//
+// Score = kronos_prob, the share of Kronos forecast paths in which the signal's
+// TP came before its SL. In shadow mode every judged signal really executed, so
+// each has a real outcome; "allowed at threshold X" = score >= X. 20 buckets of
+// 5%. Positive = allowed, actual = we won: TP allowed+won, FP allowed+lost,
+// FN blocked+won (wins the filter would cost), TN blocked+lost (losses it would
+// save). Edge vs baseline = TN − FN. Trades judged without a score (no
+// forecast) and breakevens are counted but left out of every rate.
+// Win rate and edge are separate single-axis charts on purpose — one measure
+// per y-axis.
+// ---------------------------------------------------------------------------
+const KRONOS_BUCKETS = 20
+const kronosPct = (t) => `${t * 5}%`
+
+function KronosBinTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null
+  const d = payload[0]?.payload
+  if (!d) return null
+  const total = d.tpUp + d.fnUp - d.fpDown - d.tnDown
+  const rows = [
+    { label: 'TP · allowed, won',  value: d.tpUp,    color: COLORS.green },
+    { label: 'FN · blocked, won',  value: d.fnUp,    color: COLORS.orange },
+    { label: 'FP · allowed, lost', value: -d.fpDown, color: COLORS.red },
+    { label: 'TN · blocked, lost', value: -d.tnDown, color: COLORS.blue },
+  ]
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[170px]">
+      <p className="text-white text-sm font-semibold mb-2">TP-first {d.bucket * 5}-{d.bucket * 5 + 5}%</p>
+      {rows.map(r => (
+        <div key={r.label} className="flex items-center gap-2 text-sm">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: r.color }} />
+          <span className="text-gray-300">{r.label}:</span>
+          <span className="text-white font-mono ml-auto">{r.value}</span>
+        </div>
+      ))}
+      {total > 0 && (
+        <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400">
+          Win rate in bucket: <span className="text-white font-mono">{Math.round(((d.tpUp + d.fnUp) / total) * 100)}%</span>
+          <span className="text-gray-500"> ({total})</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KronosSweepTooltip({ active, payload, baseWinRate }) {
+  if (!active || !payload || !payload.length) return null
+  const d = payload[0]?.payload
+  if (!d) return null
+  const fmtNet = (v) => v > 0 ? `+${v}` : `${v}`
+  return (
+    <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[200px] text-sm">
+      <p className="text-white font-semibold mb-2">Threshold {d.label}</p>
+      <div className="text-gray-300">Allowed: <span className="text-white font-mono">{d.allowed}</span>
+        <span className="text-gray-500"> · blocked {d.fn + d.tn}</span></div>
+      <div className="text-gray-300">Win rate: <span className="text-white font-mono">
+        {d.allowedWinRate != null ? `${d.allowedWinRate.toFixed(1)}%` : '—'}</span>
+        <span className="text-gray-500"> vs {baseWinRate != null ? `${baseWinRate.toFixed(1)}%` : '—'} baseline</span></div>
+      <div className="text-gray-300">Edge vs baseline: <span className="font-mono" style={{ color: d.edge > 0 ? COLORS.green : d.edge < 0 ? COLORS.red : '#e5e7eb' }}>
+        {fmtNet(d.edge)}</span> <span className="text-gray-500">({d.tn} TN − {d.fn} FN)</span></div>
+    </div>
+  )
+}
+
+function KronosOutcomeCard({ dist, loading, threshold: t, onThreshold }) {
+  const view = useMemo(() => {
+    const bins = Array.from({ length: KRONOS_BUCKETS }, (_, b) => ({ bucket: b, label: kronosPct(b), wins: 0, losses: 0 }))
+    let noScore = 0, breakeven = 0
+    for (const r of (dist || [])) {
+      if (r.bucket == null) { noScore += r.wins + r.losses + r.breakeven; continue }
+      const bin = bins[Math.min(KRONOS_BUCKETS - 1, Math.max(0, r.bucket))]
+      bin.wins += r.wins
+      bin.losses += r.losses
+      breakeven += r.breakeven
+    }
+    let wins = 0, losses = 0
+    for (const b of bins) { wins += b.wins; losses += b.losses }
+    const sweep = bins.map((_, th) => {
+      let tp = 0, fp = 0
+      for (const b of bins) if (b.bucket >= th) { tp += b.wins; fp += b.losses }
+      const fn = wins - tp, tn = losses - fp
+      return {
+        t: th, label: `≥${kronosPct(th)}`, tp, fp, fn, tn,
+        allowed: tp + fp,
+        allowedWinRate: tp + fp > 0 ? (tp / (tp + fp)) * 100 : null,
+        edge: tn - fn,
+      }
+    })
+    let yMax = 0
+    for (const b of bins) yMax = Math.max(yMax, b.wins, b.losses)
+    return {
+      bins, sweep, wins, losses, noScore, breakeven,
+      judged: wins + losses,
+      baseWinRate: wins + losses > 0 ? (wins / (wins + losses)) * 100 : null,
+      yMax: Math.max(1, yMax),
+    }
+  }, [dist])
+
+  const pending = loading || dist === null
+  const s = view.sweep[t]
+  const fmtNet = (v) => v > 0 ? `+${v}` : `${v}`
+  const fmtPct = (v) => v != null ? `${v.toFixed(1)}%` : '—'
+  const blockedN = s.fn + s.tn
+  const blockedWinRate = blockedN > 0 ? (s.fn / blockedN) * 100 : null
+  const baseNet = view.wins - view.losses
+  const allowedNet = s.tp - s.fp
+  const chartData = view.bins.map(b => {
+    const on = b.bucket >= t
+    return {
+      bucket: b.bucket, label: b.label,
+      tpUp: on ? b.wins : 0,
+      fnUp: on ? 0 : b.wins,
+      fpDown: -(on ? b.losses : 0),
+      tnDown: -(on ? 0 : b.losses),
+    }
+  })
+  const yMax = view.yMax
+  const tickEvery4 = (v, i) => (i % 4 === 0 ? v : '')
+
+  return (
+    <ChartCard title="Kronos Forecast · TP-first share vs Outcome (shadow)" icon={TrendingUp}>
+      {pending ? (
+        <div className="flex items-center justify-center h-72 text-gray-500 text-sm">Loading…</div>
+      ) : view.judged === 0 ? (
+        <div className="flex flex-col items-center justify-center h-72 text-gray-500 text-sm gap-1 px-6 text-center">
+          <span>No closed trades judged by Kronos in Shadow mode match these filters.</span>
+          <span className="text-xs text-gray-600">
+            Switch Kronos Forecast on with Execution off (Channels › Strategies) and keep the Kronos service running.
+            Trades appear here once they close in profit or loss.
+          </span>
+          {view.noScore > 0 && (
+            <span className="text-xs text-gray-600">{view.noScore} trade(s) were judged without a forecast.</span>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {[
+              { label: 'Judged trades', value: view.judged },
+              ...(view.noScore > 0 ? [{ label: 'No forecast · excluded', value: view.noScore, color: COLORS.yellow }] : []),
+              ...(view.breakeven > 0 ? [{ label: 'Breakeven · excluded', value: view.breakeven, color: COLORS.yellow }] : []),
+              { label: 'Baseline win rate', value: `${fmtPct(view.baseWinRate)} (${view.judged})` },
+              { label: `Allowed win rate @ ≥${kronosPct(t)}`, value: `${fmtPct(s.allowedWinRate)} (${s.allowed})`,
+                color: s.allowedWinRate == null || view.baseWinRate == null ? undefined
+                  : s.allowedWinRate > view.baseWinRate ? COLORS.green
+                  : s.allowedWinRate < view.baseWinRate ? COLORS.red : undefined },
+              { label: 'Blocked win rate', value: `${fmtPct(blockedWinRate)} (${blockedN})` },
+            ].map(stat => (
+              <div key={stat.label} className="px-2.5 py-1.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</div>
+                <div className="text-sm font-semibold font-mono" style={{ color: stat.color || '#e5e7eb' }}>{stat.value}</div>
+              </div>
+            ))}
+            <div className="px-2.5 py-1" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+              <div className="grid grid-cols-[auto_auto_auto] gap-x-3 leading-tight">
+                <div />
+                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
+                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
+                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Allowed</div>
+                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
+                  {s.tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
+                </div>
+                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
+                  {s.fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
+                </div>
+                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Blocked</div>
+                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
+                  {s.fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
+                </div>
+                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
+                  {s.tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+            <div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · baseline (all taken)</div>
+              <div className="text-sm font-semibold font-mono" style={{ color: baseNet >= 0 ? COLORS.green : COLORS.red }}>
+                {fmtNet(baseNet)} <span className="text-gray-500 font-normal">({view.wins}W − {view.losses}L)</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · Kronos @ ≥{kronosPct(t)}</div>
+              <div className="text-sm font-semibold font-mono" style={{ color: allowedNet >= 0 ? COLORS.green : COLORS.red }}>
+                {fmtNet(allowedNet)} <span className="text-gray-500 font-normal">({s.tp}W − {s.fp}L)</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge vs baseline</div>
+              <div className="text-sm font-semibold font-mono" style={{ color: s.edge > 0 ? COLORS.green : s.edge < 0 ? COLORS.red : '#e5e7eb' }}>
+                {fmtNet(s.edge)}
+              </div>
+            </div>
+          </div>
+
+          {/* Outcome per 5% bucket: wins above the line, losses below; colour =
+              the verdict at the current threshold. */}
+          <div className="text-[11px] text-gray-400 mb-1">Outcome by TP-first share</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={chartData} stackOffset="sign" margin={{ left: 0, right: 10, top: 10, bottom: 4 }} barCategoryGap="20%">
+              {t > 0 && (
+                <ReferenceArea x1="0%" x2={kronosPct(t - 1)} fill="#ef4444" fillOpacity={0.05} strokeOpacity={0} />
+              )}
+              <ReferenceArea x1={kronosPct(t)} x2="95%" fill="#22c55e" fillOpacity={0.05} strokeOpacity={0} />
+              <XAxis dataKey="label" stroke="#6e7681" fontSize={11} tickLine={false} interval={0} tickFormatter={tickEvery4}
+                label={{ value: 'Forecast paths with TP before SL', position: 'insideBottom', offset: -2, fill: '#6e7681', fontSize: 10 }} />
+              <YAxis stroke="#6e7681" fontSize={11} domain={[-yMax, yMax]} allowDecimals={false}
+                tickFormatter={(v) => Math.abs(v)} width={34} />
+              <Tooltip content={<KronosBinTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+              <ReferenceLine y={0} stroke="#6e7681" strokeWidth={1} />
+              <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>} />
+              <Bar dataKey="tpUp"   name="TP · allowed, won"  stackId="o" fill={COLORS.green}  radius={[4, 4, 0, 0]} maxBarSize={22} />
+              <Bar dataKey="fnUp"   name="FN · blocked, won"  stackId="o" fill={COLORS.orange} radius={[4, 4, 0, 0]} maxBarSize={22} />
+              <Bar dataKey="fpDown" name="FP · allowed, lost" stackId="o" fill={COLORS.red}    radius={[4, 4, 0, 0]} maxBarSize={22} />
+              <Bar dataKey="tnDown" name="TN · blocked, lost" stackId="o" fill={COLORS.blue}   radius={[4, 4, 0, 0]} maxBarSize={22} />
+            </BarChart>
+          </ResponsiveContainer>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4">
+            {/* Win rate of the trades Kronos would allow at each threshold, against
+                the dashed baseline (every trade taken). Above the line = better. */}
+            <div>
+              <div className="text-[11px] text-gray-400 mb-1">Win rate of allowed trades, by threshold</div>
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={view.sweep} margin={{ left: 0, right: 10, top: 10, bottom: 4 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#6e7681" fontSize={11} tickLine={false} interval={0} tickFormatter={tickEvery4} />
+                  <YAxis stroke="#6e7681" fontSize={11} domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={40} />
+                  <Tooltip content={<KronosSweepTooltip baseWinRate={view.baseWinRate} />} cursor={{ stroke: 'rgba(255,255,255,0.15)' }} />
+                  {view.baseWinRate != null && (
+                    <ReferenceLine y={view.baseWinRate} stroke={COLORS.gray} strokeDasharray="4 4"
+                      label={{ value: `baseline ${view.baseWinRate.toFixed(0)}%`, position: 'insideTopRight', fill: '#9ca3af', fontSize: 10 }} />
+                  )}
+                  <ReferenceLine x={`≥${kronosPct(t)}`} stroke={COLORS.cyan} strokeOpacity={0.6} />
+                  <Line type="monotone" dataKey="allowedWinRate" name="Allowed win rate" stroke={COLORS.cyan}
+                    strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Edge vs taking every trade (TN − FN) at each threshold. Click a bar
+                to move the threshold there. */}
+            <div>
+              <div className="text-[11px] text-gray-400 mb-1">Edge vs taking every trade, by threshold</div>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={view.sweep} margin={{ left: 0, right: 10, top: 10, bottom: 4 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#6e7681" fontSize={11} tickLine={false} interval={0} tickFormatter={tickEvery4} />
+                  <YAxis stroke="#6e7681" fontSize={11} allowDecimals={false} width={34} />
+                  <Tooltip content={<KronosSweepTooltip baseWinRate={view.baseWinRate} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                  <ReferenceLine y={0} stroke="#6e7681" />
+                  <Bar dataKey="edge" name="Edge (TN − FN)" radius={[4, 4, 0, 0]} maxBarSize={22}
+                    onClick={(_, i) => onThreshold(i)} cursor="pointer">
+                    {view.sweep.map(d => (
+                      <Cell key={d.t} fill={d.edge >= 0 ? COLORS.green : COLORS.red} fillOpacity={d.t === t ? 1 : 0.55} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Threshold slider: every number and chart above follows it. */}
+          <div className="flex items-center gap-3 mt-3 px-3 py-2" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
+            <span className="text-[10px] uppercase tracking-wider whitespace-nowrap" style={{ color: COLORS.red }}>
+              Block &lt;{kronosPct(t)}
+            </span>
+            <input
+              type="range" min={0} max={KRONOS_BUCKETS - 1} step={1} value={t}
+              onChange={e => onThreshold(Number(e.target.value))}
+              className="flex-1 h-1.5 cursor-pointer"
+              style={{ accentColor: '#39d5ff' }}
+              aria-label="Kronos minimum TP-first share"
+            />
+            <span className="text-[10px] uppercase tracking-wider whitespace-nowrap" style={{ color: COLORS.green }}>
+              Allow ≥{kronosPct(t)}
+            </span>
+          </div>
+        </>
+      )}
+    </ChartCard>
   )
 }
 
@@ -1168,6 +1472,17 @@ export default function Trades() {
   const [regimeDist, setRegimeDist] = useState(null)
   const [regimeDistLoading, setRegimeDistLoading] = useState(false)
   const [regimeThreshold, setRegimeThreshold] = useState(3)
+  // Which strategy the tab shows (only that one's data is fetched).
+  const [gradeStrategy, setGradeStrategyState] = useState(loadGradeStrategy)
+  const setGradeStrategy = (k) => {
+    setGradeStrategyState(k)
+    try { window.localStorage.setItem(GRADE_STRATEGY_STORAGE_KEY, k) } catch { /* private mode */ }
+  }
+  // Kronos (shadow): score = share of forecast paths where TP came before SL.
+  // Threshold t = 5% bucket index; default 11 = the strategy's default 55%.
+  const [kronosDist, setKronosDist] = useState(null)
+  const [kronosDistLoading, setKronosDistLoading] = useState(false)
+  const [kronosThreshold, setKronosThreshold] = useState(11)
 
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
@@ -1370,19 +1685,29 @@ export default function Trades() {
   useEffect(() => {
     if (activeTab !== 'ai-grades') return
     let canceled = false
-    setGradeDistLoading(true)
-    fetchGradeOutcomeDistribution(queryFilters)
-      .then(rows => { if (!canceled) setGradeDist(rows) })
-      .catch(err => { console.error('Failed to load grade distribution:', err); if (!canceled) setGradeDist([]) })
-      .finally(() => { if (!canceled) setGradeDistLoading(false) })
-    setRegimeDistLoading(true)
-    fetchRegimeOutcomeDistribution(queryFilters)
-      .then(rows => { if (!canceled) setRegimeDist(rows) })
-      .catch(err => { console.error('Failed to load regime distribution:', err); if (!canceled) setRegimeDist([]) })
-      .finally(() => { if (!canceled) setRegimeDistLoading(false) })
+    // Only the strategy picked in the tab's filter is fetched.
+    if (gradeStrategy === 'ai_grader') {
+      setGradeDistLoading(true)
+      fetchGradeOutcomeDistribution(queryFilters)
+        .then(rows => { if (!canceled) setGradeDist(rows) })
+        .catch(err => { console.error('Failed to load grade distribution:', err); if (!canceled) setGradeDist([]) })
+        .finally(() => { if (!canceled) setGradeDistLoading(false) })
+    } else if (gradeStrategy === 'regime') {
+      setRegimeDistLoading(true)
+      fetchRegimeOutcomeDistribution(queryFilters)
+        .then(rows => { if (!canceled) setRegimeDist(rows) })
+        .catch(err => { console.error('Failed to load regime distribution:', err); if (!canceled) setRegimeDist([]) })
+        .finally(() => { if (!canceled) setRegimeDistLoading(false) })
+    } else if (gradeStrategy === 'kronos') {
+      setKronosDistLoading(true)
+      fetchStrategyScoreDistribution(queryFilters, 'kronos', 'kronos_prob')
+        .then(rows => { if (!canceled) setKronosDist(rows) })
+        .catch(err => { console.error('Failed to load Kronos distribution:', err); if (!canceled) setKronosDist([]) })
+        .finally(() => { if (!canceled) setKronosDistLoading(false) })
+    }
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, activeTab])
+  }, [filterKey, activeTab, gradeStrategy])
 
   // ---------- Realtime: invalidate and refetch (debounced) ----------
   // The realtime subscription must be set up exactly once for the page's
@@ -3346,6 +3671,34 @@ export default function Trades() {
             const fmtRate = (w, n) => n > 0 ? `${Math.round((w / n) * 100)}%` : '—'
             return (
               <div className="mb-8 space-y-6">
+                {/* Strategy filter: the tab shows one strategy at a time. */}
+                <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Strategy">
+                  <span className="text-xs text-gray-400 flex items-center gap-1.5 mr-1">
+                    <Filter className="w-3.5 h-3.5" /> Strategy
+                  </span>
+                  {GRADE_STRATEGIES.map(s => {
+                    const on = gradeStrategy === s.key
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setGradeStrategy(s.key)}
+                        aria-pressed={on}
+                        className="px-3 py-1.5 text-xs font-medium flex items-center gap-2 transition-colors"
+                        style={{
+                          borderRadius: '10px',
+                          background: on ? 'var(--card-recess)' : 'var(--card-flat)',
+                          color: on ? '#f3f4f6' : '#9ca3af',
+                          border: `1px solid ${on ? `${s.color}80` : 'rgba(255,255,255,0.06)'}`,
+                        }}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color, opacity: on ? 1 : 0.5 }} />
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
                 {/* Reading the chart, for whoever maintains this: a bar's POSITION
                     says what the graded signal did (won above the line, lost below);
                     its COLOUR says what we actually got. Those differ only on trades
@@ -3356,6 +3709,7 @@ export default function Trades() {
                     grader (signal outcome); the "net result" chips are P&L as traded.
                     Closed profit/loss only — breakeven never resolved the TP-vs-SL
                     race and is counted separately. */}
+                {gradeStrategy === 'ai_grader' && (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {AI_PROVIDERS.map(p => {
                     const pv = providers[p.key]
@@ -3602,6 +3956,7 @@ export default function Trades() {
                     )
                   })}
                 </div>
+                )}
 
                 {/* Market regime, shadow mode: the same confusion-matrix read as
                     the AI panels, but the "score" is the regime's confidence and
@@ -3610,7 +3965,7 @@ export default function Trades() {
                     Every trade here was really executed, so blocked trades have
                     real outcomes: FN = wins the regime would have cost us, TN =
                     losses it would have saved. Edge vs baseline = TN − FN. */}
-                {(() => {
+                {gradeStrategy === 'regime' && (() => {
                   const rv = regimeView
                   const t = regimeThreshold
                   const s = rv.sweep[t]
@@ -3800,8 +4155,17 @@ export default function Trades() {
                   )
                 })()}
 
+                {gradeStrategy === 'kronos' && (
+                  <KronosOutcomeCard
+                    dist={kronosDist}
+                    loading={kronosDistLoading}
+                    threshold={kronosThreshold}
+                    onThreshold={setKronosThreshold}
+                  />
+                )}
+
                 {/* Per-channel × model breakdown */}
-                {!gradeDistPending && channelRows.length > 0 && (
+                {gradeStrategy === 'ai_grader' && !gradeDistPending && channelRows.length > 0 && (
                   <ChartCard title="Per-Channel Grade Accuracy" icon={Target} bodyClassName="p-0">
                     <div className="overflow-x-auto">
                       <table className="data-table">

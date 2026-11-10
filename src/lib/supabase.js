@@ -613,7 +613,7 @@ export async function saveAiGate(cfg, botId = null) {
 export const STRATEGY_PIPELINE_KEY = 'strategy_pipeline'
 
 /** Strategy keys in default order — must match REGISTRY in sigbot/trade_pipeline/strategies. */
-export const PIPELINE_STRATEGIES = ['regime', 'ai_grader']
+export const PIPELINE_STRATEGIES = ['regime', 'kronos', 'ai_grader']
 
 export const REGIME_CODES = [
   { code: '0', name: 'Bull Quiet' },
@@ -686,6 +686,30 @@ export function normalizeRegimeConfig(raw) {
   }
 }
 
+/** Must stay in sync with KRONOS_DEFAULTS in sigbot/trade_pipeline/strategies/kronos.py. */
+export const KRONOS_DEFAULTS = {
+  enabled: false,
+  mode: 'shadow',        // 'enforce' | 'shadow'
+  min_prob: 0.55,        // accept when P(TP before SL) >= this
+  max_age_sec: 900,      // older forecasts count as missing
+  on_missing: 'allow',   // 'allow' | 'block'
+  kronos_path: '',
+}
+
+/** Mirrors KronosStrategy.normalize_config. */
+export function normalizeKronosConfig(raw) {
+  const src = (raw && typeof raw === 'object') ? raw : {}
+  const d = KRONOS_DEFAULTS
+  return {
+    enabled: !!(src.enabled ?? d.enabled),
+    mode: ['enforce', 'shadow'].includes(src.mode) ? src.mode : d.mode,
+    min_prob: clampNum(src.min_prob, d.min_prob, 0, 1),
+    max_age_sec: clampNum(src.max_age_sec, d.max_age_sec, 60),
+    on_missing: ['allow', 'block'].includes(src.on_missing) ? src.on_missing : d.on_missing,
+    kronos_path: String(src.kronos_path || ''),
+  }
+}
+
 /** Mirrors trade_pipeline.settings.normalize_settings. */
 export function normalizeStrategyPipeline(raw) {
   let value = raw
@@ -700,7 +724,10 @@ export function normalizeStrategyPipeline(raw) {
   for (const k of PIPELINE_STRATEGIES) if (!order.includes(k)) order.push(k)
   return {
     order,
-    strategies: { regime: normalizeRegimeConfig(src.strategies?.regime) },
+    strategies: {
+      regime: normalizeRegimeConfig(src.strategies?.regime),
+      kronos: normalizeKronosConfig(src.strategies?.kronos),
+    },
   }
 }
 
