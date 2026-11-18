@@ -240,6 +240,30 @@ export async function fetchStrategyScoreDistribution(filters, strategy, scoreKey
 }
 
 
+// One strategy's judged trades, one row each, OLDEST CLOSE FIRST (needed for
+// losing streaks and per-channel rankings). Breakeven and unscored trades are
+// left out server-side. `won` is our outcome for regime/kronos and the graded
+// signal's outcome for ai_grader (same perspective as the grade card).
+// SQL: migrations/2026-11-19_strategy_trade_outcomes.sql
+export async function fetchStrategyTradeOutcomes(filters, strategy) {
+  const { data, error } = await supabase.rpc('get_strategy_trade_outcomes', {
+    p_filters: serializeFilters(filters),
+    p_strategy: strategy,
+  })
+  if (error) throw error
+  return (data || []).map(row => ({
+    closedAt:    row.t,
+    channelId:   row.ch,
+    channelName: row.cn || 'Unknown',
+    won:         row.won === true,
+    score:       row.s == null ? null : Number(row.s),
+    pass:        row.p == null ? null : row.p === true,
+    claude:      row.g1 == null ? null : Number(row.g1),
+    gemini:      row.g2 == null ? null : Number(row.g2),
+  }))
+}
+
+
 // ---------- Trades page: risk-based daily calendar ----------
 // Fetches the *entire* calendar for the filter set (not per-month). The UI
 // paginates through months locally, and uses the dataset's min/max date to

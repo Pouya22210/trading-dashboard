@@ -27,7 +27,9 @@ import {
   fetchGradeOutcomeDistribution,
   fetchRegimeOutcomeDistribution,
   fetchStrategyScoreDistribution,
+  fetchStrategyTradeOutcomes,
 } from '../lib/queries'
+import StreakRankingPanel from '../components/StreakRankingPanel'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
 import TradePriceChart from '../components/TradePriceChart'
 import { STRATEGY_META } from '../components/StrategiesTab'
@@ -619,6 +621,20 @@ function RegimeSweepTooltip({ active, payload, baseWinRate }) {
 // ---------------------------------------------------------------------------
 const KRONOS_BUCKETS = 20
 const kronosPct = (t) => `${t * 5}%`
+
+// Drawdown / channel-ranking panel (StreakRankingPanel): each strategy's
+// threshold steps and its "allowed at t" rule, matching that strategy's card
+// slider. Module-level so the panel's memos stay stable across renders.
+const REGIME_LEVELS = Array.from({ length: 10 }, (_, t) => ({ t, label: `≥${t * 10}%` }))
+const regimeAllowedAt = (tr, t) => tr.pass === true && Math.min(9, Math.floor(tr.score * 10)) >= t
+const KRONOS_LEVELS = Array.from({ length: KRONOS_BUCKETS }, (_, t) => ({ t, label: `≥${kronosPct(t)}` }))
+const kronosAllowedAt = (tr, t) => Math.min(KRONOS_BUCKETS - 1, Math.floor(tr.score * 20)) >= t
+// AI grader slider value t = avoid 0-t / take (10-t)-10; "allowed" = take band.
+const AI_LEVELS = Array.from({ length: 5 }, (_, t) => ({ t, label: `${10 - t}-10` }))
+const AI_ALLOWED_AT = {
+  claude: (tr, t) => tr.claude != null && tr.claude >= 10 - t,
+  gemini: (tr, t) => tr.gemini != null && tr.gemini >= 10 - t,
+}
 
 function KronosBinTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null
@@ -1483,6 +1499,10 @@ export default function Trades() {
   const [kronosDist, setKronosDist] = useState(null)
   const [kronosDistLoading, setKronosDistLoading] = useState(false)
   const [kronosThreshold, setKronosThreshold] = useState(11)
+  // Per-trade outcomes (close order) for the selected strategy: feeds the
+  // max-drawdown-by-level chart and best/worst channel rankings.
+  const [strategyTrades, setStrategyTrades] = useState(null)
+  const [strategyTradesLoading, setStrategyTradesLoading] = useState(false)
 
   const [dailyProfitMonth, setDailyProfitMonth] = useState(() => {
     const now = new Date()
@@ -1705,6 +1725,12 @@ export default function Trades() {
         .catch(err => { console.error('Failed to load Kronos distribution:', err); if (!canceled) setKronosDist([]) })
         .finally(() => { if (!canceled) setKronosDistLoading(false) })
     }
+    setStrategyTrades(null)
+    setStrategyTradesLoading(true)
+    fetchStrategyTradeOutcomes(queryFilters, gradeStrategy)
+      .then(rows => { if (!canceled) setStrategyTrades(rows) })
+      .catch(err => { console.error('Failed to load strategy trade outcomes:', err); if (!canceled) setStrategyTrades([]) })
+      .finally(() => { if (!canceled) setStrategyTradesLoading(false) })
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey, activeTab, gradeStrategy])
@@ -2051,6 +2077,12 @@ export default function Trades() {
       yMax: Math.max(1, yMax),
     }
   }, [regimeDist])
+
+  // AI grader drawdown panels: each provider only over the trades IT graded,
+  // so its baseline isn't padded with the other model's trades.
+  const aiTradesByProvider = useMemo(() => Object.fromEntries(AI_PROVIDERS.map(p => [
+    p.key, strategyTrades && strategyTrades.filter(tr => tr[p.key] != null),
+  ])), [strategyTrades])
 
   // ---------- Market sessions ----------
   const marketSessionsData = useMemo(() => {
@@ -4163,6 +4195,52 @@ export default function Trades() {
                     onThreshold={setKronosThreshold}
                   />
                 )}
+
+                {/* Max drawdown (consecutive losses) per level + best/worst 10
+                    channels at the selected level. Shares each card's slider
+                    state, so moving either one moves both. */}
+                {gradeStrategy === 'regime' && (
+                  <ChartCard title="Market Regime · Max Drawdown & Channel Ranking" icon={TrendingDown}>
+                    <StreakRankingPanel
+                      trades={strategyTrades}
+                      loading={strategyTradesLoading}
+                      levels={REGIME_LEVELS}
+                      allowed={regimeAllowedAt}
+                      selected={regimeThreshold}
+                      onSelect={setRegimeThreshold}
+                      levelName="Min confidence"
+                      colorFor={getChannelColor}
+                    />
+                  </ChartCard>
+                )}
+                {gradeStrategy === 'kronos' && (
+                  <ChartCard title="Kronos · Max Drawdown & Channel Ranking" icon={TrendingDown}>
+                    <StreakRankingPanel
+                      trades={strategyTrades}
+                      loading={strategyTradesLoading}
+                      levels={KRONOS_LEVELS}
+                      allowed={kronosAllowedAt}
+                      selected={kronosThreshold}
+                      onSelect={setKronosThreshold}
+                      levelName="Min TP-first share"
+                      colorFor={getChannelColor}
+                    />
+                  </ChartCard>
+                )}
+                {gradeStrategy === 'ai_grader' && AI_PROVIDERS.map(p => (
+                  <ChartCard key={p.key} title={`${p.name} · Max Drawdown & Channel Ranking (take band)`} icon={TrendingDown}>
+                    <StreakRankingPanel
+                      trades={aiTradesByProvider[p.key]}
+                      loading={strategyTradesLoading}
+                      levels={AI_LEVELS}
+                      allowed={AI_ALLOWED_AT[p.key]}
+                      selected={gradeCutoffs[p.key]}
+                      onSelect={t => setGradeCutoffs(c => ({ ...c, [p.key]: t }))}
+                      levelName="Take band"
+                      colorFor={getChannelColor}
+                    />
+                  </ChartCard>
+                ))}
 
                 {/* Per-channel × model breakdown */}
                 {gradeStrategy === 'ai_grader' && !gradeDistPending && channelRows.length > 0 && (
