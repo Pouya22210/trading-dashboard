@@ -28,6 +28,14 @@ const CYAN = '#39d5ff'
 const GRAY = '#6e7681'
 const TOP_N = 10
 
+// Ranking metrics for the sort dropdown. Best = highest first, worst = lowest
+// first; ties go to the channel with more trades (bigger sample).
+const SORTS = [
+  { key: 'winRate', label: 'Win rate',       value: r => r.winRate },
+  { key: 'net',     label: 'Win − Loss',     value: r => r.wins - r.losses },
+  { key: 'trades',  label: 'Executed trades', value: r => r.n },
+]
+
 function streakStats(trades) {
   let wins = 0, losses = 0, run = 0, max = 0, maxEnd = null
   for (const tr of trades) {
@@ -74,7 +82,7 @@ function RankTable({ title, rows, color, colorFor }) {
                 <th>#</th>
                 <th className="min-w-[140px]">Channel</th>
                 <th>Trades</th>
-                <th>W − L</th>
+                <th>Win − Loss</th>
                 <th>Win rate</th>
                 <th title="Longest run of consecutive losses for this channel at this level">Max DD (trades)</th>
               </tr>
@@ -90,12 +98,13 @@ function RankTable({ title, rows, color, colorFor }) {
                     </span>
                   </td>
                   <td className="font-mono">{r.n}</td>
-                  <td className="font-mono">
-                    <span style={{ color: GREEN }}>{r.wins}</span>
-                    <span className="text-gray-500"> − </span>
-                    <span style={{ color: RED }}>{r.losses}</span>
+                  <td className="font-mono whitespace-nowrap">
+                    <span style={{ color: r.wins - r.losses > 0 ? GREEN : r.wins - r.losses < 0 ? RED : undefined }}>
+                      {r.wins - r.losses > 0 ? '+' : ''}{r.wins - r.losses}
+                    </span>
+                    <span className="text-gray-500 text-[11px]"> ({r.wins}W − {r.losses}L)</span>
                   </td>
-                  <td className="font-mono" style={{ color }}>{r.winRate.toFixed(1)}%</td>
+                  <td className="font-mono">{r.winRate.toFixed(1)}%</td>
                   <td className="font-mono" style={{ color: r.maxStreak > 0 ? RED : undefined }}>{r.maxStreak}</td>
                 </tr>
               ))}
@@ -111,6 +120,8 @@ export default function StreakRankingPanel({
   trades, levels, allowed, selected, onSelect, levelName = 'Level', colorFor = () => GRAY, loading,
 }) {
   const [minTrades, setMinTrades] = useState(5)
+  const [sortKey, setSortKey] = useState('winRate')
+  const sort = SORTS.find(s => s.key === sortKey) || SORTS[0]
 
   const sweep = useMemo(() => levels.map(({ t, label }) => {
     const s = streakStats((trades || []).filter(tr => allowed(tr, t)))
@@ -133,15 +144,15 @@ export default function StreakRankingPanel({
       return { channelId: c.channelId, channelName: c.channelName, ...s, winRate: s.n > 0 ? (s.wins / s.n) * 100 : 0 }
     })
     const ok = rows.filter(r => r.n >= minTrades)
-    // Ties: more trades first (a 60% over 40 trades beats 60% over 5).
-    const bestRows = [...ok].sort((a, b) => b.winRate - a.winRate || b.n - a.n).slice(0, TOP_N)
+    const v = sort.value
+    const bestRows = [...ok].sort((a, b) => v(b) - v(a) || b.n - a.n).slice(0, TOP_N)
     const bestIds = new Set(bestRows.map(r => r.channelId))
     const worstRows = [...ok]
       .filter(r => !bestIds.has(r.channelId))
-      .sort((a, b) => a.winRate - b.winRate || b.n - a.n)
+      .sort((a, b) => v(a) - v(b) || b.n - a.n)
       .slice(0, TOP_N)
     return { best: bestRows, worst: worstRows, eligible: ok.length, totalChannels: rows.length }
-  }, [trades, allowed, selected, minTrades])
+  }, [trades, allowed, selected, minTrades, sort])
 
   const pending = loading || trades === null
   const cur = sweep.find(s => s.t === selected) || sweep[0]
@@ -154,22 +165,28 @@ export default function StreakRankingPanel({
     return <div className="flex items-center justify-center h-24 text-gray-500 text-sm">No judged trades match these filters.</div>
   }
 
-  const chip = (label, value, color) => (
-    <div key={label} className="px-2.5 py-1.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-      <div className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</div>
-      <div className="text-sm font-semibold font-mono" style={{ color: color || '#e5e7eb' }}>{value}</div>
+  const stat = (label, value, sub, color) => (
+    <div key={label} className="min-w-0">
+      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate" title={label}>{label}</div>
+      <div className="text-sm font-semibold font-mono" style={{ color: color || '#e5e7eb' }}>
+        {value}
+        {sub && <span className="ml-1.5 text-[11px] font-normal text-gray-500">{sub}</span>}
+      </div>
     </div>
   )
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        {chip(`Max drawdown @ ${selectedLabel}`, `${cur.maxStreak} losses in a row`, RED)}
-        {cur.maxEnd && chip('Worst streak ended', fmtDate(cur.maxEnd))}
-        {chip('Baseline (all trades) max drawdown', `${baseline.maxStreak} losses`, GRAY)}
-        {chip(`Allowed trades @ ${selectedLabel}`, `${cur.n} (${cur.wins}W − ${cur.losses}L)`)}
+      <div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-x-5 gap-y-3 px-3 sm:px-4 py-3"
+        style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
+      >
+        {stat(`Max drawdown @ ${selectedLabel}`, cur.maxStreak, 'losses in a row', RED)}
+        {stat('Worst streak ended', fmtDate(cur.maxEnd) || '—')}
+        {stat('Baseline max drawdown', baseline.maxStreak, 'all trades')}
+        {stat(`Allowed trades @ ${selectedLabel}`, cur.n, `${cur.wins}W − ${cur.losses}L`)}
       </div>
-      <div className="text-[11px] text-gray-500 -mt-2">
+      <div className="text-[11px] text-gray-500 -mt-3">
         Drawdown = most consecutive losses, in close order across all channels. Counted in trades, so it holds for any risk:reward or balance. Breakeven trades are skipped.
       </div>
 
@@ -197,9 +214,21 @@ export default function StreakRankingPanel({
       <div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
           <div className="text-[11px] text-gray-400">
-            Channel ranking @ <span className="font-mono text-gray-200">{selectedLabel}</span> · by win rate of allowed trades
+            Channel ranking @ <span className="font-mono text-gray-200">{selectedLabel}</span> · allowed trades only
             · {eligible} of {totalChannels} channel(s) qualify
           </div>
+          <label className="flex items-center gap-2 text-[11px] text-gray-400">
+            Sort by
+            <select
+              value={sortKey}
+              onChange={e => setSortKey(e.target.value)}
+              className="px-2 py-1 text-xs text-gray-200 cursor-pointer"
+              style={{ background: 'var(--card-flat)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}
+              aria-label="Rank channels by"
+            >
+              {SORTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-[11px] text-gray-400">
             Min trades
             <input

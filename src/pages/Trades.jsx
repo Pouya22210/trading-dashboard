@@ -278,6 +278,59 @@ function ConnectionStatus({ status }) {
 }
 
 
+// All of a strategy card's headline numbers in ONE box: a grid of
+// label / value (+ small sub-line) cells, with the optional 2×2 confusion
+// matrix as the last section (right side on wide screens, below on mobile).
+//   stats  [{ label, value, sub?, color? }]
+//   matrix { rowLabels: [positive, negative], tp, fp, fn, tn }
+function StatsBox({ stats, matrix }) {
+  const cellCls = 'text-sm font-semibold font-mono'
+  return (
+    <div
+      className="flex flex-col lg:flex-row gap-4 mb-4 px-3 sm:px-4 py-3"
+      style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
+    >
+      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-5 gap-y-3 min-w-0">
+        {stats.map(stat => (
+          <div key={stat.label} className="min-w-0">
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate" title={stat.label}>{stat.label}</div>
+            <div className={cellCls} style={{ color: stat.color || '#e5e7eb' }}>
+              {stat.value}
+              {stat.sub != null && <span className="ml-1.5 text-[11px] font-normal text-gray-500">{stat.sub}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {matrix && (
+        <div className="lg:pl-4 pt-3 lg:pt-0 border-t lg:border-t-0 lg:border-l flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="grid grid-cols-[auto_auto_auto] gap-x-4 gap-y-1 leading-tight">
+            <div />
+            <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
+            <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
+            <div className="text-[10px] text-gray-500 self-center whitespace-nowrap">{matrix.rowLabels[0]}</div>
+            <div className={cellCls} style={{ color: COLORS.green }}>
+              {matrix.tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
+            </div>
+            <div className={cellCls} style={{ color: COLORS.red }}>
+              {matrix.fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
+            </div>
+            <div className="text-[10px] text-gray-500 self-center whitespace-nowrap">{matrix.rowLabels[1]}</div>
+            <div className={cellCls} style={{ color: COLORS.red }}>
+              {matrix.fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
+            </div>
+            <div className={cellCls} style={{ color: COLORS.green }}>
+              {matrix.tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const signColor = (v) => (v > 0 ? COLORS.green : v < 0 ? COLORS.red : undefined)
+const vsBaseColor = (v, base) => (v == null || base == null ? undefined : v > base ? COLORS.green : v < base ? COLORS.red : undefined)
+
 function ChartCard({ title, icon: Icon, children, className = '', bodyClassName = 'p-3 sm:p-5' }) {
   return (
     <div className={`chart-card overflow-hidden ${className}`} style={{ willChange: 'transform' }}>
@@ -758,66 +811,21 @@ function KronosOutcomeCard({ dist, loading, threshold: t, onThreshold }) {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {[
+          <StatsBox
+            stats={[
               { label: 'Judged trades', value: view.judged },
               ...(view.noScore > 0 ? [{ label: 'No forecast · excluded', value: view.noScore, color: COLORS.yellow }] : []),
               ...(view.breakeven > 0 ? [{ label: 'Breakeven · excluded', value: view.breakeven, color: COLORS.yellow }] : []),
-              { label: 'Baseline win rate', value: `${fmtPct(view.baseWinRate)} (${view.judged})` },
-              { label: `Allowed win rate @ ≥${kronosPct(t)}`, value: `${fmtPct(s.allowedWinRate)} (${s.allowed})`,
-                color: s.allowedWinRate == null || view.baseWinRate == null ? undefined
-                  : s.allowedWinRate > view.baseWinRate ? COLORS.green
-                  : s.allowedWinRate < view.baseWinRate ? COLORS.red : undefined },
-              { label: 'Blocked win rate', value: `${fmtPct(blockedWinRate)} (${blockedN})` },
-            ].map(stat => (
-              <div key={stat.label} className="px-2.5 py-1.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</div>
-                <div className="text-sm font-semibold font-mono" style={{ color: stat.color || '#e5e7eb' }}>{stat.value}</div>
-              </div>
-            ))}
-            <div className="px-2.5 py-1" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-              <div className="grid grid-cols-[auto_auto_auto] gap-x-3 leading-tight">
-                <div />
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
-                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Allowed</div>
-                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
-                  {s.tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
-                </div>
-                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
-                  {s.fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
-                </div>
-                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Blocked</div>
-                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
-                  {s.fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
-                </div>
-                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
-                  {s.tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-            <div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · baseline (all taken)</div>
-              <div className="text-sm font-semibold font-mono" style={{ color: baseNet >= 0 ? COLORS.green : COLORS.red }}>
-                {fmtNet(baseNet)} <span className="text-gray-500 font-normal">({view.wins}W − {view.losses}L)</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · Kronos @ ≥{kronosPct(t)}</div>
-              <div className="text-sm font-semibold font-mono" style={{ color: allowedNet >= 0 ? COLORS.green : COLORS.red }}>
-                {fmtNet(allowedNet)} <span className="text-gray-500 font-normal">({s.tp}W − {s.fp}L)</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge vs baseline</div>
-              <div className="text-sm font-semibold font-mono" style={{ color: s.edge > 0 ? COLORS.green : s.edge < 0 ? COLORS.red : '#e5e7eb' }}>
-                {fmtNet(s.edge)}
-              </div>
-            </div>
-          </div>
+              { label: 'Baseline win rate', value: fmtPct(view.baseWinRate), sub: `${view.judged} trades` },
+              { label: `Allowed win rate @ ≥${kronosPct(t)}`, value: fmtPct(s.allowedWinRate), sub: `${s.allowed} trades`,
+                color: vsBaseColor(s.allowedWinRate, view.baseWinRate) },
+              { label: 'Blocked win rate', value: fmtPct(blockedWinRate), sub: `${blockedN} trades` },
+              { label: 'Net · baseline (all taken)', value: fmtNet(baseNet), sub: `${view.wins}W − ${view.losses}L`, color: signColor(baseNet) },
+              { label: `Net · Kronos @ ≥${kronosPct(t)}`, value: fmtNet(allowedNet), sub: `${s.tp}W − ${s.fp}L`, color: signColor(allowedNet) },
+              { label: 'Edge vs baseline', value: fmtNet(s.edge), color: signColor(s.edge) },
+            ]}
+            matrix={{ rowLabels: ['Allowed', 'Blocked'], tp: s.tp, fp: s.fp, fn: s.fn, tn: s.tn }}
+          />
 
           {/* Outcome per 5% bucket: wins above the line, losses below; colour =
               the verdict at the current threshold. */}
@@ -3786,107 +3794,37 @@ export default function Trades() {
                           </div>
                         ) : (
                           <>
-                            {/* Headline stats */}
-                            <div className="flex flex-wrap gap-2 mb-4">
-                              {[
-                                { label: 'Graded trades',      value: pv.graded },
-                                {
-                                  label: 'Inverted by gate',
-                                  value: pv.inverted,
-                                  color: pv.inverted > 0 ? COLORS.cyan : undefined,
-                                },
-                                ...(pv.breakeven > 0
-                                  ? [{ label: 'Breakeven · excluded', value: pv.breakeven, color: COLORS.yellow }]
-                                  : []),
-                                { label: 'Avg grade · signal won',  value: fmtAvg(pv.winGradeSum, pv.wins),   color: COLORS.green },
+                            {/* Every headline number in one box. Signal win rates / matrix /
+                                AUC / log loss score the grader (signal outcome); the net
+                                results are P&L as traded (exec counts, inverted included). */}
+                            <StatsBox
+                              stats={[
+                                { label: 'Graded trades', value: pv.graded },
+                                { label: 'Inverted by gate', value: pv.inverted, color: pv.inverted > 0 ? COLORS.cyan : undefined },
+                                ...(pv.breakeven > 0 ? [{ label: 'Breakeven · excluded', value: pv.breakeven, color: COLORS.yellow }] : []),
+                                { label: 'Avg grade · signal won',  value: fmtAvg(pv.winGradeSum, pv.wins),    color: COLORS.green },
                                 { label: 'Avg grade · signal lost', value: fmtAvg(pv.lossGradeSum, pv.losses), color: COLORS.red },
-                                { label: `Signal win rate @ ${hiMin}-10`,  value: `${fmtRate(hiWins, hiTotal)} (${hiTotal})` },
-                                { label: `Signal win rate @ 0-${loMax}`,   value: `${fmtRate(loWins, loTotal)} (${loTotal})` },
+                                { label: `Signal win rate @ ${hiMin}-10`, value: fmtRate(hiWins, hiTotal), sub: `${hiTotal} trades` },
+                                { label: `Signal win rate @ 0-${loMax}`,  value: fmtRate(loWins, loTotal), sub: `${loTotal} trades` },
                                 {
                                   label: 'AUC · 0.5 = none',
                                   value: pv.auc != null ? pv.auc.toFixed(3) : '—',
-                                  color: pv.auc == null ? undefined
-                                    : pv.auc >= 0.52 ? COLORS.green
-                                    : pv.auc <= 0.48 ? COLORS.red
-                                    : undefined,
+                                  color: pv.auc == null ? undefined : pv.auc >= 0.52 ? COLORS.green : pv.auc <= 0.48 ? COLORS.red : undefined,
                                 },
                                 {
                                   label: 'Log loss · 0.693 = none',
                                   value: pv.logLoss != null ? pv.logLoss.toFixed(3) : '—',
                                   color: pv.logLoss == null ? undefined
                                     : pv.logLoss <= Math.LN2 - 0.01 ? COLORS.green
-                                    : pv.logLoss >= Math.LN2 + 0.01 ? COLORS.red
-                                    : undefined,
+                                    : pv.logLoss >= Math.LN2 + 0.01 ? COLORS.red : undefined,
                                 },
-                              ].map(stat => (
-                                <div
-                                  key={stat.label}
-                                  className="px-2.5 py-1.5"
-                                  style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
-                                >
-                                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</div>
-                                  <div className="text-sm font-semibold font-mono" style={{ color: stat.color || '#e5e7eb' }}>
-                                    {stat.value}
-                                  </div>
-                                </div>
-                              ))}
-                              {/* Confusion matrix as a real 2×2 grid: rows = predicted
-                                  (take / avoid zone), columns = actual outcome. Correct
-                                  cells (TP, TN) green, wrong cells (FP, FN) red. */}
-                              <div
-                                className="px-2.5 py-1"
-                                style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
-                              >
-                                <div className="grid grid-cols-[auto_auto_auto] gap-x-3 leading-tight">
-                                  <div />
-                                  <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
-                                  <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
-                                  <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">{hiMin}-10</div>
-                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
-                                    {tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
-                                  </div>
-                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
-                                    {fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
-                                  </div>
-                                  <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">0-{loMax}</div>
-                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
-                                    {fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
-                                  </div>
-                                  <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
-                                    {tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Net result (wins − losses): everything the model graded vs.
-                                what you'd get by skipping every avoid-zone graded trade (drops
-                                the TN losses but also gives up the FN wins). Same sidebar filters. */}
-                            <div
-                              className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5"
-                              style={{ background: 'var(--card-flat)', borderRadius: '10px' }}
-                            >
-                              <div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · as traded</div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: netAll >= 0 ? COLORS.green : COLORS.red }}>
-                                  {fmtNet(netAll)}{' '}
-                                  <span className="text-gray-500 font-normal">({pv.execWins}W − {pv.execLosses}L)</span>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net result · skipping 0-{loMax} graded</div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: netExclLow >= 0 ? COLORS.green : COLORS.red }}>
-                                  {fmtNet(netExclLow)}{' '}
-                                  <span className="text-gray-500 font-normal">({pv.execWins - loExecWins}W − {pv.execLosses - loExecLosses}L)</span>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge from skipping 0-{loMax}</div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: netDelta > 0 ? COLORS.green : netDelta < 0 ? COLORS.red : '#e5e7eb' }}>
-                                  {fmtNet(netDelta)}
-                                </div>
-                              </div>
-                            </div>
+                                { label: 'Net · as traded', value: fmtNet(netAll), sub: `${pv.execWins}W − ${pv.execLosses}L`, color: netAll >= 0 ? COLORS.green : COLORS.red },
+                                { label: `Net · skipping 0-${loMax}`, value: fmtNet(netExclLow),
+                                  sub: `${pv.execWins - loExecWins}W − ${pv.execLosses - loExecLosses}L`, color: netExclLow >= 0 ? COLORS.green : COLORS.red },
+                                { label: `Edge from skipping 0-${loMax}`, value: fmtNet(netDelta), color: signColor(netDelta) },
+                              ]}
+                              matrix={{ rowLabels: [`${hiMin}-10`, `0-${loMax}`], tp, fp, fn, tn }}
+                            />
 
                             <ResponsiveContainer width="100%" height={280}>
                               <BarChart
@@ -4036,71 +3974,21 @@ export default function Trades() {
                         </div>
                       ) : (
                         <>
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {[
+                          <StatsBox
+                            stats={[
                               { label: 'Judged trades', value: rv.judged },
                               ...(rv.noData > 0 ? [{ label: 'No regime data · excluded', value: rv.noData, color: COLORS.yellow }] : []),
                               ...(rv.breakeven > 0 ? [{ label: 'Breakeven · excluded', value: rv.breakeven, color: COLORS.yellow }] : []),
-                              { label: 'Baseline win rate', value: `${fmtPct(rv.baseWinRate)} (${rv.judged})` },
-                              { label: `Allowed win rate @ ≥${t * 10}%`, value: `${fmtPct(s.allowedWinRate)} (${s.allowed})`,
-                                color: s.allowedWinRate == null || rv.baseWinRate == null ? undefined
-                                  : s.allowedWinRate > rv.baseWinRate ? COLORS.green
-                                  : s.allowedWinRate < rv.baseWinRate ? COLORS.red : undefined },
-                              { label: 'Blocked win rate', value: `${fmtPct(blockedWinRate)} (${blockedN})` },
-                            ].map(stat => (
-                              <div key={stat.label} className="px-2.5 py-1.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-                                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: stat.color || '#e5e7eb' }}>{stat.value}</div>
-                              </div>
-                            ))}
-                            {/* 2×2 confusion matrix: rows = regime verdict at this
-                                threshold, columns = actual outcome. */}
-                            <div className="px-2.5 py-1" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-                              <div className="grid grid-cols-[auto_auto_auto] gap-x-3 leading-tight">
-                                <div />
-                                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Won</div>
-                                <div className="text-[9px] text-gray-500 uppercase tracking-wider">Lost</div>
-                                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Allowed</div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
-                                  {s.tp} <span className="text-[9px] text-gray-500 font-normal font-sans">TP</span>
-                                </div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
-                                  {s.fp} <span className="text-[9px] text-gray-500 font-normal font-sans">FP</span>
-                                </div>
-                                <div className="text-[9px] text-gray-500 self-center whitespace-nowrap">Blocked</div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.red }}>
-                                  {s.fn} <span className="text-[9px] text-gray-500 font-normal font-sans">FN</span>
-                                </div>
-                                <div className="text-sm font-semibold font-mono" style={{ color: COLORS.green }}>
-                                  {s.tn} <span className="text-[9px] text-gray-500 font-normal font-sans">TN</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Net result (wins − losses): baseline = every trade taken
-                              (what really happened) vs. only the trades the regime
-                              would have allowed at this threshold. */}
-                          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 px-3 py-2.5" style={{ background: 'var(--card-flat)', borderRadius: '10px' }}>
-                            <div>
-                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · baseline (all taken)</div>
-                              <div className="text-sm font-semibold font-mono" style={{ color: baseNet >= 0 ? COLORS.green : COLORS.red }}>
-                                {fmtNet(baseNet)} <span className="text-gray-500 font-normal">({rv.wins}W − {rv.losses}L)</span>
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Net · regime @ ≥{t * 10}%</div>
-                              <div className="text-sm font-semibold font-mono" style={{ color: allowedNet >= 0 ? COLORS.green : COLORS.red }}>
-                                {fmtNet(allowedNet)} <span className="text-gray-500 font-normal">({s.tp}W − {s.fp}L)</span>
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Edge vs baseline</div>
-                              <div className="text-sm font-semibold font-mono" style={{ color: s.edge > 0 ? COLORS.green : s.edge < 0 ? COLORS.red : '#e5e7eb' }}>
-                                {fmtNet(s.edge)}
-                              </div>
-                            </div>
-                          </div>
+                              { label: 'Baseline win rate', value: fmtPct(rv.baseWinRate), sub: `${rv.judged} trades` },
+                              { label: `Allowed win rate @ ≥${t * 10}%`, value: fmtPct(s.allowedWinRate), sub: `${s.allowed} trades`,
+                                color: vsBaseColor(s.allowedWinRate, rv.baseWinRate) },
+                              { label: 'Blocked win rate', value: fmtPct(blockedWinRate), sub: `${blockedN} trades` },
+                              { label: 'Net · baseline (all taken)', value: fmtNet(baseNet), sub: `${rv.wins}W − ${rv.losses}L`, color: signColor(baseNet) },
+                              { label: `Net · regime @ ≥${t * 10}%`, value: fmtNet(allowedNet), sub: `${s.tp}W − ${s.fp}L`, color: signColor(allowedNet) },
+                              { label: 'Edge vs baseline', value: fmtNet(s.edge), color: signColor(s.edge) },
+                            ]}
+                            matrix={{ rowLabels: ['Allowed', 'Blocked'], tp: s.tp, fp: s.fp, fn: s.fn, tn: s.tn }}
+                          />
 
                           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                             {/* Per-bucket TP/FN/FP/TN. Wins above the line, losses
