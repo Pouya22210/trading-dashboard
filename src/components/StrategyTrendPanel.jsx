@@ -90,6 +90,24 @@ export default function StrategyTrendPanel({ trades, inSet, setLabel, loading })
     : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round((k * (n - 1)) / 5)))]
   const color = (v) => (v > 0 ? GREEN : v < 0 ? RED : '#e5e7eb')
 
+  // Each line gets its own Y axis: the selected set usually has far fewer
+  // trades than the baseline, so on a shared scale it would look flat. Zero
+  // sits at the same height on both axes so "above/below zero" still lines up.
+  const range = (key) => {
+    let lo = 0, hi = 0
+    for (const p of points) { if (p[key] < lo) lo = p[key]; if (p[key] > hi) hi = p[key] }
+    return { pos: hi, neg: -lo }
+  }
+  const rs = range('sel'), rb = range('base')
+  const frac = (r) => (r.pos + r.neg > 0 ? r.pos / (r.pos + r.neg) : 0.5)
+  const f = Math.min(0.9, Math.max(0.1, (frac(rs) + frac(rb)) / 2)) // share of height above zero
+  const domainOf = (r) => {
+    const span = Math.max(1, r.pos / f, r.neg / (1 - f)) * 1.08
+    return [-Math.ceil(span * (1 - f)), Math.ceil(span * f)]
+  }
+  const selDomain = domainOf(rs)
+  const baseDomain = domainOf(rb)
+
   const stats = [
     { label: `Net · ${setLabel}`, value: fmtNet(selNet), sub: `${selW}W − ${selL}L`, color: color(selNet) },
     { label: `Win rate · ${setLabel}`, value: selWr != null ? `${selWr.toFixed(1)}%` : '—', sub: `${selN} trades` },
@@ -111,18 +129,22 @@ export default function StrategyTrendPanel({ trades, inSet, setLabel, loading })
         ))}
       </div>
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={points} margin={{ left: 0, right: 10, top: 10, bottom: 4 }}>
-          <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <LineChart data={points} margin={{ left: 0, right: 0, top: 10, bottom: 4 }}>
+          <CartesianGrid yAxisId="sel" stroke="rgba(255,255,255,0.05)" vertical={false} />
           <XAxis dataKey="i" type="number" domain={[0, Math.max(1, n - 1)]} ticks={ticks}
             tickFormatter={(i) => fmtDate(points[i]?.t)} stroke={GRAY} fontSize={11} tickLine={false} />
-          <YAxis stroke={GRAY} fontSize={11} allowDecimals={false} width={38} tickFormatter={fmtNet} />
+          {/* Left axis (blue ticks) = selected set; right axis (grey) = all trades. */}
+          <YAxis yAxisId="sel" domain={selDomain} stroke={CYAN} tick={{ fill: CYAN }} fontSize={11}
+            allowDecimals={false} width={40} tickFormatter={fmtNet} allowDataOverflow />
+          <YAxis yAxisId="base" orientation="right" domain={baseDomain} stroke={GRAY} fontSize={11}
+            allowDecimals={false} width={44} tickFormatter={fmtNet} allowDataOverflow />
           <Tooltip content={<TrendTooltip setLabel={setLabel} />} cursor={{ stroke: 'rgba(255,255,255,0.15)' }} />
-          <ReferenceLine y={0} stroke={GRAY} />
+          <ReferenceLine yAxisId="sel" y={0} stroke={GRAY} />
           <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>} />
           {/* Baseline drawn first so the selected (blue) line sits on top of it. */}
-          <Line type="linear" dataKey="base" name="All trades · wins − losses" stroke={GRAY}
+          <Line yAxisId="base" type="linear" dataKey="base" name="All trades · wins − losses (right axis)" stroke={GRAY}
             strokeWidth={1} strokeOpacity={0.7} strokeDasharray="3 4" dot={false} isAnimationActive={false} />
-          <Line type="linear" dataKey="sel" name={`${setLabel} · wins − losses`} stroke={CYAN}
+          <Line yAxisId="sel" type="linear" dataKey="sel" name={`${setLabel} · wins − losses (left axis)`} stroke={CYAN}
             strokeWidth={3} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
