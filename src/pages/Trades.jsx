@@ -621,7 +621,9 @@ function RegimeBinTooltip({ active, payload }) {
   ]
   return (
     <div className="bg-dark-secondary border border-dark-border rounded-lg p-3 shadow-xl min-w-[170px]">
-      <p className="text-white text-sm font-semibold mb-2">Confidence {d.bucket * 10}-{d.bucket * 10 + 10}%</p>
+      <p className="text-white text-sm font-semibold mb-2">
+        {d.cumulative ? `Confidence ≥${d.bucket * 10}% (to 100%)` : `Confidence ${d.bucket * 10}-${d.bucket * 10 + 10}%`}
+      </p>
       {rows.map(r => (
         <div key={r.label} className="flex items-center gap-2 text-sm">
           <span className="w-3 h-3 rounded-full" style={{ backgroundColor: r.color }} />
@@ -631,7 +633,7 @@ function RegimeBinTooltip({ active, payload }) {
       ))}
       {total > 0 && (
         <div className="mt-1.5 pt-1.5 border-t border-dark-border text-xs text-gray-400">
-          Win rate in bucket: <span className="text-white font-mono">{Math.round(((d.tpUp + d.fnUp) / total) * 100)}%</span>
+          Win rate {d.cumulative ? 'at or above' : 'in bucket'}: <span className="text-white font-mono">{Math.round(((d.tpUp + d.fnUp) / total) * 100)}%</span>
           <span className="text-gray-500"> ({total})</span>
         </div>
       )}
@@ -1496,6 +1498,9 @@ export default function Trades() {
   const [regimeDist, setRegimeDist] = useState(null)
   const [regimeDistLoading, setRegimeDistLoading] = useState(false)
   const [regimeThreshold, setRegimeThreshold] = useState(3)
+  // Outcome-by-confidence chart: false = one bar per 10% band, true = each
+  // bar holds its band and every band above it (≥ X%, up to 100%).
+  const [regimeCumulative, setRegimeCumulative] = useState(false)
   // Which strategy the tab shows (only that one's data is fetched).
   const [gradeStrategy, setGradeStrategyState] = useState(loadGradeStrategy)
   const setGradeStrategy = (k) => {
@@ -3946,17 +3951,32 @@ export default function Trades() {
                   const blockedWinRate = blockedN > 0 ? (s.fn / blockedN) * 100 : null
                   const baseNet = rv.wins - rv.losses
                   const allowedNet = s.tp - s.fp
-                  const chartData = rv.bins.map(b => {
+                  const perBand = rv.bins.map(b => {
                     const on = b.bucket >= t
                     return {
-                      bucket: b.bucket, label: b.label,
+                      bucket: b.bucket, label: b.label, cumulative: false,
                       tpUp:   on ? b.passWins : 0,
                       fnUp:   on ? b.failWins : b.passWins + b.failWins,
                       fpDown: -(on ? b.passLosses : 0),
                       tnDown: -(on ? b.failLosses : b.passLosses + b.failLosses),
                     }
                   })
-                  const yMax = rv.yMax
+                  // Cumulative: each bar = its band + all bands above it. Every
+                  // band keeps its own verdict at the current threshold, so the
+                  // colours still mean the same thing as in the per-band view.
+                  const chartData = regimeCumulative
+                    ? perBand.map((d, i) => {
+                        const above = perBand.slice(i)
+                        const sum = (k) => above.reduce((acc, x) => acc + x[k], 0)
+                        return {
+                          ...d, label: `≥${d.bucket * 10}%`, cumulative: true,
+                          tpUp: sum('tpUp'), fnUp: sum('fnUp'), fpDown: sum('fpDown'), tnDown: sum('tnDown'),
+                        }
+                      })
+                    : perBand
+                  const yMax = regimeCumulative
+                    ? Math.max(1, ...chartData.map(d => Math.max(d.tpUp + d.fnUp, -(d.fpDown + d.tnDown))))
+                    : rv.yMax
                   return (
                     <ChartCard title="Market Regime · Confidence vs Outcome (shadow)" icon={Globe}>
                       {pending ? (
@@ -3996,7 +4016,24 @@ export default function Trades() {
                                 threshold. Buckets under the threshold are all blocked;
                                 above it, trades the other rules reject stay blocked. */}
                             <div>
-                              <div className="text-[11px] text-gray-400 mb-1">Outcome by regime confidence</div>
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <div className="text-[11px] text-gray-400">
+                                  Outcome by regime confidence{regimeCumulative ? ' · cumulative (≥ X%)' : ''}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setRegimeCumulative(v => !v)}
+                                  aria-pressed={regimeCumulative}
+                                  title="Cumulative: each bar shows its band and every band above it, up to 100%"
+                                  className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
+                                    regimeCumulative
+                                      ? 'bg-blue-500/20 border-blue-500/60 text-blue-300'
+                                      : 'border-dark-border text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                                  }`}
+                                >
+                                  Cumulative {regimeCumulative ? 'ON' : 'OFF'}
+                                </button>
+                              </div>
                               <ResponsiveContainer width="100%" height={280}>
                                 <BarChart data={chartData} stackOffset="sign" margin={{ left: 0, right: 10, top: 10, bottom: 4 }} barCategoryGap="25%">
                                   {t > 0 && (
