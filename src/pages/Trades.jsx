@@ -30,6 +30,7 @@ import {
   fetchStrategyTradeOutcomes,
 } from '../lib/queries'
 import StreakRankingPanel from '../components/StreakRankingPanel'
+import StrategyTrendPanel from '../components/StrategyTrendPanel'
 import { fetchCandles, hasCandleProvider } from '../lib/priceData'
 import TradePriceChart from '../components/TradePriceChart'
 import { STRATEGY_META } from '../components/StrategiesTab'
@@ -1501,6 +1502,13 @@ export default function Trades() {
   // Outcome-by-confidence chart: false = one bar per 10% band, true = each
   // bar holds its band and every band above it (≥ X%, up to 100%).
   const [regimeCumulative, setRegimeCumulative] = useState(false)
+  // Profitability-trend chart follows the same slider + Cumulative toggle:
+  // normal = only the selected 10% band, cumulative = that band and above.
+  // Either way the other regime rules must pass (what the regime would allow).
+  const regimeTrendInSet = useCallback((tr) => regimeCumulative
+    ? regimeAllowedAt(tr, regimeThreshold)
+    : tr.pass === true && Math.min(9, Math.floor(tr.score * 10)) === regimeThreshold,
+  [regimeCumulative, regimeThreshold])
   // Which strategy the tab shows (only that one's data is fetched).
   const [gradeStrategy, setGradeStrategyState] = useState(loadGradeStrategy)
   const setGradeStrategy = (k) => {
@@ -4135,6 +4143,38 @@ export default function Trades() {
                       onSelect={setRegimeThreshold}
                       levelName="Min confidence"
                       colorFor={getChannelColor}
+                    />
+                  </ChartCard>
+                )}
+                {gradeStrategy === 'regime' && (
+                  <ChartCard title="Market Regime · Profitability Trend (wins − losses)" icon={TrendingUp}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div className="text-[11px] text-gray-400">
+                        Running count of wins − losses (each win +1, each loss −1) for trades the regime would allow
+                        {regimeCumulative
+                          ? <> at confidence <span className="text-gray-200">≥{regimeThreshold * 10}%</span></>
+                          : <> in the <span className="text-gray-200">{regimeThreshold * 10}-{regimeThreshold * 10 + 10}%</span> confidence band only</>}
+                        , against taking every trade. Follows the slider and Cumulative toggle above.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRegimeCumulative(v => !v)}
+                        aria-pressed={regimeCumulative}
+                        title="Normal: only the selected 10% band. Cumulative: the selected band and every band above it."
+                        className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
+                          regimeCumulative
+                            ? 'bg-blue-500/20 border-blue-500/60 text-blue-300'
+                            : 'border-dark-border text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                        }`}
+                      >
+                        Cumulative {regimeCumulative ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
+                    <StrategyTrendPanel
+                      trades={strategyTrades}
+                      loading={strategyTradesLoading}
+                      inSet={regimeTrendInSet}
+                      setLabel={regimeCumulative ? `Regime ≥${regimeThreshold * 10}%` : `Regime ${regimeThreshold * 10}-${regimeThreshold * 10 + 10}%`}
                     />
                   </ChartCard>
                 )}
