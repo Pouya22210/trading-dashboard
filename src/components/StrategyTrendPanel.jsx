@@ -119,10 +119,11 @@ export default function StrategyTrendPanel({ trades, inSet, setLabel, loading })
           <Tooltip content={<TrendTooltip setLabel={setLabel} />} cursor={{ stroke: 'rgba(255,255,255,0.15)' }} />
           <ReferenceLine y={0} stroke={GRAY} />
           <Legend wrapperStyle={{ paddingTop: 12 }} formatter={(value) => <span className="text-gray-300 text-xs">{value}</span>} />
-          <Line type="linear" dataKey="sel" name={`${setLabel} · wins − losses`} stroke={CYAN}
-            strokeWidth={2} dot={false} isAnimationActive={false} />
+          {/* Baseline drawn first so the selected (blue) line sits on top of it. */}
           <Line type="linear" dataKey="base" name="All trades · wins − losses" stroke={GRAY}
-            strokeWidth={1.5} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
+            strokeWidth={1} strokeOpacity={0.7} strokeDasharray="3 4" dot={false} isAnimationActive={false} />
+          <Line type="linear" dataKey="sel" name={`${setLabel} · wins − losses`} stroke={CYAN}
+            strokeWidth={3} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
