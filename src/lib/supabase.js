@@ -537,6 +537,9 @@ export const AI_GATE_DEFAULTS = {
   inverse_enabled: false,
   inverse_min: 0,
   inverse_max: 4,
+  // Minimum confidence (0-100) to execute normally, on top of the execute band.
+  // Confidence = the deciding grade's win probability x 100. 0 = off.
+  min_confidence: 0,
   trade_ungraded_channels: false,
   max_grade_wait_sec: 300,
 }
@@ -578,6 +581,11 @@ export function normalizeAiGate(raw) {
     cfg[lo] = Math.min(a, b)
     cfg[hi] = Math.max(a, b)
   }
+
+  const conf = parseInt(src.min_confidence, 10)
+  cfg.min_confidence = Number.isNaN(conf)
+    ? AI_GATE_DEFAULTS.min_confidence
+    : Math.max(0, Math.min(100, conf))
 
   const wait = parseInt(src.max_grade_wait_sec, 10)
   cfg.max_grade_wait_sec = Number.isNaN(wait)

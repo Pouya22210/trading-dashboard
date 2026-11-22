@@ -294,7 +294,18 @@ const GATE_ORANGE = '#fb923c'
 const GATE_RED = '#f87171'
 
 function gradeOutcome(score, cfg) {
-  if (score >= cfg.execute_min && score <= cfg.execute_max) return 'execute'
+  if (score >= cfg.execute_min && score <= cfg.execute_max) {
+    // Grade N covers confidence N*10-5 .. N*10+5 (grade = confidence / 10,
+    // rounded). A floor above the whole bucket blocks it; one inside it
+    // trades only part of it.
+    const floor = cfg.min_confidence || 0
+    if (floor > 0 && score * 10 + 5 <= floor) {
+      return (cfg.inverse_enabled && score >= cfg.inverse_min && score <= cfg.inverse_max)
+        ? 'inverse' : 'blocked'
+    }
+    if (floor > 0 && score * 10 - 5 < floor) return 'partial'
+    return 'execute'
+  }
   if (cfg.inverse_enabled && score >= cfg.inverse_min && score <= cfg.inverse_max) return 'inverse'
   return 'blocked'
 }
@@ -302,8 +313,10 @@ function gradeOutcome(score, cfg) {
 // One cell per grade 0-10 showing exactly what happens to a signal with that
 // score. Makes gaps and overlaps between the two bands obvious at a glance.
 function GradeOutcomeMap({ cfg }) {
-  const colors = { execute: GATE_GREEN, inverse: GATE_ORANGE, blocked: GATE_RED }
-  const labels = { execute: 'Trade', inverse: 'Invert', blocked: 'Block' }
+  const colors = { execute: GATE_GREEN, partial: GATE_GREEN, inverse: GATE_ORANGE, blocked: GATE_RED }
+  const labels = {
+    execute: 'Trade', partial: `≥${cfg.min_confidence}`, inverse: 'Invert', blocked: 'Block',
+  }
   return (
     <div className="grid grid-cols-11 gap-1">
       {Array.from({ length: 11 }, (_, score) => {
@@ -318,7 +331,9 @@ function GradeOutcomeMap({ cfg }) {
               background: `${color}1f`,
               border: `1px solid ${color}59`,
             }}
-            title={`Grade ${score} → ${labels[outcome]}`}
+            title={outcome === 'partial'
+              ? `Grade ${score} → Trade only at confidence ${cfg.min_confidence} or above, else Block`
+              : `Grade ${score} → ${labels[outcome]}`}
           >
             <div className="text-sm font-semibold" style={{ color }}>{score}</div>
             <div className="text-[9px] uppercase tracking-wide" style={{ color }}>
@@ -594,6 +609,50 @@ function AIExecutionTab({ onOpenStrategies }) {
               onChange={checked => patch({ trade_ungraded_channels: checked })}
             />
           </div>
+        </div>
+
+        {/* Minimum confidence */}
+        <div
+          className="p-5 space-y-4"
+          style={{
+            background: 'var(--card-flat)',
+            borderRadius: '20px',
+            border: cfg.min_confidence > 0
+              ? `2px solid ${GATE_GREEN}40`
+              : '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
+          <div>
+            <h4 className="text-sm font-medium text-gray-300">Minimum confidence to execute</h4>
+            <p className="text-xs text-gray-500 mt-1">
+              {cfg.min_confidence > 0 ? (
+                <>
+                  Only signals with confidence <span className="text-gray-200">{cfg.min_confidence} or above</span>{' '}
+                  (and a grade in the execute range) are traded normally. Everything below is blocked.
+                </>
+              ) : (
+                <>Off: every grade in the execute range is traded, whatever its confidence.</>
+              )}
+            </p>
+          </div>
+          <FormField
+            label="Minimum confidence (0-100, 0 = off)"
+            hint="Confidence is the deciding grade's win probability as a percentage, so it is finer than the 0-10 grade (grade 9 covers confidence 85-94). With 'Average of both' it is the average of the providers' confidences. A signal whose confidence is missing is blocked while this is on. The inverted range is not affected."
+          >
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="5"
+              value={cfg.min_confidence}
+              onChange={e => patch({ min_confidence: e.target.value })}
+              onBlur={e => {
+                const n = parseInt(e.target.value, 10)
+                patch({ min_confidence: Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n)) })
+              }}
+              className="w-40"
+            />
+          </FormField>
         </div>
       </div>
 
