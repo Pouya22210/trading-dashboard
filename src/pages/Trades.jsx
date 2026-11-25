@@ -683,6 +683,10 @@ const kronosPct = (t) => `${t * 5}%`
 // slider. Module-level so the panel's memos stay stable across renders.
 const REGIME_LEVELS = Array.from({ length: 10 }, (_, t) => ({ t, label: `≥${t * 10}%` }))
 const regimeAllowedAt = (tr, t) => tr.pass === true && Math.min(9, Math.floor(tr.score * 10)) >= t
+// Band mode (Cumulative OFF): only the 10% band t, so the drawdown card
+// matches the per-band bars of the Confidence vs Outcome chart.
+const REGIME_BAND_LEVELS = Array.from({ length: 10 }, (_, t) => ({ t, label: `${t * 10}-${t * 10 + 10}%` }))
+const regimeAllowedInBand = (tr, t) => tr.pass === true && Math.min(9, Math.floor(tr.score * 10)) === t
 const KRONOS_LEVELS = Array.from({ length: KRONOS_BUCKETS }, (_, t) => ({ t, label: `≥${kronosPct(t)}` }))
 const kronosAllowedAt = (tr, t) => Math.min(KRONOS_BUCKETS - 1, Math.floor(tr.score * 20)) >= t
 // AI grader slider value t = avoid 0-t / take (10-t)-10; "allowed" = take band.
@@ -4134,11 +4138,17 @@ export default function Trades() {
                     state, so moving either one moves both. */}
                 {gradeStrategy === 'regime' && (
                   <ChartCard title="Market Regime · Max Drawdown & Channel Ranking" icon={TrendingDown}>
+                    <div className="text-[11px] text-gray-400 mb-3">
+                      {regimeCumulative
+                        ? <>Cumulative ON: each level counts trades the regime would allow at confidence <span className="text-gray-200">≥ X%</span>.</>
+                        : <>Cumulative OFF: each level counts only allowed trades in that <span className="text-gray-200">10% confidence band</span>, same as the bars above.</>}
+                      {' '}Follows the Cumulative toggle on the Confidence vs Outcome card.
+                    </div>
                     <StreakRankingPanel
                       trades={strategyTrades}
                       loading={strategyTradesLoading}
-                      levels={REGIME_LEVELS}
-                      allowed={regimeAllowedAt}
+                      levels={regimeCumulative ? REGIME_LEVELS : REGIME_BAND_LEVELS}
+                      allowed={regimeCumulative ? regimeAllowedAt : regimeAllowedInBand}
                       selected={regimeThreshold}
                       onSelect={setRegimeThreshold}
                       levelName="Min confidence"
